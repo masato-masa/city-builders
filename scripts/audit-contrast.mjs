@@ -6,9 +6,10 @@
 
 import sharp from 'sharp';
 
-const FIELD = 'src/assets/art/field.png';
+const FIELD = 'src/assets/art/field.webp';
 
-/** 所有者の土台の色。styles.css の :root と一致させること。 */
+/** 所有者の土台の色。styles.css の --owner-* と手動で揃えている値なので、
+ *  --owner-you / --owner-cpu を変えたらここも合わせて直すこと。 */
 const OWNERS = [
   ['自分', '#2a72ba'],
   ['CPU', '#a8441a'],
@@ -24,8 +25,10 @@ const luminance = ([r, g, b]) => {
   return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
 };
 
-// 盤面を粗く刻んで、明るい側と暗い側の代表色を取る
-const raw = await sharp(FIELD).resize(16, 16, { fit: 'cover' }).raw().toBuffer();
+// 盤面を粗く刻んで、明るい側と暗い側の代表色を取る。
+// removeAlpha() が無いとアルファ付き画像で 1px 4 バイトになり、
+// 3 バイト固定の index がずれて無言で間違った色を拾う。
+const raw = await sharp(FIELD).removeAlpha().resize(16, 16, { fit: 'cover' }).raw().toBuffer();
 const px = [];
 for (let i = 0; i < 256; i++) px.push([raw[i * 3], raw[i * 3 + 1], raw[i * 3 + 2]]);
 px.sort((a, b) => luminance(a) - luminance(b));
