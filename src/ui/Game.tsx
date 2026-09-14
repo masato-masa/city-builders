@@ -85,7 +85,7 @@ export function Game({
     handOf(state, 'you', balance).some((c) => canUseRoad(state, c, balance));
 
   return (
-    <div className="app">
+    <div className="app app-play">
       <header className="header">
         <div className="header-row">
           <div className="header-left">

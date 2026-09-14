@@ -21,6 +21,15 @@
   --owner-cpu-ink: #3a1608;
 }
 
+/* プレイ画面だけ、画面の高さちょうどに固定する。
+   shared-ui の .app は min-height: 100dvh で上限が無いため、背の低い画面では
+   コンテンツの自然高さまで伸びてしまい、盤面を縮めるフレックスの連鎖が働かない。
+   ホーム画面は .app-home なので影響しない。 */
+.app.app-play {
+  height: 100dvh;
+  overflow: hidden;
+}
+
 /* shared-ui の .play は全要素をひと塊にして縦中央へ寄せる。
    パズルには正しいが、手札を下端に固定したいカードゲームには合わない。
    .play を直接編集できない（4 本共通の生成物）ので、中にこの器を 1 枚入れて
@@ -41,6 +50,9 @@
   display: grid;
   place-items: center;
   padding: 8px 0;
+  /* 盤面が高さも見て縮めるように、ここを問い合わせ対象にする。
+     .app-play の height: 100dvh で高さが確定しているので cqh が解決できる。 */
+  container-type: size;
 }
 
 .opponent {
@@ -83,6 +95,7 @@
 .board {
   position: relative;
   width: 100%;
+  width: min(100%, 75cqh);
   aspect-ratio: 3 / 4;
   max-height: 100%;
   border-radius: var(--card-radius);
