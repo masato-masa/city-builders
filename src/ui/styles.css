@@ -41,6 +41,8 @@
   display: grid;
   place-items: center;
   padding: 8px 0;
+  /* 盤面の大きさを、この器の幅と高さの両方から決めるために必要 */
+  container-type: size;
 }
 
 .opponent {
@@ -75,14 +77,14 @@
   background: var(--owner-cpu);
 }
 
-/* 盤面。縦横比を固定した器の中に、区画を割合で絶対配置する。
-   建っても壊れてもレイアウトは 1px も動かない。 */
+/* 盤面。器に収まる最大の 3:4 にする。
+   幅で決まるか高さで決まるかは min() が選ぶ。
+   height を直接指定すると aspect-ratio が高さ起点になり、max-height が
+   効かなくなって縦長の器で比が崩れる(実測: 400x1400 で 0.38)。 */
 .board {
   position: relative;
-  height: 100%;
+  width: min(100cqw, 75cqh);
   aspect-ratio: 3 / 4;
-  max-width: 100%;
-  max-height: 100%;
   border-radius: var(--card-radius);
   overflow: hidden;
 }
