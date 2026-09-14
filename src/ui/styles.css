@@ -15,9 +15,9 @@
   --coin: #ffc83d;
   --coin-ink: #4a3300;
 
-  --owner-you: #2f7fd0;
+  --owner-you: #2a72ba;
   --owner-you-ink: #04203f;
-  --owner-cpu: #d2622a;
+  --owner-cpu: #a8441a;
   --owner-cpu-ink: #3a1608;
 }
 
@@ -126,7 +126,7 @@
   width: 78%;
   height: 26%;
   border-radius: 50%;
-  border: 2px solid rgb(0 0 0 / 0.35);
+  border: 3px solid rgb(0 0 0 / 0.55);
 }
 
 .plot-base.owner-you {
