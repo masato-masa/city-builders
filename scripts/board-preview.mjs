@@ -13,7 +13,7 @@ import sharp from 'sharp';
 const W = 786;
 const H = 1048;
 
-const FIELD = 'refs/art/field-trial.png';
+const FIELD = process.env.FIELD || 'refs/art/field-trial.png';
 const BUILDINGS = [
   'refs/art/fortress-trial2.png',
   'refs/art/tradinghouse-trial.png',
