@@ -821,11 +821,30 @@ export function Board({
 }
 ```
 
-`:root` に 2 つ足す（Task 8 で色域全体を整えるが、ここで先に必要）。
+既存の `:root` ブロック（`--owner-*` の 4 つだけを持つもの）を丸ごと次に差し替える。
+**Task 6・7 の CSS がこれらの変数を参照するので、ここで全部そろえておく。**
 
 ```css
+/* このゲーム専用の色域。盤面の色は共通化しない（CLAUDE.md）。
+   ヘッダー・シート・ホームは shared-ui のまま。
+   盤面が暖色（平均 #9e965c）なので、UI の地は寒色で暗くして離す。 */
+:root {
+  --chrome: #1e2a33;
+  --chrome-2: #16202a;
+  --chrome-ink: #e8eef3;
+  --chrome-ink-dim: #93a6b4;
+
+  --card-face: #2b3d4a;
+  --card-edge: #5d7a8c;
+
   --coin: #ffc83d;
   --coin-ink: #4a3300;
+
+  --owner-you: #2f7fd0;
+  --owner-you-ink: #04203f;
+  --owner-cpu: #d2622a;
+  --owner-cpu-ink: #3a1608;
+}
 ```
 
 - [ ] **Step 3: `Game.tsx` を Board に差し替える**
@@ -1191,7 +1210,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ---
 
-## Task 8: 色域と質感
+## Task 8: 相手エリアと質感
 
 **Files:**
 - Modify: `src/ui/OpponentStrip.tsx`, `src/ui/styles.css`
@@ -1203,34 +1222,9 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 盤面が暖色（平均 `#9e965c`）なので、UI の地は寒色で暗くして離す。
 
-- [ ] **Step 1: `styles.css` の `:root` を差し替える**
+> 色トークン（`:root`）は Task 5 で入れ終えている。ここでは触らない。
 
-既存の `:root` ブロック（`--owner-*` と `--coin*`）を丸ごと次にする。
-
-```css
-/* このゲーム専用の色域。盤面の色は共通化しない（CLAUDE.md）。
-   ヘッダー・シート・ホームは shared-ui のまま。
-   盤面が暖色（平均 #9e965c）なので、UI の地は寒色で暗くして離す。 */
-:root {
-  --chrome: #1e2a33;
-  --chrome-2: #16202a;
-  --chrome-ink: #e8eef3;
-  --chrome-ink-dim: #93a6b4;
-
-  --card-face: #2b3d4a;
-  --card-edge: #5d7a8c;
-
-  --coin: #ffc83d;
-  --coin-ink: #4a3300;
-
-  --owner-you: #2f7fd0;
-  --owner-you-ink: #04203f;
-  --owner-cpu: #d2622a;
-  --owner-cpu-ink: #3a1608;
-}
-```
-
-- [ ] **Step 2: 相手エリアを作り替える**
+- [ ] **Step 1: 相手エリアを作り替える**
 
 `OpponentStrip.tsx` を丸ごと次にする。
 
@@ -1251,7 +1245,7 @@ export function OpponentStrip({ state }: { state: GameState }) {
 }
 ```
 
-- [ ] **Step 3: `styles.css` の相手エリアを差し替える**
+- [ ] **Step 2: `styles.css` の相手エリアを差し替える**
 
 `.opponent` `.opponent-badge` `.opponent-owned` `.owned-dot` の 4 つを削除し、次に差し替える。
 
@@ -1290,7 +1284,7 @@ export function OpponentStrip({ state }: { state: GameState }) {
 }
 ```
 
-- [ ] **Step 4: 質感を足す**
+- [ ] **Step 3: 質感を足す**
 
 `styles.css` の末尾に足す。**寸法を変える指定は入れない。**
 
@@ -1331,7 +1325,7 @@ export function OpponentStrip({ state }: { state: GameState }) {
 }
 ```
 
-- [ ] **Step 5: ブラウザで確かめる**
+- [ ] **Step 4: ブラウザで確かめる**
 
 Run: `npm run dev`
 
@@ -1343,11 +1337,11 @@ Run: `npm run dev`
 
 Run: `npm run build` / `npm test`
 
-- [ ] **Step 6: コミット**
+- [ ] **Step 5: コミット**
 
 ```bash
 git add -A
-git commit -m "feat: このゲーム専用の色域と立体感を入れる
+git commit -m "feat: 相手エリアを整え、立体感を入れる
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
