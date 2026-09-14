@@ -135,6 +135,15 @@
   background: #b8a8a1;
 }
 
+/* cqh を解決できないブラウザ（iOS 16 未満の Safari など）では
+   上の min() ごと無効になるので、高さ起点で縮むようにしておく。 */
+@supports not (height: 1cqh) {
+  .board {
+    width: auto;
+    height: 100%;
+  }
+}
+
 .board-field {
   position: absolute;
   inset: 0;
