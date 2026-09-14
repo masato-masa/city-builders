@@ -2369,18 +2369,22 @@ Expected: FAIL（`@/ai/evaluate` が解決できない）
 
 ```ts
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
-import { countBuilding, opponentOf, ownedSlots, scoreOf } from '@/game/selectors';
+import { countBuilding, handOf, opponentOf, ownedSlots, scoreOf } from '@/game/selectors';
 import type { GameState, PlayerId } from '@/game/types';
 
 /** 重み。ハードな条件分岐ではなく、ここの重みで振る舞いを決める。 */
 const W = {
   vp: 10,
   coin: 1,
+  /** 相手の手持ちコイン。奪えば相手の購買力が落ちるので、マイナスに効く */
+  opponentCoin: -0.8,
   pendingIncome: 1.2,
   incomePerTurn: 3,
   opponentVp: -8,
   /** 相手が次のターンに買えてしまう物件の価値 */
   threat: -0.6,
+  /** 手札のうち、いま払えないカードの枚数 */
+  stuck: -1.5,
 };
 
 /** 残りターンの多さ。序盤は収入を、終盤は VP を重く見るための係数。 */
@@ -2409,10 +2413,17 @@ export function evaluateState(
     }
   }
 
+  // 手札のうち、いま払えないカードの枚数。詰まっているほど打てる手が無い
+  const stuck = handOf(state, player, balance).filter(
+    (c) => p.coins < balance.cards[c].cost,
+  ).length;
+
   return (
     scoreOf(state, player, balance) * W.vp * (0.5 + late) +
     scoreOf(state, foe, balance) * W.opponentVp * (0.5 + late) +
     p.coins * W.coin +
+    state.players[foe].coins * W.opponentCoin +
+    stuck * W.stuck +
     p.pendingIncome.length * W.pendingIncome * 4 +
     incomePerTurn * W.incomePerTurn * (1 - late) +
     ownedSlots(state, player).length * 2 +
@@ -2434,7 +2445,7 @@ import { evaluateState } from './evaluate';
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
 /** 難易度ごとの揺らぎ。easy ほど評価をぶらして弱くする。 */
-const NOISE: Record<Difficulty, number> = { easy: 14, normal: 3, hard: 0 };
+const NOISE: Record<Difficulty, number> = { easy: 45, normal: 3, hard: 0 };
 
 /** 妨害カードを検討する確率。easy は妨害をあまり撃たない。 */
 const HARASS_RATE: Record<Difficulty, number> = { easy: 0.25, normal: 0.8, hard: 1 };
@@ -2543,6 +2554,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
  * 数値を触ったら毎回走らせること。過去の測定結果は実装を変えたら古くなる。 */
 import { playTurn, type Difficulty } from '../src/ai/choose';
 import { DEFAULT_BALANCE } from '../src/game/balance';
+import { reduce } from '../src/game/reducer';
 import { createRng } from '../src/game/rng';
 import { winnerOf } from '../src/game/selectors';
 import { createGame } from '../src/game/setup';
@@ -2569,9 +2581,12 @@ function runOne(seed: number, difficulty: Difficulty): Result {
 
   while (g.phase === 'playing' && totalTurns < 200) {
     const before = g;
+    // 詰まりは「行動フェーズに入った時点」で測る。開始フェーズの収入が入る前に測ると、
+    // 貪欲な AI が前のターンに使い切った直後の残高を見ることになり、実態よりはるかに高く出る。
+    const atAction = reduce(before, { type: 'startTurn' }, DEFAULT_BALANCE);
     g = playTurn(g, difficulty, rng, DEFAULT_BALANCE);
     totalTurns++;
-    const p = before.players[before.current];
+    const p = atAction.players[atAction.current];
     const hand = p.deck.slice(0, DEFAULT_BALANCE.handSize);
     const unaffordable = hand.filter((c) => p.coins < DEFAULT_BALANCE.cards[c].cost).length;
     if (unaffordable >= 3) stuckTurns++;
