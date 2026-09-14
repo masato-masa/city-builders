@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAction, optionsFor, playTurn } from '@/ai/choose';
 import { DEFAULT_WEIGHTS, evaluateState } from '@/ai/evaluate';
 import { DEFAULT_BALANCE } from '@/game/balance';
-import { countBuilding, handOf, opponentOf, ownedSlots, scoreOf } from '@/game/selectors';
+import { handOf, scoreOf } from '@/game/selectors';
 import { legalActions, reduce } from '@/game/reducer';
 import { createRng } from '@/game/rng';
 import { createGame } from '@/game/setup';
@@ -29,66 +29,89 @@ describe('評価関数', () => {
 });
 
 describe('重み付き評価関数', () => {
-  // 重み付き化する前の評価関数をそのまま再現したもの。opponentStuck の項だけ無い。
-  function legacyEvaluateState(state: ReturnType<typeof createGame>, player: 'you' | 'cpu') {
-    const balance = DEFAULT_BALANCE;
-    const foe = opponentOf(player);
-    const p = state.players[player];
-    const late = Math.min(1, state.turn / (balance.maxTurnsPerPlayer * 2));
-
-    const incomePerTurn =
-      balance.baseIncome +
-      countBuilding(state, player, 'tradingHouse') * balance.tradingHouseIncome;
-
-    let threat = 0;
-    for (const slot of state.market) {
-      if (slot.owner !== null) continue;
-      const cost = balance.buildings[slot.buildingId].cost;
-      if (state.players[foe].coins >= cost) {
-        threat += balance.buildings[slot.buildingId].vp;
-      }
-    }
-
-    const stuck = handOf(state, player, balance).filter(
-      (c) => p.coins < balance.cards[c].cost,
-    ).length;
-
-    return (
-      scoreOf(state, player, balance) * DEFAULT_WEIGHTS.vp * (0.5 + late) +
-      scoreOf(state, foe, balance) * DEFAULT_WEIGHTS.opponentVp * (0.5 + late) +
-      p.coins * DEFAULT_WEIGHTS.coin +
-      state.players[foe].coins * DEFAULT_WEIGHTS.opponentCoin +
-      stuck * DEFAULT_WEIGHTS.stuck +
-      p.pendingIncome.length * DEFAULT_WEIGHTS.pendingIncome * 4 +
-      incomePerTurn * DEFAULT_WEIGHTS.incomePerTurn * (1 - late) +
-      ownedSlots(state, player).length * 2 +
-      threat * DEFAULT_WEIGHTS.threat * (1 - late)
-    );
-  }
-
-  it('既定の重みで呼んだ結果は、opponentStuck の項を除けば変更前と完全に一致する', () => {
-    for (let seed = 0; seed < 20; seed++) {
-      let g = createGame(seed);
-      const rng = createRng(seed + 500);
-      for (let i = 0; i < 5 && g.phase === 'playing'; i++) {
-        g = playTurn(g, 'normal', rng, DEFAULT_BALANCE);
-      }
-      for (const player of ['you', 'cpu'] as const) {
-        const foe = opponentOf(player);
-        const opponentStuckCount = handOf(g, foe, DEFAULT_BALANCE).filter(
-          (c) => g.players[foe].coins < DEFAULT_BALANCE.cards[c].cost,
-        ).length;
-        const withDefaults = evaluateState(g, player, DEFAULT_BALANCE, DEFAULT_WEIGHTS);
-        const opponentStuckTerm = opponentStuckCount * DEFAULT_WEIGHTS.opponentStuck;
-        expect(withDefaults - opponentStuckTerm).toBeCloseTo(legacyEvaluateState(g, player), 9);
-      }
-    }
-  });
+  // カードの入れ替えで評価式そのものを作り直した（threat を廃止し reach 系の項を足した）ので、
+  // 「作り替え前の式と完全一致するか」を確かめていた旧テストはもう成立しない。
+  // 代わりに、新しく足した項それぞれが狙いどおりの向きに効くかを 1 つずつ確かめる。
 
   it('weights を省略しても DEFAULT_WEIGHTS を使う', () => {
     const g = createGame(3);
     expect(evaluateState(g, 'you', DEFAULT_BALANCE)).toBe(
       evaluateState(g, 'you', DEFAULT_BALANCE, DEFAULT_WEIGHTS),
+    );
+  });
+
+  it('reach: いま買える区画があるほうが評価が高い', () => {
+    const cheapest = Object.values(DEFAULT_BALANCE.buildings).reduce((a, b) =>
+      a.cost < b.cost ? a : b,
+    );
+    const affordable = createGame(3);
+    affordable.players.you.coins = cheapest.cost;
+    const notAffordable = createGame(3);
+    notAffordable.players.you.coins = cheapest.cost - 1;
+    expect(evaluateState(affordable, 'you', DEFAULT_BALANCE)).toBeGreaterThan(
+      evaluateState(notAffordable, 'you', DEFAULT_BALANCE),
+    );
+  });
+
+  it('opponentReach: 相手がいま買える区画があるほうが評価が低い', () => {
+    const cheapest = Object.values(DEFAULT_BALANCE.buildings).reduce((a, b) =>
+      a.cost < b.cost ? a : b,
+    );
+    const foeAffordable = createGame(3);
+    foeAffordable.players.cpu.coins = cheapest.cost;
+    const foeNotAffordable = createGame(3);
+    foeNotAffordable.players.cpu.coins = cheapest.cost - 1;
+    expect(evaluateState(foeAffordable, 'you', DEFAULT_BALANCE)).toBeLessThan(
+      evaluateState(foeNotAffordable, 'you', DEFAULT_BALANCE),
+    );
+  });
+
+  it('opponentIncome: 相手の 1 ターン収入が高いほど評価が低い', () => {
+    const g = createGame(3);
+    g.market.filter((s) => s.buildingId === 'tradingHouse').forEach((s) => (s.owner = 'cpu'));
+    const noHouses = createGame(3);
+    expect(evaluateState(g, 'you', DEFAULT_BALANCE)).toBeLessThan(
+      evaluateState(noHouses, 'you', DEFAULT_BALANCE),
+    );
+  });
+
+  it('debt: 自分に高利貸の借りが残っているほど評価が低い', () => {
+    const indebted = createGame(3);
+    indebted.players.you.pendingDebt = DEFAULT_BALANCE.usurerDebt;
+    const clean = createGame(3);
+    expect(evaluateState(indebted, 'you', DEFAULT_BALANCE)).toBeLessThan(
+      evaluateState(clean, 'you', DEFAULT_BALANCE),
+    );
+  });
+
+  it('guarded: 衛兵が張れていて、かつ守るものが多いほど評価が高い', () => {
+    const guardedRich = createGame(3);
+    guardedRich.players.you.guarded = true;
+    guardedRich.players.you.coins = 30;
+    const unguardedRich = createGame(3);
+    unguardedRich.players.you.guarded = false;
+    unguardedRich.players.you.coins = 30;
+    expect(evaluateState(guardedRich, 'you', DEFAULT_BALANCE)).toBeGreaterThan(
+      evaluateState(unguardedRich, 'you', DEFAULT_BALANCE),
+    );
+  });
+
+  it('opponentBound: 相手が買収者を受けているほうが評価が高い', () => {
+    const bound = createGame(3);
+    bound.players.cpu.boundCard = 'miner';
+    const notBound = createGame(3);
+    expect(evaluateState(bound, 'you', DEFAULT_BALANCE)).toBeGreaterThan(
+      evaluateState(notBound, 'you', DEFAULT_BALANCE),
+    );
+  });
+
+  it('stuck: 買収者に縛られたカードがあると評価が低い', () => {
+    const g = createGame(3);
+    g.players.you.coins = 100;
+    const bound = structuredClone(g);
+    bound.players.you.boundCard = handOf(g, 'you', DEFAULT_BALANCE)[0]!;
+    expect(evaluateState(bound, 'you', DEFAULT_BALANCE)).toBeLessThan(
+      evaluateState(g, 'you', DEFAULT_BALANCE),
     );
   });
 });

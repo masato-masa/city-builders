@@ -78,3 +78,51 @@ export function scoreOf(
 ): number {
   return ownedSlots(state, player).reduce((n, slot) => n + vpOfSlot(state, slot, balance), 0);
 }
+
+/** いま実際に払える未建設の区画のうち、いちばん VP が高いものの VP。
+ *  建築家の割引（buildDiscount）と、封鎖者に指定されている区画（blockedSlot）を
+ *  考慮する。買えるものが 1 つも無ければ 0。 */
+export function reachOf(
+  state: GameState,
+  player: PlayerId,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
+  const p = state.players[player];
+  let best = 0;
+  for (const slot of state.market) {
+    if (slot.owner !== null) continue;
+    if (p.blockedSlot === slot.slotId) continue;
+    const cost = Math.max(0, balance.buildings[slot.buildingId].cost - p.buildDiscount);
+    if (p.coins < cost) continue;
+    const vp = balance.buildings[slot.buildingId].vp;
+    if (vp > best) best = vp;
+  }
+  return best;
+}
+
+/** 1 ターンあたりの見込み収入。商館の毎ターン収入と、城塞の通行料の期待値
+ *  （相手が残りの区画の半分を建てるという見込み）を織り込む。封鎖者で止まって
+ *  いる物件は activeOwnedSlots が除外するのでここには含まれない。
+ *  祝祭が queued か active なら、ここまでの値をまとめて festivalMultiplier 倍し、
+ *  さらに festivalIncomeBonus を足す。 */
+export function incomePerTurnOf(
+  state: GameState,
+  player: PlayerId,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
+  const p = state.players[player];
+  const active = activeOwnedSlots(state, player);
+  const houseCount = active.filter((s) => s.buildingId === 'tradingHouse').length;
+  const fortressCount = active.filter((s) => s.buildingId === 'fortress').length;
+  const unbuiltCount = state.market.filter((s) => s.owner === null).length;
+
+  let income =
+    balance.baseIncome +
+    houseCount * balance.tradingHouseIncome +
+    fortressCount * balance.fortressToll * (unbuiltCount / 2);
+
+  if (p.festivalQueued || p.festivalActive) {
+    income = income * balance.festivalMultiplier + balance.festivalIncomeBonus;
+  }
+  return income;
+}
