@@ -1,11 +1,24 @@
 /* シティビルダーズ固有の見た目。共通部分は shared/ にある。 */
 
-/* 所有者の色。盤面の色は共通化しない。相対輝度を十分に離す。 */
+/* このゲーム専用の色域。盤面の色は共通化しない（CLAUDE.md）。
+   ヘッダー・シート・ホームは shared-ui のまま。
+   盤面が暖色（平均 #9e965c）なので、UI の地は寒色で暗くして離す。 */
 :root {
-  --owner-you: #85b7eb;
-  --owner-you-ink: #042c53;
-  --owner-cpu: #f0997b;
-  --owner-cpu-ink: #4a1b0c;
+  --chrome: #1e2a33;
+  --chrome-2: #16202a;
+  --chrome-ink: #e8eef3;
+  --chrome-ink-dim: #93a6b4;
+
+  --card-face: #2b3d4a;
+  --card-edge: #5d7a8c;
+
+  --coin: #ffc83d;
+  --coin-ink: #4a3300;
+
+  --owner-you: #2f7fd0;
+  --owner-you-ink: #04203f;
+  --owner-cpu: #d2622a;
+  --owner-cpu-ink: #3a1608;
 }
 
 /* shared-ui の .play は全要素をひと塊にして縦中央へ寄せる。
@@ -62,45 +75,121 @@
   background: var(--owner-cpu);
 }
 
-/* 盤面は操作で 1px も動かないこと。行と列を両方明示する。 */
-.market {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  gap: var(--gap);
-  padding: 0 var(--pad);
+/* 盤面。縦横比を固定した器の中に、区画を割合で絶対配置する。
+   建っても壊れてもレイアウトは 1px も動かない。 */
+.board {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 3 / 4;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--card-radius);
+  overflow: hidden;
 }
 
-.slot {
+.board-field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* 区画。中心を座標に合わせる。高さは幅と同じで、建物はここから上へ伸びる。 */
+.plot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  aspect-ratio: 1 / 1;
   min-width: 0;
   min-height: 0;
-  aspect-ratio: 3 / 4;
-  border: 1px solid var(--line);
-  border-radius: var(--cell-radius);
-  background: var(--surface);
+  padding: 0;
+  border: none;
+  background: none;
   display: grid;
-  place-content: center;
-  gap: 2px;
-  font-size: 11px;
-  color: var(--title);
+  place-items: center;
 }
 
-.slot.owned-you {
-  background: var(--owner-you);
-  color: var(--owner-you-ink);
-  border-color: transparent;
-}
-
-.slot.owned-cpu {
-  background: var(--owner-cpu);
-  color: var(--owner-cpu-ink);
-  border-color: transparent;
-}
-
-/* 封鎖中の枠。押せない理由が分かるように沈める。
-   枠線の太さやパディングは変えない（1px も動かさないため）。 */
-.slot.is-blocked {
+.plot.is-blocked {
   opacity: 0.4;
+}
+
+/* 所有者の土台。建物そのものには色を被せない(素材が濁るため)。 */
+.plot-base {
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  transform: translateX(-50%);
+  width: 78%;
+  height: 26%;
+  border-radius: 50%;
+  border: 2px solid rgb(0 0 0 / 0.35);
+}
+
+.plot-base.owner-you {
+  background: var(--owner-you);
+}
+
+.plot-base.owner-cpu {
+  background: var(--owner-cpu);
+}
+
+/* 建物の素材。足元を基準に置き、上へ伸びる。 */
+.plot-art {
+  position: absolute;
+  left: 50%;
+  bottom: 12%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* 空き地。まだ建っていない区画 */
+.plot-empty,
+.plot-noart {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.45);
+  color: #f2ece0;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* 建設費。空き地に金色で出る */
+.plot-cost {
+  position: absolute;
+  left: 50%;
+  bottom: -4%;
+  transform: translateX(-50%);
+  min-width: 24px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: var(--coin);
+  color: var(--coin-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* VP。建った区画で、建設費と同じ場所に出る */
+.plot-vp {
+  position: absolute;
+  left: 50%;
+  bottom: -4%;
+  transform: translateX(-50%);
+  min-width: 24px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.6);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .coinbar {

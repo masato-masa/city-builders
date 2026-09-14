@@ -9,9 +9,9 @@ import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 import { loadProgress, saveProgress } from '@/storage/storage';
 
+import { Board } from './Board';
 import { CoinBar } from './CoinBar';
 import { Hand } from './Hand';
-import { Market } from './Market';
 import { OpponentStrip } from './OpponentStrip';
 import { Sheet } from './Sheets';
 
@@ -112,7 +112,7 @@ export function Game({
         <div className="board-shell">
           <OpponentStrip state={state} />
           <div className="board-area">
-            <Market
+            <Board
               state={state}
               balance={balance}
               onPick={(slotId) => setSheet({ kind: 'slot', slotId })}
