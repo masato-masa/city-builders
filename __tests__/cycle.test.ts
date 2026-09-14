@@ -49,12 +49,15 @@ describe('循環', () => {
     expect(handOf(after, 'you')).toEqual(['miner', 'merchant', 'architect', 'spy']);
   });
 
-  it('8 枚すべて使うと循環位置が元に戻る', () => {
+  it('8 枚すべて使うと、伝令のぶん 1 つずれて一周する', () => {
     let g = fixture(ORDER, 200);
     for (const card of ORDER) {
+      // 伝令の番（手札は herald / taxman / blockader / miner）では miner が妥当な対象になる
       g = reduce(g, { type: 'useCard', card, heraldTarget: 'miner', blockadeSlot: 0 }, DEFAULT_BALANCE);
     }
-    expect(handOf(g, 'you')).toEqual(ORDER.slice(0, 4));
+    // 8 枚ぶんの移動に加えて、伝令が対象をもう 1 枚底へ送るので合計 9 歩進む。
+    // デッキは 8 枚なので、ちょうど 1 つぶんずれた位置になる。
+    expect(handOf(g, 'you')).toEqual(ORDER.slice(1, 5));
   });
 
   it('同じカードは 1 ターンに 1 回しか使えない', () => {
@@ -62,9 +65,9 @@ describe('循環', () => {
     for (const card of ORDER) {
       g = reduce(g, { type: 'useCard', card, heraldTarget: 'miner', blockadeSlot: 0 }, DEFAULT_BALANCE);
     }
-    // 一巡して miner が手札に戻っているが、このターンは使えない
-    expect(handOf(g, 'you')).toContain('miner');
-    expect(canUseCard(g, 'miner', DEFAULT_BALANCE)).toBe(false);
+    // 一巡して商人が手札に戻っているが、このターンはもう使えない
+    expect(handOf(g, 'you')).toContain('merchant');
+    expect(canUseCard(g, 'merchant', DEFAULT_BALANCE)).toBe(false);
   });
 
   it('手札に無いカードは使えない', () => {
