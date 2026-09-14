@@ -8,6 +8,28 @@
   --owner-cpu-ink: #4a1b0c;
 }
 
+/* shared-ui の .play は全要素をひと塊にして縦中央へ寄せる。
+   パズルには正しいが、手札を下端に固定したいカードゲームには合わない。
+   .play を直接編集できない（4 本共通の生成物）ので、中にこの器を 1 枚入れて
+   領域を占めさせ、縦の配分はここで決める。 */
+.board-shell {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* 盤面は余った縦を全部もらう。中で縦横比を保って収まる。 */
+.board-area {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 8px 0;
+}
+
 .opponent {
   display: flex;
   align-items: center;
