@@ -43,7 +43,12 @@ export function canUseCard(
   if (!handOf(state, player, balance).includes(card)) return false;
   if (p.usedThisTurn.includes(card)) return false;
   if (p.boundCard === card) return false;
-  return p.coins >= cardCostFor(state, player, card, balance);
+  const cost = cardCostFor(state, player, card, balance);
+  // コスト 0 のカード（高利貸）は、コインがマイナスのときでも必ず打てる。
+  // 高利貸は「使える札が 1 枚も無い」を構造的に潰すための札なので、
+  // 借金でマイナスの間だけ払えなくなる、ということが起きてはいけない。
+  if (cost <= 0) return true;
+  return p.coins >= cost;
 }
 
 /** カードをデッキの最後尾へ回す。手札は deck の先頭なので、これだけで補充される。 */
