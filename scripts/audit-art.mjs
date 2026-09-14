@@ -37,10 +37,10 @@ async function measure(path) {
   return { w, h, ratio: h / w, area: opaque * 4 };
 }
 
-const files = readdirSync(DIR).filter((f) => f.endsWith('.png')).sort();
+const files = readdirSync(DIR).filter((f) => f.endsWith('.webp')).sort();
 const rows = [];
 for (const f of files) {
-  rows.push({ name: f.replace('.png', ''), ...(await measure(join(DIR, f))) });
+  rows.push({ name: f.replace('.webp', ''), ...(await measure(join(DIR, f))) });
 }
 
 const base = rows.find((r) => r.name === 'fortress') ?? rows[0];

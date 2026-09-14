@@ -1,8 +1,8 @@
 import type { BuildingId } from '@/game/types';
 
-import fieldUrl from '@/assets/art/field.png';
-import fortressUrl from '@/assets/art/buildings/fortress.png';
-import tradingHouseUrl from '@/assets/art/buildings/tradingHouse.png';
+import fieldUrl from '@/assets/art/field.webp';
+import fortressUrl from '@/assets/art/buildings/fortress.webp';
+import tradingHouseUrl from '@/assets/art/buildings/tradingHouse.webp';
 
 /** 盤面の地。縦横比 1:1.5 なので、3:4 の枠に object-fit: cover で収める。 */
 export const FIELD_URL: string = fieldUrl;

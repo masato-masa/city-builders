@@ -130,6 +130,9 @@
   max-height: 100%;
   border-radius: var(--card-radius);
   overflow: hidden;
+  /* 素材が届くまでの一瞬、区画がクリーム地に浮かないようにする。
+     field の平均色（実測 #b8a8a1）に合わせた。 */
+  background: #b8a8a1;
 }
 
 .board-field {
