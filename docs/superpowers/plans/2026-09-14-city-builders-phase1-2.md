@@ -2924,7 +2924,9 @@ export function Market({
     <div className="market">
       {state.market.map((slot) => {
         const owned = slot.owner !== null;
-        const cls = owned ? `slot owned-${slot.owner}` : 'slot';
+        // 封鎖中は建てられないので、押せない理由が見えるように区別する
+        const blocked = !owned && state.players.you.blockedSlot === slot.slotId;
+        const cls = owned ? `slot owned-${slot.owner}` : blocked ? 'slot is-blocked' : 'slot';
         return (
           <button key={slot.slotId} className={cls} onClick={() => onPick(slot.slotId)}>
             <span className="slot-name">{BUILDING_NAMES[slot.buildingId]}</span>
@@ -3188,6 +3190,11 @@ export function Game({
                 onClose={() => setSheet(null)}
               >
                 <p className="sheet-text">{BUILDING_TEXTS[slot.buildingId]}</p>
+                {slot.owner === null && state.players.you.blockedSlot === sheet.slotId ? (
+                  <p className="sheet-text">
+                    相手の封鎖者に封鎖されています。次のターンまで建てられません。
+                  </p>
+                ) : null}
                 <button
                   className="home-btn primary"
                   disabled={!canBuild(state, sheet.slotId, balance)}
@@ -3409,6 +3416,12 @@ export function Game({
   border-color: transparent;
 }
 
+/* 封鎖中の枠。押せない理由が分かるように沈める。
+   枠線の太さやパディングは変えない（1px も動かさないため）。 */
+.slot.is-blocked {
+  opacity: 0.4;
+}
+
 .coinbar {
   display: flex;
   align-items: center;
@@ -3464,6 +3477,7 @@ export function Game({
 .hand {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
@@ -3471,6 +3485,7 @@ export function Game({
 
 .card {
   min-width: 0;
+  min-height: 0;
   height: 62px;
   border: 1px solid var(--line);
   border-radius: var(--cell-radius);
