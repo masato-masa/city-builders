@@ -10,6 +10,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "simulate": "tsx scripts/simulate.ts",
+    "audit-art": "node scripts/audit-art.mjs",
     "deploy": "npm run build && node scripts/deploy.mjs"
   },
   "dependencies": {
