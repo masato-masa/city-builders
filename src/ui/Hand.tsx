@@ -19,7 +19,7 @@ export function Hand({
   return (
     <div className="hand-row">
       <div className="next">
-        <span className="next-label">next</span>
+        <span className="next-label">次</span>
         <span className="next-card">{next ? CARD_NAMES[next] : ''}</span>
       </div>
       <div className="hand">
