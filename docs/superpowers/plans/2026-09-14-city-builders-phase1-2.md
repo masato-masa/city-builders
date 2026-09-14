@@ -195,6 +195,9 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     include: ['__tests__/**/*.test.ts'],
+    // CPU の強さを測るテストは数十試合を回すので、既定の 5 秒では足りない。
+    testTimeout: 60000,
+    hookTimeout: 60000,
   },
 });
 ```
@@ -1829,7 +1832,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_BALANCE } from '@/game/balance';
 import { reduce } from '@/game/reducer';
-import { winnerOf } from '@/game/selectors';
+import { scoreOf, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 
@@ -1940,24 +1943,16 @@ describe('終了条件', () => {
 
   it('VP 同点なら残コインが多い方が勝つ', () => {
     const g = fixture();
+    // 城塞を 1 つずつ持たせ、他は誰のものでもない状態にすると VP は 6 対 6
     const fortresses = g.market.filter((s) => s.buildingId === 'fortress');
     fortresses[0]!.owner = 'you';
     fortresses[1]!.owner = 'cpu';
-    g.market.filter((s) => s.owner === null).forEach((s) => (s.owner = null));
-    g.market.forEach((s) => {
-      if (s.owner === null) s.owner = 'you';
-    });
-    // you が余分に持つと VP がずれるので、同点になるよう作り直す
-    const g2 = fixture();
-    g2.market.filter((s) => s.buildingId === 'fortress')[0]!.owner = 'you';
-    g2.market.filter((s) => s.buildingId === 'fortress')[1]!.owner = 'cpu';
-    g2.market.filter((s) => s.owner === null).forEach((s) => (s.owner = 'you'));
-    g2.market.filter((s) => s.buildingId !== 'fortress').forEach((s) => (s.owner = null));
-    g2.turn = DEFAULT_BALANCE.maxTurnsPerPlayer * 2;
-    g2.players.you.coins = 10;
-    g2.players.cpu.coins = 3;
-    const after = reduce(g2, { type: 'endTurn' }, DEFAULT_BALANCE);
+    g.turn = DEFAULT_BALANCE.maxTurnsPerPlayer * 2;
+    g.players.you.coins = 10;
+    g.players.cpu.coins = 3;
+    const after = reduce(g, { type: 'endTurn' }, DEFAULT_BALANCE);
     expect(after.phase).toBe('finished');
+    expect(scoreOf(after, 'you', DEFAULT_BALANCE)).toBe(scoreOf(after, 'cpu', DEFAULT_BALANCE));
     expect(winnerOf(after, DEFAULT_BALANCE)).toBe('you');
   });
 });
@@ -2998,6 +2993,7 @@ import { createRng, type Rng } from '@/game/rng';
 import { handOf, hasBuilding, scoreOf, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
+import { loadProgress, saveProgress } from '@/storage/storage';
 
 import { CoinBar } from './CoinBar';
 import { Hand } from './Hand';
@@ -3043,6 +3039,16 @@ export function Game({
     }
     if (next.phase === 'playing') {
       next = reduce(next, { type: 'startTurn' }, balance);
+    }
+    // 終了判定は endTurn の中でしか起きないので、記録もここで 1 回だけ行う
+    if (next.phase === 'finished') {
+      const progress = loadProgress();
+      const winner = winnerOf(next, balance);
+      saveProgress({
+        wins: progress.wins + (winner === 'you' ? 1 : 0),
+        losses: progress.losses + (winner === 'cpu' ? 1 : 0),
+        lastDifficulty: difficulty,
+      });
     }
     setState(next);
   };
@@ -3492,6 +3498,7 @@ Run: `npm run dev`
 5. 街道を建てると「街道で 1 枚流す」が出て、1 ターンに 1 回だけ押せる
 6. 建設済みの物件が所有者色に塗られ、位置は動かない
 7. 最後まで遊ぶと結果シートが出る
+8. ホームに戻ると戦績（○勝○敗）が 1 増えている
 
 Run: `npm run build`
 Expected: 型エラー無し
