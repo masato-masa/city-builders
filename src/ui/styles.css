@@ -208,7 +208,8 @@
   font-size: 22px;
   font-weight: 700;
   color: var(--coin);
-  min-width: 34px;
+  /* 三桁になっても隣を押し縮めすぎないよう、最小幅を確保する */
+  min-width: 40px;
 }
 
 .coinbar-forecast {
@@ -216,7 +217,10 @@
   min-width: 0;
   font-size: 12px;
   color: var(--chrome-ink-dim);
+  /* 箱より長くなったときに隣のボタンへ重ならないよう、内側で切る */
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .coinbar-btn {
