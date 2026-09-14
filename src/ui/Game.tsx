@@ -144,6 +144,11 @@ export function Game({
                 onClose={() => setSheet(null)}
               >
                 <p className="sheet-text">{BUILDING_TEXTS[slot.buildingId]}</p>
+                {slot.owner === null && state.players.you.blockedSlot === sheet.slotId ? (
+                  <p className="sheet-text">
+                    相手の封鎖者に封鎖されています。次のターンまで建てられません。
+                  </p>
+                ) : null}
                 <button
                   className="home-btn primary"
                   disabled={!canBuild(state, sheet.slotId, balance)}

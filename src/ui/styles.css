@@ -75,6 +75,12 @@
   border-color: transparent;
 }
 
+/* 封鎖中の枠。押せない理由が分かるように沈める。
+   枠線の太さやパディングは変えない（1px も動かさないため）。 */
+.slot.is-blocked {
+  opacity: 0.4;
+}
+
 .coinbar {
   display: flex;
   align-items: center;
@@ -130,6 +136,7 @@
 .hand {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
@@ -137,6 +144,7 @@
 
 .card {
   min-width: 0;
+  min-height: 0;
   height: 62px;
   border: 1px solid var(--line);
   border-radius: var(--cell-radius);

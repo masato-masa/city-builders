@@ -14,7 +14,9 @@ export function Market({
     <div className="market">
       {state.market.map((slot) => {
         const owned = slot.owner !== null;
-        const cls = owned ? `slot owned-${slot.owner}` : 'slot';
+        // 封鎖中は建てられないので、押せない理由が見えるように区別する
+        const blocked = !owned && state.players.you.blockedSlot === slot.slotId;
+        const cls = owned ? `slot owned-${slot.owner}` : blocked ? 'slot is-blocked' : 'slot';
         return (
           <button key={slot.slotId} className={cls} onClick={() => onPick(slot.slotId)}>
             <span className="slot-name">{BUILDING_NAMES[slot.buildingId]}</span>
