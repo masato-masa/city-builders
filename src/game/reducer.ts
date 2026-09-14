@@ -47,12 +47,53 @@ export function reduce(
       return startTurn(state, balance);
     case 'useCard':
       return useCard(state, action, balance);
+    case 'build':
+      return build(state, action, balance);
     default:
       return state;
   }
 }
 
 const INCOME_CARDS: readonly CardId[] = ['miner', 'merchant', 'banker'];
+
+/** 建築家の割引を織り込んだ、いま実際に払う額。 */
+export function buildCostFor(
+  state: GameState,
+  player: PlayerId,
+  slotId: number,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
+  const slot = state.market[slotId];
+  if (!slot) return Number.POSITIVE_INFINITY;
+  const base = balance.buildings[slot.buildingId].cost;
+  return Math.max(0, base - state.players[player].buildDiscount);
+}
+
+export function canBuild(
+  state: GameState,
+  slotId: number,
+  balance: Balance = DEFAULT_BALANCE,
+): boolean {
+  if (state.phase !== 'playing') return false;
+  const player = state.current;
+  const slot = state.market[slotId];
+  if (!slot || slot.owner !== null) return false;
+  if (state.players[player].blockedSlot === slotId) return false;
+  return state.players[player].coins >= buildCostFor(state, player, slotId, balance);
+}
+
+function build(
+  state: GameState,
+  action: Extract<Action, { type: 'build' }>,
+  balance: Balance,
+): GameState {
+  if (!canBuild(state, action.slotId, balance)) return state;
+  const next = structuredClone(state);
+  const player = next.current;
+  next.players[player].coins -= buildCostFor(state, player, action.slotId, balance);
+  next.market[action.slotId]!.owner = player;
+  return next;
+}
 
 function useCard(
   state: GameState,
@@ -71,6 +112,10 @@ function useCard(
 
   if (INCOME_CARDS.includes(action.card)) {
     p.pendingIncome = [...p.pendingIncome, action.card];
+  }
+
+  if (action.card === 'architect') {
+    p.buildDiscount += balance.architectDiscount;
   }
 
   p.deck = moveToBottom(p.deck, action.card);
