@@ -1,0 +1,407 @@
+/** 戦略の多様性を測る常設ツール。
+ *
+ *   npm run lab            # 既定 400 試合 / 組
+ *   npm run lab -- 1200
+ *
+ * scripts/simulate.ts（先手有利や CPU の強さを測る別目的のツール）とは狙いが違う。
+ * こちらは「性格の違う CPU を総当たりさせて、誰か 1 つが勝ち越さないか」を測る。
+ * ゲームの数値・カード効果は一切変えない。計測用の状態もすべてこのファイルの中だけで持ち、
+ * src/game/ にはフィールドを足さない。
+ *
+ * 乱数は src/game/rng.ts の seeded PRNG のみを使う。試合ごとの seed は、
+ * 性格の組み合わせ・先手/後手・何試合目かという「引数」だけから決まるので、
+ * 同じコマンドを 2 回走らせれば必ず同じ結果になる。 */
+import { chooseAction, type AiOptions } from '../src/ai/choose';
+import { DEFAULT_WEIGHTS, type Weights } from '../src/ai/evaluate';
+import { ALL_CARDS, CARD_NAMES, DEFAULT_BALANCE, type Balance } from '../src/game/balance';
+import { reduce } from '../src/game/reducer';
+import { createRng } from '../src/game/rng';
+import { handOf, opponentOf, winnerOf } from '../src/game/selectors';
+import { createGame } from '../src/game/setup';
+import type { CardId, GameState, PlayerId } from '../src/game/types';
+
+// ---------------------------------------------------------------------------
+// 性格（persona）
+// ---------------------------------------------------------------------------
+
+interface Persona {
+  name: string;
+  weights: Weights;
+}
+
+/** 4 つの性格は「人間が取りうる方針」の代表。DEFAULT_WEIGHTS の一部だけを上書きする。
+ *  すべて noise: 0 / harassRate: 1 / lookahead: false で戦わせる（揺らぎがあると性格が混ざる）。 */
+const PERSONAS: Persona[] = [
+  { name: '均衡', weights: DEFAULT_WEIGHTS },
+  {
+    name: '妨害',
+    weights: { ...DEFAULT_WEIGHTS, opponentCoin: -2.5, opponentStuck: 3.5, vp: 8 },
+  },
+  {
+    name: '回転',
+    weights: { ...DEFAULT_WEIGHTS, pendingIncome: 2.6, incomePerTurn: 5.5, vp: 7, coin: 0.6 },
+  },
+  {
+    name: '大器晩成',
+    weights: { ...DEFAULT_WEIGHTS, coin: 2.6, vp: 13, incomePerTurn: 1.2, threat: -0.2 },
+  },
+];
+
+function optionsForPersona(p: Persona): AiOptions {
+  return { noise: 0, harassRate: 1, lookahead: false, weights: p.weights };
+}
+
+// ---------------------------------------------------------------------------
+// 1 試合
+// ---------------------------------------------------------------------------
+
+function emptyCardUsage(): Record<CardId, number> {
+  return Object.fromEntries(ALL_CARDS.map((c) => [c, 0])) as Record<CardId, number>;
+}
+
+interface GameStats {
+  winner: 'A' | 'B' | 'draw';
+  firstMover: 'A' | 'B';
+  /** 1 人あたりのターン数（simulate.ts と同じ、両者合計を 2 で割って切り上げ） */
+  turnsPerPlayer: number;
+  cardUsage: { A: Record<CardId, number>; B: Record<CardId, number> };
+  turnsPlayed: { A: number; B: number };
+  totalTurns: number;
+  bankedTurns: number;
+  stuckTurns: number;
+  taxmanJustified: number;
+  taxmanWasted: number;
+  taxmanTotal: number;
+  /** 同じカードが手札の先頭に戻るまでのターン数（そのプレイヤー自身のターン数で数える）のサンプル */
+  deckCycleSamples: number[];
+}
+
+/** 先手を強制的に決める。createGame は seed から先手をランダムに決めるが、
+ *  ラボでは「性格 A が先手の試合」を明示的に同数用意したいので、ここで上書きする。
+ *  デッキの並び（シャッフル結果）はそのまま、手番と開始コインだけ入れ替える。 */
+function forceFirst(g: GameState, first: PlayerId, balance: Balance): GameState {
+  if (g.current === first) return g;
+  const second = opponentOf(first);
+  const next = structuredClone(g);
+  next.current = first;
+  next.players[first].coins = balance.startingCoins.first;
+  next.players[second].coins = balance.startingCoins.second;
+  return next;
+}
+
+function runOne(
+  seed: number,
+  optionsA: AiOptions,
+  optionsB: AiOptions,
+  firstIsA: boolean,
+  balance: Balance,
+): GameStats {
+  let g = createGame(seed, balance);
+  g = forceFirst(g, firstIsA ? 'you' : 'cpu', balance);
+  const firstMover: 'A' | 'B' = firstIsA ? 'A' : 'B';
+  // 'you' は常に性格 A、'cpu' は常に性格 B。先手/後手は forceFirst 側で制御する
+  const optionsOf: Record<PlayerId, AiOptions> = { you: optionsA, cpu: optionsB };
+  const rng = createRng(seed * 65537 + 11);
+
+  const cardUsage = { A: emptyCardUsage(), B: emptyCardUsage() };
+  const turnsPlayed = { A: 0, B: 0 };
+  let bankedTurns = 0;
+  let stuckTurns = 0;
+  let taxmanJustified = 0;
+  let taxmanWasted = 0;
+  let taxmanTotal = 0;
+  const deckCycleSamples: number[] = [];
+  // プレイヤーごとに「手札の先頭にいたカードを、自分の何ターン目に見たか」を覚えておく
+  const lastFrontTurn: Record<PlayerId, Partial<Record<CardId, number>>> = { you: {}, cpu: {} };
+  const ownTurnCount: Record<PlayerId, number> = { you: 0, cpu: 0 };
+  // 直前のターン終了時点で先頭にいたカード。同じカードが居座っているだけの
+  // ターン（何も使わなかった等）を「1 周」に数えないよう、変化した時だけサンプルを取る
+  const prevFront: Record<PlayerId, CardId | undefined> = { you: undefined, cpu: undefined };
+
+  let guard = 0;
+  // maxTurnsPerPlayer * 2 （既定 40）が本来の上限。guard はその安全網
+  while (g.phase === 'playing' && guard < 100) {
+    guard++;
+    const player = g.current;
+    const who: 'A' | 'B' = player === 'you' ? 'A' : 'B';
+    const options = optionsOf[player];
+
+    let next = reduce(g, { type: 'startTurn' }, balance);
+
+    // 手札詰まり率: 行動フェーズに入った時点（収入が入った直後）で測る
+    const hand = handOf(next, player, balance);
+    const unaffordable = hand.filter(
+      (c) => next.players[player].coins < balance.cards[c].cost,
+    ).length;
+    if (unaffordable >= 3) stuckTurns++;
+
+    let usedAnyCard = false;
+    let builtAny = false;
+    // playTurn 内部の安全網（上限 40 手）と同じ考え方
+    for (let i = 0; i < 40; i++) {
+      const action = chooseAction(next, options, rng, balance);
+      if (action.type === 'endTurn') break;
+      const before = next;
+      const applied = reduce(next, action, balance);
+      if (applied === before) break;
+
+      if (action.type === 'useCard') {
+        usedAnyCard = true;
+        cardUsage[who][action.card]++;
+        if (action.card === 'taxman') {
+          const foe = opponentOf(player);
+          taxmanTotal++;
+          if (before.players[foe].coins >= 5) taxmanJustified++;
+          else taxmanWasted++;
+        }
+      } else if (action.type === 'build') {
+        builtAny = true;
+      }
+      next = applied;
+    }
+
+    turnsPlayed[who]++;
+    // 貯めターン: カードを 1 枚も使わず、建設もしなかったターン
+    if (!usedAnyCard && !builtAny) bankedTurns++;
+
+    // デッキ 1 周: 手札の先頭が「入れ替わった」ときだけ記録する。同じカードが
+    // 先頭に居座り続けているターン（貯めターンなど）は変化ではないので数えない
+    ownTurnCount[player]++;
+    const front = next.players[player].deck[0];
+    if (front && front !== prevFront[player]) {
+      const lastTurn = lastFrontTurn[player][front];
+      if (lastTurn !== undefined) {
+        deckCycleSamples.push(ownTurnCount[player] - lastTurn);
+      }
+      lastFrontTurn[player][front] = ownTurnCount[player];
+      prevFront[player] = front;
+    }
+
+    g = reduce(next, { type: 'endTurn' }, balance);
+  }
+
+  const rawWinner = winnerOf(g, balance);
+  const winner: 'A' | 'B' | 'draw' =
+    rawWinner === 'draw' || rawWinner === null ? 'draw' : rawWinner === 'you' ? 'A' : 'B';
+  const totalTurns = turnsPlayed.A + turnsPlayed.B;
+
+  return {
+    winner,
+    firstMover,
+    turnsPerPlayer: Math.ceil(totalTurns / 2),
+    cardUsage,
+    turnsPlayed,
+    totalTurns,
+    bankedTurns,
+    stuckTurns,
+    taxmanJustified,
+    taxmanWasted,
+    taxmanTotal,
+    deckCycleSamples,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 総当たり
+// ---------------------------------------------------------------------------
+
+const GAMES_PER_PAIR = Number(process.argv[2] ?? 400);
+const FIRST_HALF = Math.floor(GAMES_PER_PAIR / 2);
+const SECOND_HALF = GAMES_PER_PAIR - FIRST_HALF;
+
+/** 性格の組み合わせ・先手/後手・何試合目かという「引数」だけから seed を決める。
+ *  同じ引数からは必ず同じ seed になる。 */
+function seedFor(i: number, j: number, order: 0 | 1, gameIndex: number): number {
+  return ((i * PERSONAS.length + j) * 2 + order) * 1_000_000 + gameIndex;
+}
+
+const N = PERSONAS.length;
+const winsMatrix: number[][] = Array.from({ length: N }, () => new Array(N).fill(0) as number[]);
+const gamesMatrix: number[][] = Array.from({ length: N }, () => new Array(N).fill(0) as number[]);
+const personaTurns: number[] = new Array(N).fill(0) as number[];
+const personaCardUsage: Record<CardId, number>[] = PERSONAS.map(() => emptyCardUsage());
+
+let totalGames = 0;
+let draws = 0;
+let firstMoverScore = 0;
+let turnsPerPlayerSum = 0;
+let globalTurns = 0;
+let bankedTurns = 0;
+let stuckTurns = 0;
+let taxmanJustified = 0;
+let taxmanWasted = 0;
+let taxmanTotal = 0;
+const globalCardUsage: Record<CardId, number> = emptyCardUsage();
+const deckCycleSamples: number[] = [];
+
+for (let i = 0; i < N; i++) {
+  for (let j = i + 1; j < N; j++) {
+    const personaI = PERSONAS[i]!;
+    const personaJ = PERSONAS[j]!;
+    const optionsI = optionsForPersona(personaI);
+    const optionsJ = optionsForPersona(personaJ);
+
+    // 先手・後手を入れ替えて同数ずつ（先手有利を勝率から取り除くため）
+    const orders: { order: 0 | 1; firstIsA: boolean; count: number }[] = [
+      { order: 0, firstIsA: true, count: FIRST_HALF },
+      { order: 1, firstIsA: false, count: SECOND_HALF },
+    ];
+
+    for (const { order, firstIsA, count } of orders) {
+      for (let g = 0; g < count; g++) {
+        const seed = seedFor(i, j, order, g);
+        const result = runOne(seed, optionsI, optionsJ, firstIsA, DEFAULT_BALANCE);
+
+        totalGames++;
+        if (result.winner === 'draw') {
+          draws++;
+          winsMatrix[i]![j]! += 0.5;
+          winsMatrix[j]![i]! += 0.5;
+          firstMoverScore += 0.5;
+        } else if (result.winner === result.firstMover) {
+          firstMoverScore += 1;
+          if (result.winner === 'A') winsMatrix[i]![j]! += 1;
+          else winsMatrix[j]![i]! += 1;
+        } else if (result.winner === 'A') {
+          winsMatrix[i]![j]! += 1;
+        } else {
+          winsMatrix[j]![i]! += 1;
+        }
+        gamesMatrix[i]![j]! += 1;
+        gamesMatrix[j]![i]! += 1;
+
+        turnsPerPlayerSum += result.turnsPerPlayer;
+        globalTurns += result.totalTurns;
+        bankedTurns += result.bankedTurns;
+        stuckTurns += result.stuckTurns;
+        taxmanJustified += result.taxmanJustified;
+        taxmanWasted += result.taxmanWasted;
+        taxmanTotal += result.taxmanTotal;
+        deckCycleSamples.push(...result.deckCycleSamples);
+
+        personaTurns[i]! += result.turnsPlayed.A;
+        personaTurns[j]! += result.turnsPlayed.B;
+        for (const c of ALL_CARDS) {
+          personaCardUsage[i]![c] += result.cardUsage.A[c];
+          personaCardUsage[j]![c] += result.cardUsage.B[c];
+          globalCardUsage[c] += result.cardUsage.A[c] + result.cardUsage.B[c];
+        }
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 出力
+// ---------------------------------------------------------------------------
+
+const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+const avg = (values: number[]) => values.reduce((s, v) => s + v, 0) / values.length;
+
+console.log(`試合数: ${GAMES_PER_PAIR} / 組 × ${(N * (N - 1)) / 2} 組 = ${totalGames} 試合`);
+console.log('');
+
+console.log('## 表 1: 総当たりの勝率（行の性格から見た勝率。引き分けは 0.5 勝）');
+console.log('');
+console.log(`| 性格 | ${PERSONAS.map((p) => p.name).join(' | ')} | 総合 |`);
+console.log(`|---|${PERSONAS.map(() => '---').join('|')}|---|`);
+const personaOverallWinRate: number[] = [];
+for (let i = 0; i < N; i++) {
+  const cells = PERSONAS.map((_, j) => {
+    if (i === j) return '―';
+    return pct(winsMatrix[i]![j]! / gamesMatrix[i]![j]!);
+  });
+  let winsSum = 0;
+  let gamesSum = 0;
+  for (let j = 0; j < N; j++) {
+    if (i === j) continue;
+    winsSum += winsMatrix[i]![j]!;
+    gamesSum += gamesMatrix[i]![j]!;
+  }
+  const overall = winsSum / gamesSum;
+  personaOverallWinRate.push(overall);
+  console.log(`| ${PERSONAS[i]!.name} | ${cells.join(' | ')} | ${pct(overall)} |`);
+}
+console.log('');
+
+console.log('## 表 2: カードの使用率（全ターン中そのカードが使われたターンの割合）');
+console.log('');
+console.log(`| カード | ${PERSONAS.map((p) => p.name).join(' | ')} | 全体 |`);
+console.log(`|---|${PERSONAS.map(() => '---').join('|')}|---|`);
+const cardOverallRate = new Map<CardId, number>();
+for (const card of ALL_CARDS) {
+  const cells = PERSONAS.map((_, i) => pct(personaCardUsage[i]![card] / personaTurns[i]!));
+  const overall = globalCardUsage[card] / globalTurns;
+  cardOverallRate.set(card, overall);
+  console.log(`| ${CARD_NAMES[card]} | ${cells.join(' | ')} | ${pct(overall)} |`);
+}
+console.log('');
+
+const firstMoverRate = firstMoverScore / totalGames;
+const drawRate = draws / totalGames;
+const avgTurnsPerPlayer = turnsPerPlayerSum / totalGames;
+const bankedRate = bankedTurns / globalTurns;
+const stuckRate = stuckTurns / globalTurns;
+const deckCycleAvg = deckCycleSamples.length > 0 ? avg(deckCycleSamples) : NaN;
+
+console.log('## 表 3: そのほか');
+console.log('');
+console.log('| 項目 | 実測 |');
+console.log('|---|---|');
+console.log(`| 先手勝率 | ${pct(firstMoverRate)} |`);
+console.log(`| 引き分け率 | ${pct(drawRate)} |`);
+console.log(`| 平均ターン数（1 人あたり） | ${avgTurnsPerPlayer.toFixed(1)} |`);
+console.log(`| 貯めターン率 | ${pct(bankedRate)} |`);
+console.log(
+  `| デッキ 1 周のターン数 | ${Number.isFinite(deckCycleAvg) ? deckCycleAvg.toFixed(2) : '(サンプル無し)'} |`,
+);
+console.log(`| 手札詰まり率 | ${pct(stuckRate)} |`);
+console.log('');
+
+console.log('## 表 4: 徴税官の状況判断');
+console.log('');
+console.log('| 項目 | 実測 |');
+console.log('|---|---|');
+console.log(`| 徴税官を使った回数 | ${taxmanTotal} |`);
+console.log(
+  `| そのうち相手のコインが 5 以上だった割合 | ${taxmanTotal > 0 ? pct(taxmanJustified / taxmanTotal) : '(使用無し)'} |`,
+);
+console.log(`| 相手のコインが 5 未満なのに使った回数 | ${taxmanWasted} |`);
+console.log('');
+
+console.log('## 合格条件（今の姿を記録する基準線。いまは全部 ❌ でも構わない）');
+console.log('');
+console.log('| 条件 | 基準 | 実測 | 判定 |');
+console.log('|---|---|---|---|');
+
+const minMax = (values: number[]): [number, number] => [Math.min(...values), Math.max(...values)];
+
+{
+  const [lo, hi] = minMax(personaOverallWinRate);
+  const ok = lo >= 0.45 && hi <= 0.55;
+  console.log(
+    `| どの性格も勝ち過ぎない | 総合勝率 45〜55% | ${pct(lo)}〜${pct(hi)} | ${ok ? '✅' : '❌'} |`,
+  );
+}
+{
+  const rates = ALL_CARDS.map((c) => cardOverallRate.get(c)!);
+  const [lo, hi] = minMax(rates);
+  const ok = lo >= 0.04 && hi <= 0.2;
+  console.log(
+    `| カードが満遍なく使われる | 8 種すべて使用率 4%〜20% | ${pct(lo)}〜${pct(hi)} | ${ok ? '✅' : '❌'} |`,
+  );
+}
+{
+  const ok = bankedRate >= 0.03;
+  console.log(`| 貯めるプレイが存在する | 貯めターン率 3% 以上 | ${pct(bankedRate)} | ${ok ? '✅' : '❌'} |`);
+}
+{
+  const ok = firstMoverRate >= 0.48 && firstMoverRate <= 0.52;
+  console.log(`| 席の有利が小さい | 先手勝率 48〜52% | ${pct(firstMoverRate)} | ${ok ? '✅' : '❌'} |`);
+}
+{
+  const ok = Number.isFinite(deckCycleAvg) && deckCycleAvg >= 2.5;
+  console.log(
+    `| 1 周が速すぎない | デッキ 1 周 2.5 ターン以上 | ${Number.isFinite(deckCycleAvg) ? deckCycleAvg.toFixed(2) : '(サンプル無し)'} | ${ok ? '✅' : '❌'} |`,
+  );
+}

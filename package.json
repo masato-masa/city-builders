@@ -10,6 +10,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "simulate": "tsx scripts/simulate.ts",
+    "lab": "tsx scripts/balance-lab.ts",
     "audit-art": "node scripts/audit-art.mjs",
     "optimize-art": "node scripts/optimize-art.mjs",
     "audit-contrast": "node scripts/audit-contrast.mjs",
