@@ -75,6 +75,22 @@ describe('伝令', () => {
     );
     expect(after).toEqual(g);
   });
+
+  it('対象が伝令自身なら何も起きない', () => {
+    const g = fixture(WITH_HERALD, 10);
+    const after = reduce(
+      g,
+      { type: 'useCard', card: 'herald', heraldTarget: 'herald' },
+      DEFAULT_BALANCE,
+    );
+    expect(after).toEqual(g);
+  });
+
+  it('対象が未指定なら何も起きない', () => {
+    const g = fixture(WITH_HERALD, 10);
+    const after = reduce(g, { type: 'useCard', card: 'herald' }, DEFAULT_BALANCE);
+    expect(after).toEqual(g);
+  });
 });
 
 describe('密偵', () => {
@@ -120,7 +136,7 @@ describe('封鎖者', () => {
     expect(after.players.cpu.blockedSlot).toBe(target);
   });
 
-  it('相手が城壁を持っていると無効', () => {
+  it('相手が城壁を持っていると無効。コストは払う', () => {
     const g = fixture(['blockader', 'miner', 'merchant', 'banker', 'architect', 'spy', 'herald', 'taxman'], 10);
     g.market.find((s) => s.buildingId === 'wall')!.owner = 'cpu';
     const after = reduce(
@@ -129,6 +145,7 @@ describe('封鎖者', () => {
       DEFAULT_BALANCE,
     );
     expect(after.players.cpu.blockedSlot).toBeNull();
+    expect(after.players.you.coins).toBe(10 - DEFAULT_BALANCE.cards.blockader.cost);
   });
 
   it('建設済みのスロットは封鎖できない（状態が変わらない）', () => {
@@ -137,6 +154,16 @@ describe('封鎖者', () => {
     const after = reduce(
       g,
       { type: 'useCard', card: 'blockader', blockadeSlot: 7 },
+      DEFAULT_BALANCE,
+    );
+    expect(after).toEqual(g);
+  });
+
+  it('存在しないスロットは封鎖できない（状態が変わらない）', () => {
+    const g = fixture(['blockader', 'miner', 'merchant', 'banker', 'architect', 'spy', 'herald', 'taxman'], 10);
+    const after = reduce(
+      g,
+      { type: 'useCard', card: 'blockader', blockadeSlot: 99 },
       DEFAULT_BALANCE,
     );
     expect(after).toEqual(g);

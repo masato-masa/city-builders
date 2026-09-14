@@ -49,6 +49,11 @@ describe('建設', () => {
     expect(canBuild(g, slot, DEFAULT_BALANCE)).toBe(false);
   });
 
+  it('存在しないスロットは建てられない', () => {
+    const g = fixture(50);
+    expect(canBuild(g, 99, DEFAULT_BALANCE)).toBe(false);
+  });
+
   it('1 ターンに何件でも建てられる', () => {
     let g = fixture(50);
     const slots = g.market.filter((s) => s.buildingId === 'tradingHouse').map((s) => s.slotId);
