@@ -6,6 +6,7 @@
  * 数値を触ったら毎回走らせること。過去の測定結果は実装を変えたら古くなる。 */
 import { playTurn, type Difficulty } from '../src/ai/choose';
 import { DEFAULT_BALANCE } from '../src/game/balance';
+import { reduce } from '../src/game/reducer';
 import { createRng } from '../src/game/rng';
 import { winnerOf } from '../src/game/selectors';
 import { createGame } from '../src/game/setup';
@@ -32,9 +33,12 @@ function runOne(seed: number, difficulty: Difficulty): Result {
 
   while (g.phase === 'playing' && totalTurns < 200) {
     const before = g;
+    // 詰まりは「行動フェーズに入った時点」で測る。開始フェーズの収入が入る前に測ると、
+    // 貪欲な AI が前のターンに使い切った直後の残高を見ることになり、実態よりはるかに高く出る。
+    const atAction = reduce(before, { type: 'startTurn' }, DEFAULT_BALANCE);
     g = playTurn(g, difficulty, rng, DEFAULT_BALANCE);
     totalTurns++;
-    const p = before.players[before.current];
+    const p = atAction.players[atAction.current];
     const hand = p.deck.slice(0, DEFAULT_BALANCE.handSize);
     const unaffordable = hand.filter((c) => p.coins < DEFAULT_BALANCE.cards[c].cost).length;
     if (unaffordable >= 3) stuckTurns++;

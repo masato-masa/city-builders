@@ -1,16 +1,20 @@
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
-import { countBuilding, opponentOf, ownedSlots, scoreOf } from '@/game/selectors';
+import { countBuilding, handOf, opponentOf, ownedSlots, scoreOf } from '@/game/selectors';
 import type { GameState, PlayerId } from '@/game/types';
 
 /** 重み。ハードな条件分岐ではなく、ここの重みで振る舞いを決める。 */
 const W = {
   vp: 10,
   coin: 1,
+  /** 相手の手持ちコイン。奪えば相手の購買力が落ちるので、マイナスに効く */
+  opponentCoin: -0.8,
   pendingIncome: 1.2,
   incomePerTurn: 3,
   opponentVp: -8,
   /** 相手が次のターンに買えてしまう物件の価値 */
   threat: -0.6,
+  /** 手札のうち、いま払えないカードの枚数 */
+  stuck: -1.5,
 };
 
 /** 残りターンの多さ。序盤は収入を、終盤は VP を重く見るための係数。 */
@@ -39,10 +43,17 @@ export function evaluateState(
     }
   }
 
+  // 手札のうち、いま払えないカードの枚数。詰まっているほど打てる手が無い
+  const stuck = handOf(state, player, balance).filter(
+    (c) => p.coins < balance.cards[c].cost,
+  ).length;
+
   return (
     scoreOf(state, player, balance) * W.vp * (0.5 + late) +
     scoreOf(state, foe, balance) * W.opponentVp * (0.5 + late) +
     p.coins * W.coin +
+    state.players[foe].coins * W.opponentCoin +
+    stuck * W.stuck +
     p.pendingIncome.length * W.pendingIncome * 4 +
     incomePerTurn * W.incomePerTurn * (1 - late) +
     ownedSlots(state, player).length * 2 +
