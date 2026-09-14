@@ -196,7 +196,7 @@
 .plot-art {
   position: absolute;
   left: 50%;
-  bottom: 12%;
+  bottom: 18%;
   transform: translateX(-50%);
   pointer-events: none;
   user-select: none;
