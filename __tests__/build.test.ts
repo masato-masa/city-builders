@@ -9,7 +9,7 @@ import type { CardId, GameState } from '@/game/types';
 const ORDER: CardId[] = [
   'architect',
   'miner',
-  'merchant',
+  'usurer',
   'banker',
   'spy',
   'herald',

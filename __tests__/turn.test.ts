@@ -8,7 +8,7 @@ import type { CardId, GameState } from '@/game/types';
 
 const ORDER: CardId[] = [
   'miner',
-  'merchant',
+  'usurer',
   'banker',
   'architect',
   'spy',
@@ -33,13 +33,17 @@ describe('ターン終了', () => {
     expect(after.turn).toBe(g.turn + 1);
   });
 
-  it('自分への封鎖と密偵の結果が消える', () => {
+  it('自分への封鎖・効果停止・祝祭・買収の結果がターン終了で消える', () => {
     const g = fixture();
     g.players.you.blockedSlot = 3;
-    g.revealedOpponentHand = ['miner'];
+    g.players.you.disabledSlot = 5;
+    g.players.you.festivalActive = true;
+    g.players.you.boundCard = 'miner';
     const after = reduce(g, { type: 'endTurn' }, DEFAULT_BALANCE);
     expect(after.players.you.blockedSlot).toBeNull();
-    expect(after.revealedOpponentHand).toBeNull();
+    expect(after.players.you.disabledSlot).toBeNull();
+    expect(after.players.you.festivalActive).toBe(false);
+    expect(after.players.you.boundCard).toBeNull();
   });
 
   it('何もせずに終えられる', () => {
@@ -57,7 +61,7 @@ describe('街道', () => {
     const after = reduce(g, { type: 'useRoad', target: 'banker' }, DEFAULT_BALANCE);
     expect(after.players.you.deck).toEqual([
       'miner',
-      'merchant',
+      'usurer',
       'architect',
       'spy',
       'herald',
@@ -66,7 +70,7 @@ describe('街道', () => {
       'banker',
     ]);
     expect(after.players.you.coins).toBe(before);
-    expect(after.players.you.roadUsedThisTurn).toBe(true);
+    expect(after.players.you.roadUsesThisTurn).toBe(1);
   });
 
   it('1 ターンに 1 回だけ', () => {

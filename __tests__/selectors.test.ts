@@ -9,11 +9,11 @@ const ORDER: CardId[] = [
   'herald',
   'blockader',
   'miner',
-  'merchant',
   'banker',
   'architect',
   'spy',
   'taxman',
+  'usurer',
 ];
 
 function fixture(coins: number): GameState {
@@ -40,15 +40,16 @@ describe('合法手', () => {
     const heralds = legalActions(g, DEFAULT_BALANCE).filter(
       (a) => a.type === 'useCard' && a.card === 'herald',
     );
-    // 手札は herald / blockader / miner / merchant なので、送れるのは 3 枚
+    // 手札は herald / blockader / miner / banker なので、送れるのは 3 枚
     expect(heralds).toHaveLength(3);
   });
 
-  it('封鎖者は未建設スロットごとに別の行動になる', () => {
+  it('封鎖者は自分が所有していない区画ごとに別の行動になる', () => {
     const g = fixture(5);
     const blocks = legalActions(g, DEFAULT_BALANCE).filter(
       (a) => a.type === 'useCard' && a.card === 'blockader',
     );
+    // 序盤は市場が全て空き地なので、10 区画すべてが対象
     expect(blocks).toHaveLength(10);
   });
 

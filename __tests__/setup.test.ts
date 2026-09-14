@@ -23,20 +23,22 @@ describe('初期状態', () => {
     expect(a).not.toEqual(b);
   });
 
-  it('両者とも 8 枚すべてを 1 枚ずつ持つ', () => {
+  it('両者とも 10 枚すべてを 1 枚ずつ持つ', () => {
     const g = createGame(5);
     for (const p of ['you', 'cpu'] as const) {
-      expect(g.players[p].deck).toHaveLength(8);
-      expect(new Set(g.players[p].deck).size).toBe(8);
+      expect(g.players[p].deck).toHaveLength(10);
+      expect(new Set(g.players[p].deck).size).toBe(10);
     }
   });
 
-  it('先手と後手で初期コインが違う', () => {
+  it('先手と後手の初期コインはどちらも 0', () => {
     const g = createGame(5);
     const first = g.players[g.current].coins;
     const second = g.players[opponentOf(g.current)].coins;
     expect(first).toBe(DEFAULT_BALANCE.startingCoins.first);
     expect(second).toBe(DEFAULT_BALANCE.startingCoins.second);
+    expect(first).toBe(0);
+    expect(second).toBe(0);
   });
 
   it('市場は 10 スロットで全て未建設', () => {

@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { ALL_CARDS, BUILDING_NAMES, CARD_NAMES, DEFAULT_BALANCE } from '@/game/balance';
 
 describe('データ定義', () => {
-  it('人物カードは 8 種', () => {
-    expect(ALL_CARDS).toHaveLength(8);
-    expect(new Set(ALL_CARDS).size).toBe(8);
+  it('人物カードは 10 種', () => {
+    expect(ALL_CARDS).toHaveLength(10);
+    expect(new Set(ALL_CARDS).size).toBe(10);
   });
 
   it('すべての人物カードにコストと日本語名がある', () => {
