@@ -1,5 +1,5 @@
 import { DEFAULT_BALANCE, type Balance } from './balance';
-import { handOf, hasBuilding } from './selectors';
+import { countBuilding, handOf, hasBuilding, ownedSlots } from './selectors';
 import type { Action, CardId, GameState, PlayerId } from './types';
 
 /** 工場の割引を織り込んだ、いま実際に払う額。 */
@@ -43,12 +43,16 @@ export function reduce(
   balance: Balance = DEFAULT_BALANCE,
 ): GameState {
   switch (action.type) {
+    case 'startTurn':
+      return startTurn(state, balance);
     case 'useCard':
       return useCard(state, action, balance);
     default:
       return state;
   }
 }
+
+const INCOME_CARDS: readonly CardId[] = ['miner', 'merchant', 'banker'];
 
 function useCard(
   state: GameState,
@@ -64,7 +68,55 @@ function useCard(
   p.coins -= cardCostFor(state, player, action.card, balance);
   p.usedAnyCardThisTurn = true;
   p.usedThisTurn = [...p.usedThisTurn, action.card];
-  p.deck = moveToBottom(p.deck, action.card);
 
+  if (INCOME_CARDS.includes(action.card)) {
+    p.pendingIncome = [...p.pendingIncome, action.card];
+  }
+
+  p.deck = moveToBottom(p.deck, action.card);
+  return next;
+}
+
+/** 1 枚の投資カードが解決時に生むコイン。銀行家だけ解決時の物件数で変わる。 */
+function incomeOf(
+  state: GameState,
+  player: PlayerId,
+  card: CardId,
+  balance: Balance,
+): number {
+  const bonus = hasBuilding(state, player, 'exchange') ? balance.exchangeBonus : 0;
+  switch (card) {
+    case 'miner':
+      return balance.minerIncome + bonus;
+    case 'merchant':
+      return balance.merchantIncome + bonus;
+    case 'banker':
+      return (
+        balance.bankerIncome +
+        ownedSlots(state, player).length * balance.bankerPerBuilding +
+        bonus
+      );
+    default:
+      return 0;
+  }
+}
+
+function startTurn(state: GameState, balance: Balance): GameState {
+  if (state.phase !== 'playing') return state;
+  const next = structuredClone(state);
+  const player = next.current;
+  const p = next.players[player];
+
+  p.coins += balance.baseIncome;
+  p.coins += countBuilding(next, player, 'tradingHouse') * balance.tradingHouseIncome;
+  for (const card of p.pendingIncome) {
+    p.coins += incomeOf(next, player, card, balance);
+  }
+
+  p.pendingIncome = [];
+  p.usedThisTurn = [];
+  p.usedAnyCardThisTurn = false;
+  p.buildDiscount = 0;
+  p.roadUsedThisTurn = false;
   return next;
 }
