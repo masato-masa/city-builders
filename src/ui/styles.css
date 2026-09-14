@@ -29,6 +29,28 @@
   font-family: inherit;
 }
 
+/* 2 行目は中身が変わっても高さが変わってはいけない。折り返しを禁じ、
+   狭い画面では字と間隔を詰めて収める。幅で変えるのは状態ではないので、
+   プレイ中に動くことはない。 */
+.app-play .status-bar {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+/* 320・360px では既定の余白のまま四つ並べると、二桁が重なったときに
+   実測で最大 23px 右へはみ出す（375px 以上は実測で崩れない）。
+   文言は変えず、字と間隔だけを詰めて収める。 */
+@media (max-width: 380px) {
+  .app-play .status-bar {
+    gap: 3px 4px;
+  }
+
+  .app-play .status-bar .stat {
+    padding: 3px 6px;
+    font-size: 12px;
+  }
+}
+
 /* プレイ画面だけ、画面の高さちょうどに固定する。
    shared-ui の .app は min-height: 100dvh で上限が無いため、背の低い画面では
    コンテンツの自然高さまで伸びてしまい、盤面を縮めるフレックスの連鎖が働かない。
