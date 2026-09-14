@@ -1,5 +1,5 @@
 import { DEFAULT_BALANCE, type Balance } from './balance';
-import { countBuilding, handOf, hasBuilding, ownedSlots } from './selectors';
+import { countBuilding, handOf, hasBuilding, opponentOf, ownedSlots } from './selectors';
 import type { Action, CardId, GameState, PlayerId } from './types';
 
 /** 工場の割引を織り込んだ、いま実際に払う額。 */
@@ -102,8 +102,22 @@ function useCard(
 ): GameState {
   if (!canUseCard(state, action.card, balance)) return state;
 
+  const player = state.current;
+  const foe = opponentOf(player);
+
+  // 対象を取るカードは、対象が妥当でなければ何も起きない
+  if (action.card === 'herald') {
+    const target = action.heraldTarget;
+    if (!target || target === 'herald') return state;
+    if (!handOf(state, player, balance).includes(target)) return state;
+  }
+  if (action.card === 'blockader') {
+    const slot = action.blockadeSlot;
+    if (slot === undefined) return state;
+    if (!state.market[slot] || state.market[slot]!.owner !== null) return state;
+  }
+
   const next = structuredClone(state);
-  const player = next.current;
   const p = next.players[player];
 
   p.coins -= cardCostFor(state, player, action.card, balance);
@@ -113,9 +127,23 @@ function useCard(
   if (INCOME_CARDS.includes(action.card)) {
     p.pendingIncome = [...p.pendingIncome, action.card];
   }
-
   if (action.card === 'architect') {
     p.buildDiscount += balance.architectDiscount;
+  }
+  if (action.card === 'spy') {
+    next.revealedOpponentHand = handOf(next, foe, balance);
+  }
+  if (action.card === 'taxman' && !hasBuilding(next, foe, 'wall')) {
+    next.players[foe].coins = Math.max(0, next.players[foe].coins - balance.taxmanAmount);
+  }
+  if (action.card === 'blockader' && !hasBuilding(next, foe, 'wall')) {
+    next.players[foe].blockedSlot = action.blockadeSlot!;
+  }
+  if (action.card === 'herald') {
+    // 伝令を一旦抜き、対象を底へ送り、その下に伝令を置く
+    const withoutHerald = p.deck.filter((c) => c !== 'herald');
+    p.deck = [...moveToBottom(withoutHerald, action.heraldTarget!), 'herald'];
+    return next;
   }
 
   p.deck = moveToBottom(p.deck, action.card);
