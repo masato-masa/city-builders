@@ -243,3 +243,43 @@ function endTurn(state: GameState, balance: Balance): GameState {
   next.current = opponentOf(player);
   return next;
 }
+
+/** いま打てる行動をすべて並べる。AI と UI がこれを共有する。
+ *  対象を取るカード（伝令・封鎖者）は、対象ごとに別の行動として展開する。 */
+export function legalActions(
+  state: GameState,
+  balance: Balance = DEFAULT_BALANCE,
+): Action[] {
+  if (state.phase !== 'playing') return [];
+  const player = state.current;
+  const hand = handOf(state, player, balance);
+  const out: Action[] = [];
+
+  for (const card of hand) {
+    if (!canUseCard(state, card, balance)) continue;
+    if (card === 'herald') {
+      for (const target of hand) {
+        if (target !== 'herald') out.push({ type: 'useCard', card, heraldTarget: target });
+      }
+    } else if (card === 'blockader') {
+      for (const slot of state.market) {
+        if (slot.owner === null) {
+          out.push({ type: 'useCard', card, blockadeSlot: slot.slotId });
+        }
+      }
+    } else {
+      out.push({ type: 'useCard', card });
+    }
+  }
+
+  for (const slot of state.market) {
+    if (canBuild(state, slot.slotId, balance)) out.push({ type: 'build', slotId: slot.slotId });
+  }
+
+  for (const card of hand) {
+    if (canUseRoad(state, card, balance)) out.push({ type: 'useRoad', target: card });
+  }
+
+  out.push({ type: 'endTurn' });
+  return out;
+}
