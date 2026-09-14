@@ -243,15 +243,18 @@
   opacity: 0.35;
 }
 
+/* 手札。画面の最下段に固定する。 */
 .hand-row {
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  padding: 0 var(--pad);
+  height: 112px;
+  padding: 0 var(--pad) 14px;
+  background: var(--chrome-2);
 }
 
 .next {
-  width: 34px;
+  width: 38px;
   display: grid;
   gap: 3px;
   justify-items: center;
@@ -259,18 +262,19 @@
 
 .next-label {
   font-size: 10px;
-  color: var(--muted);
+  color: var(--chrome-ink-dim);
 }
 
 .next-card {
-  width: 34px;
-  height: 46px;
+  width: 38px;
+  height: 47px;
   border-radius: 6px;
-  background: var(--surface-2);
+  background: var(--chrome);
   display: grid;
   place-content: center;
   font-size: 9px;
-  color: var(--muted);
+  color: var(--chrome-ink-dim);
+  text-align: center;
 }
 
 .hand {
@@ -279,25 +283,51 @@
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
+  gap: 5px;
 }
 
+/* 実測した参考値のとおり縦長にする(68 x 84、比 1 : 1.235)。
+   高さは aspect-ratio で決まるので、名前の長さで動かない。 */
 .card {
+  position: relative;
   min-width: 0;
   min-height: 0;
-  height: 62px;
-  border: 1px solid var(--line);
-  border-radius: var(--cell-radius);
-  background: var(--surface);
-  display: grid;
-  place-content: center;
-  gap: 2px;
+  aspect-ratio: 68 / 84;
+  padding: 0;
+  border: 2px solid var(--card-edge);
+  border-radius: 8px;
+  background: var(--card-face);
+  color: var(--chrome-ink);
   font-size: 11px;
-  color: var(--title);
+  display: grid;
+  place-items: center;
 }
 
 .card.is-dim {
-  opacity: 0.45;
+  opacity: 0.4;
+}
+
+.card-name {
+  padding: 0 2px;
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* コストはカード下端に重なる丸バッジ。実測どおり直径 19。 */
+.card-cost {
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  transform: translateX(-50%);
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: var(--coin);
+  color: var(--coin-ink);
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
 }
 
 .sheet-text {
