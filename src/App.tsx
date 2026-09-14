@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import type { Difficulty } from '@/ai/choose';
 
+import { loadBalance } from './ui/balance-store';
 import { Game } from './ui/Game';
 import { Home } from './ui/Home';
 import './ui/shared/tokens.css';
@@ -18,6 +19,7 @@ export function App() {
     <Game
       seed={session.seed}
       difficulty={session.difficulty}
+      balance={loadBalance()}
       onExit={() => setSession(null)}
     />
   );
