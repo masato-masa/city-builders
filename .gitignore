@@ -5,3 +5,5 @@ dist
 *.tmp.ts
 refs/*.png
 refs/crops/
+refs/art/_*.png
+refs/art/_*.jpg
