@@ -30,20 +30,51 @@ interface Persona {
 }
 
 /** 4 つの性格は「人間が取りうる方針」の代表。DEFAULT_WEIGHTS の一部だけを上書きする。
- *  すべて noise: 0 / harassRate: 1 / lookahead: false で戦わせる（揺らぎがあると性格が混ざる）。 */
+ *  すべて noise: 0 / harassRate: 1 / lookahead: false で戦わせる（揺らぎがあると性格が混ざる）。
+ *
+ *  10 枚化にあわせて重みを引き直した。
+ *  - 妨害: opponentReach・opponentIncome・opponentBound を強く。徴税官・封鎖者・買収者は
+ *    どれも「相手の reach か income を削る」効果なので、この 3 項を上げるだけで 3 枚まとめて
+ *    優先度が上がる。
+ *  - 回転: pendingIncome・incomePerTurn を強く、coin を弱く。稼いだコインを溜めずに
+ *    すぐ使う（建てる・また稼ぐ）方向に寄せる。
+ *  - 大器晩成: 旧 threat の代わりに reach と coin を強く。序盤は reach（＝買えるものの
+ *    価値）とコインの蓄積を評価し、終盤の VP 重視と合わせて「溜めて一気に買う」を狙う。 */
 const PERSONAS: Persona[] = [
   { name: '均衡', weights: DEFAULT_WEIGHTS },
   {
     name: '妨害',
-    weights: { ...DEFAULT_WEIGHTS, opponentCoin: -2.5, opponentStuck: 3.5, vp: 8 },
+    weights: {
+      ...DEFAULT_WEIGHTS,
+      opponentCoin: -2.5,
+      opponentStuck: 3.5,
+      opponentReach: -3.5,
+      opponentIncome: -4.0,
+      opponentBound: 5.0,
+      reach: 4.0,
+      vp: 8,
+    },
   },
   {
     name: '回転',
-    weights: { ...DEFAULT_WEIGHTS, pendingIncome: 2.6, incomePerTurn: 5.5, vp: 7, coin: 0.6 },
+    weights: {
+      ...DEFAULT_WEIGHTS,
+      pendingIncome: 2.6,
+      incomePerTurn: 5.5,
+      vp: 7,
+      coin: 0.6,
+    },
   },
   {
     name: '大器晩成',
-    weights: { ...DEFAULT_WEIGHTS, coin: 2.6, vp: 13, incomePerTurn: 1.2, threat: -0.2 },
+    weights: {
+      ...DEFAULT_WEIGHTS,
+      coin: 2.6,
+      vp: 13,
+      incomePerTurn: 1.2,
+      reach: 3.0,
+      opponentReach: -0.2,
+    },
   },
 ];
 
@@ -74,6 +105,10 @@ interface GameStats {
   taxmanTotal: number;
   /** 同じカードが手札の先頭に戻るまでのターン数（そのプレイヤー自身のターン数で数える）のサンプル */
   deckCycleSamples: number[];
+  /** 1 試合中に建てた件数 */
+  buildsCount: { A: number; B: number };
+  /** そのうち、試合の前半（自分のターン数の半分まで）に建てた件数 */
+  firstHalfBuilds: { A: number; B: number };
 }
 
 /** 先手を強制的に決める。createGame は seed から先手をランダムに決めるが、
@@ -111,6 +146,10 @@ function runOne(
   let taxmanWasted = 0;
   let taxmanTotal = 0;
   const deckCycleSamples: number[] = [];
+  const buildsCount = { A: 0, B: 0 };
+  // 建てたときの「自分の何ターン目か」（1 始まり）を記録し、試合が終わったあとに
+  // 前半・後半を判定する（前半かどうかは自分の最終ターン数が分からないと決まらないため）
+  const buildTurns: { A: number[]; B: number[] } = { A: [], B: [] };
   // プレイヤーごとに「手札の先頭にいたカードを、自分の何ターン目に見たか」を覚えておく
   const lastFrontTurn: Record<PlayerId, Partial<Record<CardId, number>>> = { you: {}, cpu: {} };
   const ownTurnCount: Record<PlayerId, number> = { you: 0, cpu: 0 };
@@ -156,6 +195,9 @@ function runOne(
         }
       } else if (action.type === 'build') {
         builtAny = true;
+        buildsCount[who]++;
+        // このターンはまだ ownTurnCount[player] に加算されていないので +1 して「何ターン目か」にする
+        buildTurns[who].push(ownTurnCount[player] + 1);
       }
       next = applied;
     }
@@ -185,6 +227,12 @@ function runOne(
     rawWinner === 'draw' || rawWinner === null ? 'draw' : rawWinner === 'you' ? 'A' : 'B';
   const totalTurns = turnsPlayed.A + turnsPlayed.B;
 
+  // 前半判定: そのプレイヤーの最終ターン数の半分まで
+  const firstHalfBuilds = {
+    A: buildTurns.A.filter((t) => t <= turnsPlayed.A / 2).length,
+    B: buildTurns.B.filter((t) => t <= turnsPlayed.B / 2).length,
+  };
+
   return {
     winner,
     firstMover,
@@ -198,6 +246,8 @@ function runOne(
     taxmanWasted,
     taxmanTotal,
     deckCycleSamples,
+    buildsCount,
+    firstHalfBuilds,
   };
 }
 
@@ -219,6 +269,9 @@ const N = PERSONAS.length;
 const winsMatrix: number[][] = Array.from({ length: N }, () => new Array(N).fill(0) as number[]);
 const gamesMatrix: number[][] = Array.from({ length: N }, () => new Array(N).fill(0) as number[]);
 const personaTurns: number[] = new Array(N).fill(0) as number[];
+const personaGames: number[] = new Array(N).fill(0) as number[];
+const personaBuilds: number[] = new Array(N).fill(0) as number[];
+const personaFirstHalfBuilds: number[] = new Array(N).fill(0) as number[];
 const personaCardUsage: Record<CardId, number>[] = PERSONAS.map(() => emptyCardUsage());
 
 let totalGames = 0;
@@ -281,6 +334,12 @@ for (let i = 0; i < N; i++) {
 
         personaTurns[i]! += result.turnsPlayed.A;
         personaTurns[j]! += result.turnsPlayed.B;
+        personaGames[i]! += 1;
+        personaGames[j]! += 1;
+        personaBuilds[i]! += result.buildsCount.A;
+        personaBuilds[j]! += result.buildsCount.B;
+        personaFirstHalfBuilds[i]! += result.firstHalfBuilds.A;
+        personaFirstHalfBuilds[j]! += result.firstHalfBuilds.B;
         for (const c of ALL_CARDS) {
           personaCardUsage[i]![c] += result.cardUsage.A[c];
           personaCardUsage[j]![c] += result.cardUsage.B[c];
@@ -334,6 +393,39 @@ for (const card of ALL_CARDS) {
   const overall = globalCardUsage[card] / globalTurns;
   cardOverallRate.set(card, overall);
   console.log(`| ${CARD_NAMES[card]} | ${cells.join(' | ')} | ${pct(overall)} |`);
+}
+console.log('');
+
+console.log('## 表 2b: 性格が狙いどおりの打ち方をしているか');
+console.log('');
+console.log(`| 項目 | ${PERSONAS.map((p) => p.name).join(' | ')} |`);
+console.log(`|---|${PERSONAS.map(() => '---').join('|')}|`);
+const HARASS_CARDS: CardId[] = ['taxman', 'blockader', 'spy'];
+{
+  const cardsPerTurn = PERSONAS.map((_, i) => {
+    const totalCards = ALL_CARDS.reduce((s, c) => s + personaCardUsage[i]![c], 0);
+    return totalCards / personaTurns[i]!;
+  });
+  console.log(`| 1 ターンあたりのカード使用枚数 | ${cardsPerTurn.map((v) => v.toFixed(2)).join(' | ')} |`);
+}
+{
+  const buildsPerGame = PERSONAS.map((_, i) => personaBuilds[i]! / personaGames[i]!);
+  console.log(`| 1 試合の建設数 | ${buildsPerGame.map((v) => v.toFixed(2)).join(' | ')} |`);
+}
+{
+  const firstHalfRatio = PERSONAS.map((_, i) =>
+    personaBuilds[i]! > 0 ? personaFirstHalfBuilds[i]! / personaBuilds[i]! : NaN,
+  );
+  console.log(
+    `| 前半の建設割合 | ${firstHalfRatio.map((v) => (Number.isFinite(v) ? pct(v) : '(建設無し)')).join(' | ')} |`,
+  );
+}
+{
+  const harassRate = PERSONAS.map((_, i) => {
+    const harassCount = HARASS_CARDS.reduce((s, c) => s + personaCardUsage[i]![c], 0);
+    return harassCount / personaTurns[i]!;
+  });
+  console.log(`| 妨害カードの使用率（徴税官・封鎖者・買収者） | ${harassRate.map((v) => pct(v)).join(' | ')} |`);
 }
 console.log('');
 
