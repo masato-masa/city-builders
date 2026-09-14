@@ -1,10 +1,12 @@
 export type CardId =
   | 'miner'
-  | 'merchant'
   | 'banker'
   | 'architect'
-  | 'spy'
   | 'herald'
+  | 'festival'
+  | 'guard'
+  | 'usurer'
+  | 'spy'
   | 'taxman'
   | 'blockader';
 
@@ -41,8 +43,21 @@ export interface PlayerState {
   usedAnyCardThisTurn: boolean;
   /** 封鎖者に指定されたスロット。自分のターンに建設できない */
   blockedSlot: number | null;
-  /** このターン、街道の循環を使ったか */
-  roadUsedThisTurn: boolean;
+  /** このターン、街道の循環を使った回数 */
+  roadUsesThisTurn: number;
+  /** 高利貸の借り。次の自分の開始フェーズで引かれる */
+  pendingDebt: number;
+  /** 祝祭。使ったターンは queued、次の自分のターンだけ active */
+  festivalQueued: boolean;
+  festivalActive: boolean;
+  /** 衛兵。次の自分のターンが始まるまで妨害を受けない */
+  guarded: boolean;
+  /** 買収者を受けた。次の自分の開始フェーズで手札から 1 枚抽選する */
+  bindPending: boolean;
+  /** 抽選された結果。このターン使用できない */
+  boundCard: CardId | null;
+  /** 封鎖者に効果を止められている自分の物件の区画 */
+  disabledSlot: number | null;
 }
 
 export interface GameState {
@@ -54,8 +69,6 @@ export interface GameState {
   /** 長さ 10。順番は固定 */
   market: BuildingSlot[];
   phase: 'playing' | 'finished';
-  /** 密偵で見えた相手の手札。ターン終了で消える */
-  revealedOpponentHand: CardId[] | null;
 }
 
 export type Action =
