@@ -1,0 +1,10 @@
+/* シティビルダーズ固有の見た目。共通部分は shared/ にある。 */
+
+/* 盤面は操作で 1px も動かないこと。行と列を両方明示する。 */
+.market {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: var(--gap);
+  padding: 0 var(--pad);
+}
