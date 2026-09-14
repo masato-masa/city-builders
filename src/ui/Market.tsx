@@ -1,4 +1,5 @@
 import { BUILDING_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
+import { buildCostFor } from '@/game/reducer';
 import type { GameState } from '@/game/types';
 
 export function Market({
@@ -21,7 +22,7 @@ export function Market({
           <button key={slot.slotId} className={cls} onClick={() => onPick(slot.slotId)}>
             <span className="slot-name">{BUILDING_NAMES[slot.buildingId]}</span>
             <span className="slot-cost">
-              {owned ? '建設済' : balance.buildings[slot.buildingId].cost}
+              {owned ? '建設済' : buildCostFor(state, 'you', slot.slotId, balance)}
             </span>
           </button>
         );

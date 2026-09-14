@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAction, playTurn } from '@/ai/choose';
 import { evaluateState } from '@/ai/evaluate';
 import { DEFAULT_BALANCE } from '@/game/balance';
+import { legalActions, reduce } from '@/game/reducer';
 import { createRng } from '@/game/rng';
 import { scoreOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
@@ -29,9 +30,9 @@ describe('評価関数', () => {
 
 describe('行動選択', () => {
   it('必ず合法手を返す', () => {
-    const g = createGame(11);
+    const g = reduce(createGame(11), { type: 'startTurn' }, DEFAULT_BALANCE);
     const action = chooseAction(g, 'normal', createRng(1), DEFAULT_BALANCE);
-    expect(action).toBeDefined();
+    expect(legalActions(g, DEFAULT_BALANCE)).toContainEqual(action);
   });
 
   it('同じ状態と同じシードからは同じ手を返す', () => {

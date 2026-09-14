@@ -170,6 +170,10 @@
   font-size: 14px;
 }
 
+.road-btn:disabled {
+  opacity: 0.35;
+}
+
 .end-turn {
   margin: 12px var(--pad) var(--pad);
   min-height: var(--hit);

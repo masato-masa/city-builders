@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { type Difficulty, playTurn } from '@/ai/choose';
 import { BUILDING_NAMES, BUILDING_TEXTS, CARD_NAMES, CARD_TEXTS, DEFAULT_BALANCE, type Balance } from '@/game/balance';
-import { canBuild, canUseCard, canUseRoad, reduce } from '@/game/reducer';
+import { buildCostFor, canBuild, canUseCard, canUseRoad, reduce } from '@/game/reducer';
 import { createRng, type Rng } from '@/game/rng';
 import { handOf, hasBuilding, scoreOf, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
@@ -22,6 +22,7 @@ type Pending =
   | { kind: 'blockadeTarget' }
   | { kind: 'roadTarget' }
   | { kind: 'spyResult'; hand: CardId[] }
+  | { kind: 'help' }
   | null;
 
 export function Game({
@@ -94,11 +95,8 @@ export function Game({
           </div>
           <h1 className="title">シティビルダーズ</h1>
           <div className="header-actions">
-            <button className="icon-btn" aria-label="あそびかた">
+            <button className="icon-btn" aria-label="あそびかた" onClick={() => setSheet({ kind: 'help' })}>
               ?
-            </button>
-            <button className="icon-btn" aria-label="設定">
-              ⚙
             </button>
           </div>
         </div>
@@ -124,11 +122,13 @@ export function Game({
           canUse={(card) => canUseCard(state, card, balance)}
           onPick={(card) => setSheet({ kind: 'card', card })}
         />
-        {roadAvailable ? (
-          <button className="road-btn" onClick={() => setSheet({ kind: 'roadTarget' })}>
-            街道で 1 枚流す
-          </button>
-        ) : null}
+        <button
+          className="road-btn"
+          onClick={() => setSheet({ kind: 'roadTarget' })}
+          disabled={!roadAvailable}
+        >
+          街道で 1 枚流す
+        </button>
         <button className="end-turn" onClick={endTurn} disabled={finished}>
           ターンを終える
         </button>
@@ -140,7 +140,11 @@ export function Game({
             return (
               <Sheet
                 title={BUILDING_NAMES[slot.buildingId]}
-                subtitle={`コスト ${balance.buildings[slot.buildingId].cost} ・ ${balance.buildings[slot.buildingId].vp} VP`}
+                subtitle={`コスト ${buildCostFor(state, 'you', sheet.slotId, balance)} ・ ${
+                  slot.buildingId === 'cathedral'
+                    ? `自分の他の物件 1 件につき +${balance.cathedralVpPerBuilding} VP`
+                    : `${balance.buildings[slot.buildingId].vp} VP`
+                }`}
                 onClose={() => setSheet(null)}
               >
                 <p className="sheet-text">{BUILDING_TEXTS[slot.buildingId]}</p>
@@ -265,6 +269,30 @@ export function Game({
               {CARD_NAMES[c]}
             </p>
           ))}
+        </Sheet>
+      ) : null}
+
+      {sheet?.kind === 'help' ? (
+        <Sheet title="あそびかた" onClose={() => setSheet(null)}>
+          <p className="sheet-text">
+            人物カードを使ってコインを稼ぎ、まん中の物件を建てます。物件は早い者勝ちで、
+            VP（勝利点）は物件からしか手に入りません。10 件すべてが建つとゲームが終わり、
+            VP の多いほうが勝ちです。
+          </p>
+          <p className="sheet-text">
+            投資カード（採掘師・商人・銀行家）のコインが入るのは<b>次のターン</b>です。
+            だからコインの右に「次のターン +N」を出しています。今建てるか、
+            次のターンに回すかを、この 2 つの数字で比べてください。
+          </p>
+          <p className="sheet-text">
+            手札 4 枚はデッキの先頭 4 枚です。使ったカードだけが山の一番下へ回り、
+            使わなかったカードは残ります。つまり<b>何枚で止めるかが、次のターンの手札を決めます</b>。
+            左下の next で 1 枚先まで見えます。
+          </p>
+          <p className="sheet-text">
+            相手も同じ 8 種を持っています。徴税官でコインを奪われ、封鎖者で物件を 1 つ
+            押さえられます。密偵で相手の手札を覗くか、城壁を建てて防いでください。
+          </p>
         </Sheet>
       ) : null}
 
