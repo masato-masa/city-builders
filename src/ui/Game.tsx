@@ -110,7 +110,7 @@ export function Game({
 
       <main className="play">
         <div className="board-shell">
-          <OpponentStrip state={state} />
+          <OpponentStrip state={state} balance={balance} />
           <div className="board-area">
             <Board
               state={state}
