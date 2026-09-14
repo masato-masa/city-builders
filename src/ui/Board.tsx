@@ -25,6 +25,12 @@ export function Board({
         // 封鎖中は建てられないので、押せない理由が見えるように沈める
         const blocked = !owned && state.players.you.blockedSlot === slot.slotId;
         const art = BUILDING_ART[slot.buildingId];
+        // 建った区画は plot-art の alt="" で物件名が読み上げに出ないので、
+        // ボタン自体に物件名と VP を含む aria-label を付ける。空き地は
+        // plot-cost の文字がそのまま読まれるので付けない。
+        const ariaLabel = owned
+          ? `${BUILDING_NAMES[slot.buildingId]} ${vpOfSlot(state, slot, balance)} VP`
+          : undefined;
         return (
           <button
             key={slot.slotId}
@@ -34,6 +40,7 @@ export function Board({
               top: `${plot.y * 100}%`,
               width: `${PLOT_WIDTH * 100}%`,
             }}
+            aria-label={ariaLabel}
             onClick={() => onPick(slot.slotId)}
           >
             {owned ? <span className={`plot-base owner-${slot.owner}`} /> : null}
