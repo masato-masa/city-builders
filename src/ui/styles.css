@@ -193,26 +193,50 @@
   white-space: nowrap;
 }
 
+/* コインバー。手札のすぐ上に全幅で置く。
+   「今いくら」「次いくら」「終える」が同じ視線の中に並ぶ。 */
 .coinbar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 12px var(--pad) 8px;
-  padding: 8px 12px;
-  border-radius: var(--cell-radius);
-  background: var(--surface-2);
+  gap: 8px;
+  height: 52px;
+  padding: 0 var(--pad);
+  background: var(--chrome);
 }
 
 .coinbar-amount {
   font-size: 22px;
-  font-weight: 600;
-  color: var(--title);
+  font-weight: 700;
+  color: var(--coin);
+  min-width: 34px;
 }
 
 .coinbar-forecast {
-  margin-left: auto;
+  flex: 1;
+  min-width: 0;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--chrome-ink-dim);
+  white-space: nowrap;
+}
+
+.coinbar-btn {
+  min-height: 34px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--chrome-2);
+  color: var(--chrome-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.coinbar-btn.is-primary {
+  background: var(--owner-you);
+  color: var(--owner-you-ink);
+}
+
+.coinbar-btn:disabled {
+  opacity: 0.35;
 }
 
 .hand-row {
@@ -270,30 +294,6 @@
 
 .card.is-dim {
   opacity: 0.45;
-}
-
-.road-btn {
-  margin: 10px var(--pad) 0;
-  min-height: var(--hit);
-  border: 1px solid var(--line);
-  border-radius: var(--cell-radius);
-  background: var(--surface);
-  color: var(--title);
-  font-size: 14px;
-}
-
-.road-btn:disabled {
-  opacity: 0.35;
-}
-
-.end-turn {
-  margin: 12px var(--pad) var(--pad);
-  min-height: var(--hit);
-  border: none;
-  border-radius: var(--cell-radius);
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-size: 15px;
 }
 
 .sheet-text {

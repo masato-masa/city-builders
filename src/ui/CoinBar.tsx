@@ -21,14 +21,28 @@ function forecast(state: GameState, balance: Balance): number {
 export function CoinBar({
   state,
   balance = DEFAULT_BALANCE,
+  onRoad,
+  roadEnabled,
+  onEndTurn,
+  endTurnEnabled,
 }: {
   state: GameState;
   balance?: Balance;
+  onRoad: () => void;
+  roadEnabled: boolean;
+  onEndTurn: () => void;
+  endTurnEnabled: boolean;
 }) {
   return (
     <div className="coinbar">
       <span className="coinbar-amount">{state.players.you.coins}</span>
       <span className="coinbar-forecast">次のターン +{forecast(state, balance)}</span>
+      <button className="coinbar-btn" onClick={onRoad} disabled={!roadEnabled}>
+        街道
+      </button>
+      <button className="coinbar-btn is-primary" onClick={onEndTurn} disabled={!endTurnEnabled}>
+        終了
+      </button>
     </div>
   );
 }

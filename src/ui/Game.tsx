@@ -118,23 +118,20 @@ export function Game({
               onPick={(slotId) => setSheet({ kind: 'slot', slotId })}
             />
           </div>
-          <CoinBar state={state} balance={balance} />
+          <CoinBar
+            state={state}
+            balance={balance}
+            onRoad={() => setSheet({ kind: 'roadTarget' })}
+            roadEnabled={roadAvailable}
+            onEndTurn={endTurn}
+            endTurnEnabled={!finished}
+          />
           <Hand
             state={state}
             balance={balance}
             canUse={(card) => canUseCard(state, card, balance)}
             onPick={(card) => setSheet({ kind: 'card', card })}
           />
-          <button
-            className="road-btn"
-            onClick={() => setSheet({ kind: 'roadTarget' })}
-            disabled={!roadAvailable}
-          >
-            街道で 1 枚流す
-          </button>
-          <button className="end-turn" onClick={endTurn} disabled={finished}>
-            ターンを終える
-          </button>
         </div>
       </main>
 
