@@ -49,6 +49,10 @@ export function reduce(
       return useCard(state, action, balance);
     case 'build':
       return build(state, action, balance);
+    case 'useRoad':
+      return useRoad(state, action, balance);
+    case 'endTurn':
+      return endTurn(state, balance);
     default:
       return state;
   }
@@ -191,5 +195,51 @@ function startTurn(state: GameState, balance: Balance): GameState {
   p.usedAnyCardThisTurn = false;
   p.buildDiscount = 0;
   p.roadUsedThisTurn = false;
+  return next;
+}
+
+export function canUseRoad(
+  state: GameState,
+  target: CardId,
+  balance: Balance = DEFAULT_BALANCE,
+): boolean {
+  if (state.phase !== 'playing') return false;
+  const player = state.current;
+  if (!hasBuilding(state, player, 'road')) return false;
+  if (state.players[player].roadUsedThisTurn) return false;
+  return handOf(state, player, balance).includes(target);
+}
+
+function useRoad(
+  state: GameState,
+  action: Extract<Action, { type: 'useRoad' }>,
+  balance: Balance,
+): GameState {
+  if (!canUseRoad(state, action.target, balance)) return state;
+  const next = structuredClone(state);
+  const p = next.players[next.current];
+  p.deck = moveToBottom(p.deck, action.target);
+  p.roadUsedThisTurn = true;
+  return next;
+}
+
+function endTurn(state: GameState, balance: Balance): GameState {
+  if (state.phase !== 'playing') return state;
+  const next = structuredClone(state);
+  const player = next.current;
+
+  // 自分に掛かっていた封鎖はこのターンの終わりで解ける
+  next.players[player].blockedSlot = null;
+  next.revealedOpponentHand = null;
+
+  const allBuilt = next.market.every((s) => s.owner !== null);
+  const overTurnLimit = next.turn >= balance.maxTurnsPerPlayer * 2;
+  if (allBuilt || overTurnLimit) {
+    next.phase = 'finished';
+    return next;
+  }
+
+  next.turn += 1;
+  next.current = opponentOf(player);
   return next;
 }

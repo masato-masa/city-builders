@@ -1,6 +1,21 @@
 import { DEFAULT_BALANCE, type Balance } from './balance';
 import type { BuildingId, BuildingSlot, CardId, GameState, PlayerId } from './types';
 
+/** 勝者。まだ終わっていなければ null。 */
+export function winnerOf(
+  state: GameState,
+  balance: Balance = DEFAULT_BALANCE,
+): PlayerId | 'draw' | null {
+  if (state.phase !== 'finished') return null;
+  const you = scoreOf(state, 'you', balance);
+  const cpu = scoreOf(state, 'cpu', balance);
+  if (you !== cpu) return you > cpu ? 'you' : 'cpu';
+  const youCoins = state.players.you.coins;
+  const cpuCoins = state.players.cpu.coins;
+  if (youCoins !== cpuCoins) return youCoins > cpuCoins ? 'you' : 'cpu';
+  return 'draw';
+}
+
 export function opponentOf(player: PlayerId): PlayerId {
   return player === 'you' ? 'cpu' : 'you';
 }
