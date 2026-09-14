@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { chooseAction, playTurn } from '@/ai/choose';
+import { chooseAction, optionsFor, playTurn } from '@/ai/choose';
 import { DEFAULT_WEIGHTS, evaluateState } from '@/ai/evaluate';
 import { DEFAULT_BALANCE } from '@/game/balance';
 import { countBuilding, handOf, opponentOf, ownedSlots, scoreOf } from '@/game/selectors';
@@ -105,6 +105,47 @@ describe('行動選択', () => {
     const a = chooseAction(g, 'normal', createRng(7), DEFAULT_BALANCE);
     const b = chooseAction(g, 'normal', createRng(7), DEFAULT_BALANCE);
     expect(a).toEqual(b);
+  });
+});
+
+describe('AiOptions への分解', () => {
+  it('optionsFor は難易度ごとの値をそのまま写している', () => {
+    expect(optionsFor('easy')).toEqual({
+      noise: 45,
+      harassRate: 0.25,
+      lookahead: false,
+      weights: DEFAULT_WEIGHTS,
+    });
+    expect(optionsFor('normal')).toEqual({
+      noise: 3,
+      harassRate: 0.8,
+      lookahead: false,
+      weights: DEFAULT_WEIGHTS,
+    });
+    expect(optionsFor('hard')).toEqual({
+      noise: 0,
+      harassRate: 1,
+      lookahead: true,
+      weights: DEFAULT_WEIGHTS,
+    });
+  });
+
+  it('Difficulty を渡しても optionsFor(difficulty) を渡しても指し手は完全一致する（20 試合ぶん）', () => {
+    for (const difficulty of ['easy', 'normal', 'hard'] as const) {
+      for (let seed = 0; seed < 20; seed++) {
+        let byName = createGame(seed);
+        let byOptions = createGame(seed);
+        const rngA = createRng(seed + 9000);
+        const rngB = createRng(seed + 9000);
+        let guard = 0;
+        while (byName.phase === 'playing' && guard < 200) {
+          byName = playTurn(byName, difficulty, rngA, DEFAULT_BALANCE);
+          byOptions = playTurn(byOptions, optionsFor(difficulty), rngB, DEFAULT_BALANCE);
+          guard++;
+        }
+        expect(byOptions).toEqual(byName);
+      }
+    }
   });
 });
 
