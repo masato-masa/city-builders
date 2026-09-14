@@ -1,5 +1,45 @@
 /* シティビルダーズ固有の見た目。共通部分は shared/ にある。 */
 
+/* 所有者の色。盤面の色は共通化しない。相対輝度を十分に離す。 */
+:root {
+  --owner-you: #85b7eb;
+  --owner-you-ink: #042c53;
+  --owner-cpu: #f0997b;
+  --owner-cpu-ink: #4a1b0c;
+}
+
+.opponent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px var(--pad);
+  min-height: 42px;
+}
+
+.opponent-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--owner-cpu);
+  color: var(--owner-cpu-ink);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+}
+
+.opponent-owned {
+  margin-left: auto;
+  display: flex;
+  gap: 3px;
+}
+
+.owned-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--owner-cpu);
+}
+
 /* 盤面は操作で 1px も動かないこと。行と列を両方明示する。 */
 .market {
   display: grid;
@@ -7,4 +47,134 @@
   grid-template-rows: repeat(2, 1fr);
   gap: var(--gap);
   padding: 0 var(--pad);
+}
+
+.slot {
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--line);
+  border-radius: var(--cell-radius);
+  background: var(--surface);
+  display: grid;
+  place-content: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--title);
+}
+
+.slot.owned-you {
+  background: var(--owner-you);
+  color: var(--owner-you-ink);
+  border-color: transparent;
+}
+
+.slot.owned-cpu {
+  background: var(--owner-cpu);
+  color: var(--owner-cpu-ink);
+  border-color: transparent;
+}
+
+.coinbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px var(--pad) 8px;
+  padding: 8px 12px;
+  border-radius: var(--cell-radius);
+  background: var(--surface-2);
+}
+
+.coinbar-amount {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--title);
+}
+
+.coinbar-forecast {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hand-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 0 var(--pad);
+}
+
+.next {
+  width: 34px;
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+}
+
+.next-label {
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.next-card {
+  width: 34px;
+  height: 46px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  display: grid;
+  place-content: center;
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.hand {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.card {
+  min-width: 0;
+  height: 62px;
+  border: 1px solid var(--line);
+  border-radius: var(--cell-radius);
+  background: var(--surface);
+  display: grid;
+  place-content: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--title);
+}
+
+.card.is-dim {
+  opacity: 0.45;
+}
+
+.road-btn {
+  margin: 10px var(--pad) 0;
+  min-height: var(--hit);
+  border: 1px solid var(--line);
+  border-radius: var(--cell-radius);
+  background: var(--surface);
+  color: var(--title);
+  font-size: 14px;
+}
+
+.end-turn {
+  margin: 12px var(--pad) var(--pad);
+  min-height: var(--hit);
+  border: none;
+  border-radius: var(--cell-radius);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 15px;
+}
+
+.sheet-text {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
 }

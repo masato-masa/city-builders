@@ -2,19 +2,23 @@ import { useState } from 'react';
 
 import type { Difficulty } from '@/ai/choose';
 
+import { Game } from './ui/Game';
 import { Home } from './ui/Home';
 import './ui/shared/tokens.css';
 import './ui/shared/chrome.css';
 import './ui/styles.css';
 
 export function App() {
-  const [difficulty, setDifficulty] = useState<Difficulty | null>(null);
+  const [session, setSession] = useState<{ seed: number; difficulty: Difficulty } | null>(null);
 
-  if (difficulty === null) return <Home onStart={setDifficulty} />;
+  if (session === null) {
+    return <Home onStart={(difficulty) => setSession({ seed: Date.now() % 100000, difficulty })} />;
+  }
   return (
-    <div className="app">
-      <p>準備中: {difficulty}</p>
-      <button onClick={() => setDifficulty(null)}>戻る</button>
-    </div>
+    <Game
+      seed={session.seed}
+      difficulty={session.difficulty}
+      onExit={() => setSession(null)}
+    />
   );
 }
