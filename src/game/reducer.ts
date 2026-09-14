@@ -1,6 +1,18 @@
 import { DEFAULT_BALANCE, type Balance } from './balance';
-import { countBuilding, handOf, hasBuilding, opponentOf, ownedSlots } from './selectors';
-import type { Action, CardId, GameState, PlayerId } from './types';
+import { activeOwnedSlots, handOf, opponentOf, ownedSlots } from './selectors';
+import { createRng } from './rng';
+import type { Action, BuildingId, CardId, GameState, PlayerId } from './types';
+
+/** 効果が生きている自分の物件のうち、指定した種類を持っているか。
+ *  封鎖者に止められている 1 件は「持っていない」扱いになる。 */
+function hasActiveBuilding(state: GameState, player: PlayerId, id: BuildingId): boolean {
+  return activeOwnedSlots(state, player).some((s) => s.buildingId === id);
+}
+
+/** 効果が生きている自分の物件のうち、指定した種類の件数。 */
+function countActiveBuilding(state: GameState, player: PlayerId, id: BuildingId): number {
+  return activeOwnedSlots(state, player).filter((s) => s.buildingId === id).length;
+}
 
 /** 工場の割引を織り込んだ、いま実際に払う額。 */
 export function cardCostFor(
@@ -11,8 +23,11 @@ export function cardCostFor(
 ): number {
   const base = balance.cards[card].cost;
   const p = state.players[player];
-  if (!p.usedAnyCardThisTurn && hasBuilding(state, player, 'factory')) {
-    return Math.max(0, base - balance.factoryDiscount);
+  if (!p.usedAnyCardThisTurn && hasActiveBuilding(state, player, 'factory')) {
+    const discount = p.festivalActive
+      ? balance.factoryDiscount * balance.festivalMultiplier
+      : balance.factoryDiscount;
+    return Math.max(0, base - discount);
   }
   return base;
 }
@@ -27,6 +42,7 @@ export function canUseCard(
   const p = state.players[player];
   if (!handOf(state, player, balance).includes(card)) return false;
   if (p.usedThisTurn.includes(card)) return false;
+  if (p.boundCard === card) return false;
   return p.coins >= cardCostFor(state, player, card, balance);
 }
 
@@ -58,7 +74,8 @@ export function reduce(
   }
 }
 
-const INCOME_CARDS: readonly CardId[] = ['miner', 'merchant', 'banker'];
+/** 次のターン開始時に払い出される投資カード。 */
+const INCOME_CARDS: readonly CardId[] = ['miner', 'banker'];
 
 /** 建築家の割引を織り込んだ、いま実際に払う額。 */
 export function buildCostFor(
@@ -94,8 +111,19 @@ function build(
   if (!canBuild(state, action.slotId, balance)) return state;
   const next = structuredClone(state);
   const player = next.current;
+  const foe = opponentOf(player);
   next.players[player].coins -= buildCostFor(state, player, action.slotId, balance);
   next.market[action.slotId]!.owner = player;
+
+  // 城塞の通行料: 建てたのが自分でも、相手が城塞を持っていれば相手に入る。
+  // 自分が城塞を持っていて自分で建てても、自分には入らない。
+  const foeFortresses = countActiveBuilding(next, foe, 'fortress');
+  if (foeFortresses > 0) {
+    let toll = foeFortresses * balance.fortressToll;
+    if (next.players[foe].festivalActive) toll *= balance.festivalMultiplier;
+    next.players[foe].coins += toll;
+  }
+
   return next;
 }
 
@@ -118,7 +146,8 @@ function useCard(
   if (action.card === 'blockader') {
     const slot = action.blockadeSlot;
     if (slot === undefined) return state;
-    if (!state.market[slot] || state.market[slot]!.owner !== null) return state;
+    // 対象は自分が所有していない区画すべて（空き地でも相手の物件でもよい）
+    if (!state.market[slot] || state.market[slot]!.owner === player) return state;
   }
 
   const next = structuredClone(state);
@@ -134,14 +163,34 @@ function useCard(
   if (action.card === 'architect') {
     p.buildDiscount += balance.architectDiscount;
   }
-  if (action.card === 'spy') {
-    next.revealedOpponentHand = handOf(next, foe, balance);
+  if (action.card === 'usurer') {
+    p.coins += balance.usurerGain;
+    p.pendingDebt += balance.usurerDebt;
   }
-  if (action.card === 'taxman' && !hasBuilding(next, foe, 'wall')) {
+  if (action.card === 'festival') {
+    p.festivalQueued = true;
+  }
+  if (action.card === 'guard') {
+    p.guarded = true;
+  }
+
+  const foeGuarded = next.players[foe].guarded;
+  const foeWalled = hasActiveBuilding(next, foe, 'wall');
+
+  if (action.card === 'spy' && !foeGuarded) {
+    next.players[foe].bindPending = true;
+  }
+  if (action.card === 'taxman' && !foeGuarded && !foeWalled) {
     next.players[foe].coins = Math.max(0, next.players[foe].coins - balance.taxmanAmount);
   }
-  if (action.card === 'blockader' && !hasBuilding(next, foe, 'wall')) {
-    next.players[foe].blockedSlot = action.blockadeSlot!;
+  if (action.card === 'blockader' && !foeGuarded && !foeWalled) {
+    const slotId = action.blockadeSlot!;
+    const targetSlot = next.market[slotId]!;
+    if (targetSlot.owner === null) {
+      next.players[foe].blockedSlot = slotId;
+    } else {
+      next.players[foe].disabledSlot = slotId;
+    }
   }
   if (action.card === 'herald') {
     // 伝令を一旦抜き、対象を底へ送り、その下に伝令を置く
@@ -154,19 +203,20 @@ function useCard(
   return next;
 }
 
-/** 1 枚の投資カードが解決時に生むコイン。銀行家だけ解決時の物件数で変わる。 */
+/** 1 枚の投資カードが解決時に生むコイン。銀行家だけ解決時の物件数で変わる。
+ *  取引所の投資ボーナスは物件の効果なので、祝祭中は 2 倍になる。 */
 function incomeOf(
   state: GameState,
   player: PlayerId,
   card: CardId,
   balance: Balance,
 ): number {
-  const bonus = hasBuilding(state, player, 'exchange') ? balance.exchangeBonus : 0;
+  const p = state.players[player];
+  let bonus = hasActiveBuilding(state, player, 'exchange') ? balance.exchangeBonus : 0;
+  if (p.festivalActive) bonus *= balance.festivalMultiplier;
   switch (card) {
     case 'miner':
       return balance.minerIncome + bonus;
-    case 'merchant':
-      return balance.merchantIncome + bonus;
     case 'banker':
       return (
         balance.bankerIncome +
@@ -184,17 +234,42 @@ function startTurn(state: GameState, balance: Balance): GameState {
   const player = next.current;
   const p = next.players[player];
 
+  // 祝祭: 収入を計算する前に有効化する
+  p.festivalActive = p.festivalQueued;
+  p.festivalQueued = false;
+
   p.coins += balance.baseIncome;
-  p.coins += countBuilding(next, player, 'tradingHouse') * balance.tradingHouseIncome;
+  if (p.festivalActive) p.coins += balance.festivalIncomeBonus;
+
+  let houseIncome = countActiveBuilding(next, player, 'tradingHouse') * balance.tradingHouseIncome;
+  if (p.festivalActive) houseIncome *= balance.festivalMultiplier;
+  p.coins += houseIncome;
+
   for (const card of p.pendingIncome) {
     p.coins += incomeOf(next, player, card, balance);
   }
+
+  // 高利貸の借り。収入を足したあとに引く。コインがマイナスになるのはここだけ。
+  p.coins -= p.pendingDebt;
+  p.pendingDebt = 0;
 
   p.pendingIncome = [];
   p.usedThisTurn = [];
   p.usedAnyCardThisTurn = false;
   p.buildDiscount = 0;
-  p.roadUsedThisTurn = false;
+  p.roadUsesThisTurn = 0;
+
+  // 買収者を受けていたら、このときの手札から 1 枚を抽選して縛る
+  if (p.bindPending) {
+    const hand = handOf(next, player, balance);
+    const rng = createRng(next.seed * 7919 + next.turn);
+    p.boundCard = hand[rng.int(hand.length)] ?? null;
+    p.bindPending = false;
+  }
+
+  // 衛兵の保護は、この開始フェーズの処理が終わったところで切れる
+  p.guarded = false;
+
   return next;
 }
 
@@ -205,8 +280,9 @@ export function canUseRoad(
 ): boolean {
   if (state.phase !== 'playing') return false;
   const player = state.current;
-  if (!hasBuilding(state, player, 'road')) return false;
-  if (state.players[player].roadUsedThisTurn) return false;
+  if (!hasActiveBuilding(state, player, 'road')) return false;
+  const limit = state.players[player].festivalActive ? balance.festivalMultiplier : 1;
+  if (state.players[player].roadUsesThisTurn >= limit) return false;
   return handOf(state, player, balance).includes(target);
 }
 
@@ -219,7 +295,7 @@ function useRoad(
   const next = structuredClone(state);
   const p = next.players[next.current];
   p.deck = moveToBottom(p.deck, action.target);
-  p.roadUsedThisTurn = true;
+  p.roadUsesThisTurn += 1;
   return next;
 }
 
@@ -228,9 +304,11 @@ function endTurn(state: GameState, balance: Balance): GameState {
   const next = structuredClone(state);
   const player = next.current;
 
-  // 自分に掛かっていた封鎖はこのターンの終わりで解ける
+  // 自分に掛かっていた効果はこのターンの終わりで解ける
   next.players[player].blockedSlot = null;
-  next.revealedOpponentHand = null;
+  next.players[player].disabledSlot = null;
+  next.players[player].festivalActive = false;
+  next.players[player].boundCard = null;
 
   const allBuilt = next.market.every((s) => s.owner !== null);
   const overTurnLimit = next.turn >= balance.maxTurnsPerPlayer * 2;
@@ -262,8 +340,9 @@ export function legalActions(
         if (target !== 'herald') out.push({ type: 'useCard', card, heraldTarget: target });
       }
     } else if (card === 'blockader') {
+      // 対象は自分が所有していない区画すべて（空き地・相手の物件どちらも）
       for (const slot of state.market) {
-        if (slot.owner === null) {
+        if (slot.owner !== player) {
           out.push({ type: 'useCard', card, blockadeSlot: slot.slotId });
         }
       }

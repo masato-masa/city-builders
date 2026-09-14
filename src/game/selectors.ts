@@ -41,6 +41,13 @@ export function ownedSlots(state: GameState, player: PlayerId): BuildingSlot[] {
   return state.market.filter((s) => s.owner === player);
 }
 
+/** 効果が生きている自分の物件。封鎖者で止められている 1 件を除く。
+ *  VP の計算には使わないこと（VP は止まらない）。 */
+export function activeOwnedSlots(state: GameState, player: PlayerId): BuildingSlot[] {
+  const disabled = state.players[player].disabledSlot;
+  return ownedSlots(state, player).filter((s) => s.slotId !== disabled);
+}
+
 export function countBuilding(state: GameState, player: PlayerId, id: BuildingId): number {
   return state.market.filter((s) => s.owner === player && s.buildingId === id).length;
 }

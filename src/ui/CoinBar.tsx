@@ -10,7 +10,6 @@ function forecast(state: GameState, balance: Balance): number {
     balance.baseIncome + countBuilding(state, 'you', 'tradingHouse') * balance.tradingHouseIncome;
   for (const card of p.pendingIncome) {
     if (card === 'miner') total += balance.minerIncome + bonus;
-    if (card === 'merchant') total += balance.merchantIncome + bonus;
     if (card === 'banker') {
       total += balance.bankerIncome + ownedSlots(state, 'you').length * balance.bankerPerBuilding + bonus;
     }

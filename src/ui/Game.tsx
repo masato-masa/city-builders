@@ -21,7 +21,6 @@ type Pending =
   | { kind: 'heraldTarget' }
   | { kind: 'blockadeTarget' }
   | { kind: 'roadTarget' }
-  | { kind: 'spyResult'; hand: CardId[] }
   | { kind: 'help' }
   | null;
 
@@ -73,10 +72,6 @@ export function Game({
     if (card === 'blockader') return setSheet({ kind: 'blockadeTarget' });
     const next = reduce(state, { type: 'useCard', card }, balance);
     setState(next);
-    // 密偵は結果を見せないと使った意味が無い
-    if (card === 'spy' && next.revealedOpponentHand) {
-      setSheet({ kind: 'spyResult', hand: next.revealedOpponentHand });
-    }
   };
 
   // 街道を持っているあいだ、毎ターン 1 回だけ手札を 1 枚無料で流せる
@@ -212,9 +207,9 @@ export function Game({
       ) : null}
 
       {sheet?.kind === 'blockadeTarget' ? (
-        <Sheet title="どの物件を封鎖する？" onClose={() => setSheet(null)}>
+        <Sheet title="どの区画を封鎖する？" onClose={() => setSheet(null)}>
           {state.market
-            .filter((s) => s.owner === null)
+            .filter((s) => s.owner !== 'you')
             .map((s) => (
               <button
                 key={s.slotId}
@@ -259,20 +254,6 @@ export function Game({
         </Sheet>
       ) : null}
 
-      {sheet?.kind === 'spyResult' ? (
-        <Sheet
-          title="相手の手札"
-          subtitle="覚えておくのはあなたの仕事"
-          onClose={() => setSheet(null)}
-        >
-          {sheet.hand.map((c, i) => (
-            <p key={`${c}-${i}`} className="sheet-row">
-              {CARD_NAMES[c]}
-            </p>
-          ))}
-        </Sheet>
-      ) : null}
-
       {sheet?.kind === 'help' ? (
         <Sheet title="あそびかた" onClose={() => setSheet(null)}>
           <p className="sheet-text">
@@ -281,7 +262,7 @@ export function Game({
             VP の多いほうが勝ちです。
           </p>
           <p className="sheet-text">
-            投資カード（採掘師・商人・銀行家）のコインが入るのは<b>次のターン</b>です。
+            投資カード（採掘師・銀行家）のコインが入るのは<b>次のターン</b>です。
             だからコインの右に「次のターン +N」を出しています。今建てるか、
             次のターンに回すかを、この 2 つの数字で比べてください。
           </p>
@@ -291,8 +272,8 @@ export function Game({
             左下の「次」で 1 枚先まで見えます。
           </p>
           <p className="sheet-text">
-            相手も同じ 8 種を持っています。徴税官でコインを奪われ、封鎖者で物件を 1 つ
-            押さえられます。密偵で相手の手札を覗くか、城壁を建てて防いでください。
+            相手も同じ 10 種を持っています。徴税官でコインを奪われ、封鎖者で区画を 1 つ
+            押さえられ、買収者で手札を 1 枚縛られます。衛兵を張るか、城壁を建てて防いでください。
           </p>
         </Sheet>
       ) : null}

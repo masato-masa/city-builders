@@ -11,7 +11,14 @@ function emptyPlayer(coins: number, deck: PlayerState['deck']): PlayerState {
     buildDiscount: 0,
     usedAnyCardThisTurn: false,
     blockedSlot: null,
-    roadUsedThisTurn: false,
+    roadUsesThisTurn: 0,
+    pendingDebt: 0,
+    festivalQueued: false,
+    festivalActive: false,
+    guarded: false,
+    bindPending: false,
+    boundCard: null,
+    disabledSlot: null,
   };
 }
 
@@ -43,6 +50,5 @@ export function createGame(seed: number, balance: Balance = DEFAULT_BALANCE): Ga
     players,
     market,
     phase: 'playing',
-    revealedOpponentHand: null,
   };
 }
