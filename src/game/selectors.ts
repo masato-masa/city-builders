@@ -49,20 +49,25 @@ export function hasBuilding(state: GameState, player: PlayerId, id: BuildingId):
   return countBuilding(state, player, id) > 0;
 }
 
-/** 終了時の VP。大聖堂だけ「自分の他の物件 1 件につき +2」で計算する。 */
+/** 区画 1 つが所有者にもたらす VP。未建設なら 0。
+ *  大聖堂だけ「自分の他の物件 1 件につき +N」と条件付きで決まる。 */
+export function vpOfSlot(
+  state: GameState,
+  slot: BuildingSlot,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
+  if (slot.owner === null) return 0;
+  if (slot.buildingId === 'cathedral') {
+    return (ownedSlots(state, slot.owner).length - 1) * balance.cathedralVpPerBuilding;
+  }
+  return balance.buildings[slot.buildingId].vp;
+}
+
+/** 終了時の VP。 */
 export function scoreOf(
   state: GameState,
   player: PlayerId,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
-  const owned = ownedSlots(state, player);
-  let total = 0;
-  for (const slot of owned) {
-    if (slot.buildingId === 'cathedral') {
-      total += (owned.length - 1) * balance.cathedralVpPerBuilding;
-    } else {
-      total += balance.buildings[slot.buildingId].vp;
-    }
-  }
-  return total;
+  return ownedSlots(state, player).reduce((n, slot) => n + vpOfSlot(state, slot, balance), 0);
 }

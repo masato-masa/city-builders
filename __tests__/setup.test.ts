@@ -8,6 +8,7 @@ import {
   opponentOf,
   ownedSlots,
   scoreOf,
+  vpOfSlot,
 } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 
@@ -71,5 +72,35 @@ describe('派生値', () => {
     house.owner = 'you';
     // 城塞 6 + 商館 2 + 大聖堂（他 2 件 × 2）4 = 12
     expect(scoreOf(g, 'you')).toBe(12);
+  });
+
+  it('区画ごとの VP を単体で取れる', () => {
+    const g = createGame(5);
+    const fortress = g.market.find((s) => s.buildingId === 'fortress')!;
+    const cathedral = g.market.find((s) => s.buildingId === 'cathedral')!;
+    const house = g.market.find((s) => s.buildingId === 'tradingHouse')!;
+    fortress.owner = 'you';
+    cathedral.owner = 'you';
+    house.owner = 'you';
+
+    expect(vpOfSlot(g, fortress)).toBe(DEFAULT_BALANCE.buildings.fortress.vp);
+    // 大聖堂は「自分の他の物件 1 件につき +2」。他に 2 件あるので 4
+    expect(vpOfSlot(g, cathedral)).toBe(2 * DEFAULT_BALANCE.cathedralVpPerBuilding);
+  });
+
+  it('未建設の区画は 0 VP', () => {
+    const g = createGame(5);
+    expect(vpOfSlot(g, g.market[0]!)).toBe(0);
+  });
+
+  it('scoreOf は区画ごとの VP の合計と一致する', () => {
+    const g = createGame(5);
+    g.market.forEach((s, i) => {
+      s.owner = i % 2 === 0 ? 'you' : 'cpu';
+    });
+    const sum = g.market
+      .filter((s) => s.owner === 'you')
+      .reduce((n, s) => n + vpOfSlot(g, s), 0);
+    expect(scoreOf(g, 'you')).toBe(sum);
   });
 });
