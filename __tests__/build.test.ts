@@ -70,11 +70,19 @@ describe('建設', () => {
   });
 
   it('建築家の割引で建設費は 0 未満にならない', () => {
+    // 割引は「建築家を使ったときの balance」で buildDiscount に積まれる。
+    // buildCostFor は積まれた buildDiscount だけを見るので、使用時に強い balance を渡す。
+    const strong = { ...DEFAULT_BALANCE, architectDiscount: 100 };
     let g = fixture(50);
-    g = reduce(g, { type: 'useCard', card: 'architect' }, DEFAULT_BALANCE);
-    g.market[0]!.buildingId = 'tradingHouse';
-    const cheap = { ...DEFAULT_BALANCE, architectDiscount: 100 };
-    expect(buildCostFor(g, 'you', 0, cheap)).toBe(0);
+    g = reduce(g, { type: 'useCard', card: 'architect' }, strong);
+    const slot = houseSlot(g);
+    expect(buildCostFor(g, 'you', slot, strong)).toBe(0);
+
+    // 0 まで下がった建設費が、実際の建設でもそのまま使われる
+    const coinsBefore = g.players.you.coins;
+    const after = reduce(g, { type: 'build', slotId: slot }, strong);
+    expect(after.players.you.coins).toBe(coinsBefore);
+    expect(after.market[slot]!.owner).toBe('you');
   });
 
   it('封鎖されたスロットは建てられない', () => {
