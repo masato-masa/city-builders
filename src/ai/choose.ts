@@ -8,7 +8,7 @@ import { evaluateState } from './evaluate';
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
 /** 難易度ごとの揺らぎ。easy ほど評価をぶらして弱くする。 */
-const NOISE: Record<Difficulty, number> = { easy: 14, normal: 3, hard: 0 };
+const NOISE: Record<Difficulty, number> = { easy: 45, normal: 3, hard: 0 };
 
 /** 妨害カードを検討する確率。easy は妨害をあまり撃たない。 */
 const HARASS_RATE: Record<Difficulty, number> = { easy: 0.25, normal: 0.8, hard: 1 };
