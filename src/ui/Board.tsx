@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 
 import { BUILDING_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
+import { buildCostFor } from '@/game/reducer';
 import { vpOfSlot } from '@/game/selectors';
 import type { GameState } from '@/game/types';
 
@@ -86,7 +87,11 @@ export function Board({
             ) : null}
             {/* コストと VP。常に両方出す（要望 5）。 */}
             <span className="plot-badges">
-              <span className="plot-cost">{balance.buildings[slot.buildingId].cost}</span>
+              {/* 実際にいま払う額を出す。建築家や石切場の割引が効いているターンは
+                  基準費用と食い違うので、基準費用を出すと画面が嘘の数字を出す。
+                  「買う前と後で情報を変えない」は出す項目の話であって、
+                  値を固定しろという意味ではない。 */}
+              <span className="plot-cost">{buildCostFor(state, 'you', slot.slotId, balance)}</span>
               <span className={`plot-vp${owned ? ` owner-${slot.owner}` : ''}`}>
                 {vpTextFor(state, slot.slotId, balance)}
               </span>
