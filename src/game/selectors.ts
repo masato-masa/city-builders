@@ -84,7 +84,9 @@ export function scoreOf(
  *  プレイ画面右上の残りターン表示のために追加した読み取り専用の派生値。 */
 export function turnsRemaining(state: GameState, balance: Balance = DEFAULT_BALANCE): number {
   if (state.phase === 'finished') return 0;
-  return Math.max(0, balance.maxTurnsPerPlayer * 2 - state.turn + 1);
+  // 半手番ではなく「自分があと何回打てるか」を返す。
+  // 40 と出すとプレイヤーの数え方（20 ターンずつ）と合わない。
+  return Math.ceil(Math.max(0, balance.maxTurnsPerPlayer * 2 - state.turn + 1) / 2);
 }
 
 /** 街道があと何回使えるか。祝祭中は festivalMultiplier 回、それ以外は 1 回。

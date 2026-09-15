@@ -111,7 +111,11 @@
 .opponent {
   display: flex;
   flex-direction: column;
-  background: var(--chrome);
+  /* 全面背景を活かすため、不透明な板ではなく透かした暗幕にする。
+     文字の読みやすさは audit-contrast で確認すること。 */
+  background: rgba(22, 32, 41, 0.82);
+  backdrop-filter: blur(2px);
+  border-radius: var(--card-radius);
 }
 
 .opponent-row {
@@ -166,14 +170,16 @@
 /* CPU の行動ログ。中身が無くても常にこの高さを取る（要望 3）。
    overflow: hidden で、増えた行は上から静かにあふれさせる（スクロールは出さない）。 */
 .cpu-log {
-  height: 44px;
-  padding: 3px var(--pad) 6px;
+  /* 中身が空でも高さを取る。消すと CPU の手番のたびに盤面が上下に飛ぶ。
+     ただし 44px は背景を潰しすぎるので 2 行ぶんに詰める。 */
+  height: 32px;
+  padding: 2px var(--pad) 5px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   gap: 1px;
   overflow: hidden;
-  background: var(--chrome-2);
+  background: transparent;
 }
 
 .cpu-log-line {
@@ -552,7 +558,10 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  color: var(--title);
+  /* 背景が石畳の写真になったので、地の色を前提にした --title では読めない。
+     白に濃い影を落として、明るい石にも暗い石にも乗るようにする。 */
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
   white-space: nowrap;
 }
 

@@ -5,15 +5,17 @@ import { roadUsesRemaining, turnsRemaining } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 
 describe('turnsRemaining', () => {
-  it('初手は maxTurnsPerPlayer * 2 手ぶん残っている', () => {
+  // 画面に出すのは半手番の数ではなく「自分があと何回打てるか」。
+  // 40 と出すとプレイヤーの数え方（20 ターンずつ）と合わない。
+  it('初手は 1 人あたり maxTurnsPerPlayer ターン残っている', () => {
     const g = createGame(1);
-    expect(turnsRemaining(g, DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.maxTurnsPerPlayer * 2);
+    expect(turnsRemaining(g, DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.maxTurnsPerPlayer);
   });
 
-  it('ターンが進むほど減る', () => {
+  it('自分の手番が 1 巡するごとに 1 減る', () => {
     const g = createGame(1);
-    g.turn = 5;
-    expect(turnsRemaining(g, DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.maxTurnsPerPlayer * 2 - 4);
+    g.turn = 3;
+    expect(turnsRemaining(g, DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.maxTurnsPerPlayer - 1);
   });
 
   it('終了していれば 0', () => {
