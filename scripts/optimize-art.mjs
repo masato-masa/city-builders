@@ -102,6 +102,14 @@ const JOBS = [
     quality: 85,
     alpha: true,
   },
+  {
+    label: '大聖堂 (cathedral)',
+    input: 'refs/art/cathedral-trial.png',
+    output: 'src/assets/art/buildings/cathedral.webp',
+    longEdge: 320,
+    quality: 85,
+    alpha: true,
+  },
 ];
 
 const fmtKB = (bytes) => `${(bytes / 1024).toFixed(1)}KB`;

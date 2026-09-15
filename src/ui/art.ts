@@ -1,6 +1,7 @@
 import type { BuildingId } from '@/game/types';
 
 import fieldUrl from '@/assets/art/field.webp';
+import cathedralUrl from '@/assets/art/buildings/cathedral.webp';
 import exchangeUrl from '@/assets/art/buildings/exchange.webp';
 import factoryUrl from '@/assets/art/buildings/factory.webp';
 import fortressUrl from '@/assets/art/buildings/fortress.webp';
@@ -22,6 +23,7 @@ export interface BuildingArt {
 /** まだ素材が無い物件は登録しない。Board はその区画を空き地として描く。 */
 export const BUILDING_ART: Partial<Record<BuildingId, BuildingArt>> = {
   fortress: { url: fortressUrl, scale: 1 },
+  cathedral: { url: cathedralUrl, scale: 1.03 },
   tradingHouse: { url: tradingHouseUrl, scale: 0.97 },
   wall: { url: wallUrl, scale: 0.94 },
   factory: { url: factoryUrl, scale: 0.88 },
