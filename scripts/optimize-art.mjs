@@ -13,6 +13,30 @@ import { existsSync } from 'node:fs';
 
 import sharp from 'sharp';
 
+// 生成 AI が出す透過素材は、輪郭に半透明の画素が帯状に残る。そこへ元の背景色が
+// 混ざっているため、盤面に載せると赤や黄の縁として見える。
+// α を急峻な直線で叩き、薄い画素を 0 に落として縁を削る。
+// ALPHA_CUT より薄い画素は消え、それより濃い画素は一気に不透明へ寄る。
+const ALPHA_GAIN = 3;
+const ALPHA_CUT = 0.55;
+
+/** 縁のフリンジを削った画像を返す。α を持たない素材には使わない。 */
+async function withCleanEdges(input) {
+  const meta = await sharp(input).metadata();
+  const { width, height } = meta;
+  const rgb = await sharp(input).removeAlpha().raw().toBuffer();
+  const alpha = await sharp(input)
+    .ensureAlpha()
+    .extractChannel('alpha')
+    .linear(ALPHA_GAIN, -ALPHA_GAIN * ALPHA_CUT * 255)
+    .raw()
+    .toBuffer();
+  return sharp(rgb, { raw: { width, height, channels: 3 } })
+    .joinChannel(alpha, { raw: { width, height, channels: 1 } })
+    .png()
+    .toBuffer();
+}
+
 const JOBS = [
   {
     label: '盤面 (field)',
@@ -38,6 +62,46 @@ const JOBS = [
     quality: 85,
     alpha: true,
   },
+  {
+    label: '城壁 (wall)',
+    input: 'refs/art/wall-trial.webp',
+    output: 'src/assets/art/buildings/wall.webp',
+    longEdge: 320,
+    quality: 85,
+    alpha: true,
+  },
+  {
+    label: '工場 (factory)',
+    input: 'refs/art/factory-trial.webp',
+    output: 'src/assets/art/buildings/factory.webp',
+    longEdge: 320,
+    quality: 85,
+    alpha: true,
+  },
+  {
+    label: '街道 (road)',
+    input: 'refs/art/road-trial.webp',
+    output: 'src/assets/art/buildings/road.webp',
+    longEdge: 320,
+    quality: 85,
+    alpha: true,
+  },
+  {
+    label: '取引所 (exchange)',
+    input: 'refs/art/exchange-trial.webp',
+    output: 'src/assets/art/buildings/exchange.webp',
+    longEdge: 320,
+    quality: 85,
+    alpha: true,
+  },
+  {
+    label: '石切場 (quarry)',
+    input: 'refs/art/quarry-trial.webp',
+    output: 'src/assets/art/buildings/quarry.webp',
+    longEdge: 320,
+    quality: 85,
+    alpha: true,
+  },
 ];
 
 const fmtKB = (bytes) => `${(bytes / 1024).toFixed(1)}KB`;
@@ -51,7 +115,8 @@ for (const job of JOBS) {
     process.exit(1);
   }
 
-  let pipeline = sharp(job.input).resize(job.longEdge, job.longEdge, {
+  const source = job.alpha ? await withCleanEdges(job.input) : job.input;
+  let pipeline = sharp(source).resize(job.longEdge, job.longEdge, {
     fit: 'inside',
     withoutEnlargement: true,
   });
