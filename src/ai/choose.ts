@@ -3,7 +3,7 @@ import { legalActions, reduce } from '@/game/reducer';
 import type { Rng } from '@/game/rng';
 import type { Action, GameState } from '@/game/types';
 
-import { DEFAULT_WEIGHTS, evaluateState, type Weights } from './evaluate';
+import { DEFAULT_PROFILE, evaluateState, weightsAt, type Profile } from './evaluate';
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
@@ -21,7 +21,7 @@ export interface AiOptions {
   harassRate: number;
   /** 1 手先を読むか */
   lookahead: boolean;
-  weights: Weights;
+  profile: Profile;
 }
 
 /** 難易度から AiOptions を作る。今までの NOISE / HARASS_RATE / hard 分岐をそのまま写したもの。 */
@@ -30,7 +30,7 @@ export function optionsFor(difficulty: Difficulty): AiOptions {
     noise: NOISE[difficulty],
     harassRate: HARASS_RATE[difficulty],
     lookahead: difficulty === 'hard',
-    weights: DEFAULT_WEIGHTS,
+    profile: DEFAULT_PROFILE,
   };
 }
 
@@ -52,6 +52,9 @@ export function chooseAction(
 ): Action {
   const options = resolveOptions(difficulty);
   const player = state.current;
+  // Profile → Weights への変換はここ（呼び出し側）の責務。この意思決定 1 回の間は
+  // 進行度が変わらないので、決定の起点となる state から 1 度だけ求めて使い回す。
+  const weights = weightsAt(options.profile, state, balance);
   const actions = legalActions(state, balance).filter(
     (a) => !isHarass(a) || rng.next() < options.harassRate,
   );
@@ -64,11 +67,11 @@ export function chooseAction(
     const after = reduce(state, action, balance);
     // endTurn の評価は「このターンをここで終える価値」なので、
     // 手番が移った後の局面をそのまま自分視点で測る
-    let score = evaluateState(after, player, balance, options.weights);
+    let score = evaluateState(after, player, balance, weights);
     if (options.lookahead && action.type !== 'endTurn') {
       // 1 手だけ先を読む。自分の最善応手ぶんを少し上乗せする
       const follow = legalActions(after, balance)
-        .map((a) => evaluateState(reduce(after, a, balance), player, balance, options.weights))
+        .map((a) => evaluateState(reduce(after, a, balance), player, balance, weights))
         .reduce((m, v) => Math.max(m, v), -Infinity);
       if (follow > -Infinity) score = score * 0.6 + follow * 0.4;
     }

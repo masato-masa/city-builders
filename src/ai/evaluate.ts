@@ -57,9 +57,29 @@ export const DEFAULT_WEIGHTS: Weights = {
   opponentStuck: 1.0,
 };
 
+/** 性格。序盤と終盤で重みが変わる。進行度で線形に補間する。 */
+export interface Profile {
+  early: Weights;
+  late: Weights;
+}
+
+export const DEFAULT_PROFILE: Profile = { early: DEFAULT_WEIGHTS, late: DEFAULT_WEIGHTS };
+
 /** 残りターンの多さ。序盤は収入を、終盤は VP を重く見るための係数。 */
 function lateness(state: GameState, balance: Balance): number {
   return Math.min(1, state.turn / (balance.maxTurnsPerPlayer * 2));
+}
+
+/** Profile を進行度で線形補間し、その局面用の Weights を作る。
+ *  補間の係数は lateness（0=序盤、1=終盤）をそのまま使う。 */
+export function weightsAt(profile: Profile, state: GameState, balance: Balance): Weights {
+  const t = lateness(state, balance);
+  const keys = Object.keys(profile.early) as (keyof Weights)[];
+  const result = {} as Weights;
+  for (const key of keys) {
+    result[key] = profile.early[key] + (profile.late[key] - profile.early[key]) * t;
+  }
+  return result;
 }
 
 /** いまの所持コインで、このターン中に実際に買える区画を VP の高い順に貪欲に買って

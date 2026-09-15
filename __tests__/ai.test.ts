@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { chooseAction, optionsFor, playTurn } from '@/ai/choose';
-import { DEFAULT_WEIGHTS, evaluateState } from '@/ai/evaluate';
+import { DEFAULT_PROFILE, DEFAULT_WEIGHTS, evaluateState, weightsAt } from '@/ai/evaluate';
 import { DEFAULT_BALANCE } from '@/game/balance';
 import { handOf, scoreOf } from '@/game/selectors';
 import { legalActions, reduce } from '@/game/reducer';
@@ -116,6 +116,37 @@ describe('重み付き評価関数', () => {
   });
 });
 
+describe('Profile と weightsAt', () => {
+  it('DEFAULT_PROFILE は early = late = DEFAULT_WEIGHTS', () => {
+    expect(DEFAULT_PROFILE).toEqual({ early: DEFAULT_WEIGHTS, late: DEFAULT_WEIGHTS });
+  });
+
+  it('early = late の Profile は、進行度によらず同じ Weights を返す', () => {
+    const start = createGame(3);
+    const late = createGame(3);
+    late.turn = DEFAULT_BALANCE.maxTurnsPerPlayer * 2;
+    expect(weightsAt(DEFAULT_PROFILE, start, DEFAULT_BALANCE)).toEqual(DEFAULT_WEIGHTS);
+    expect(weightsAt(DEFAULT_PROFILE, late, DEFAULT_BALANCE)).toEqual(DEFAULT_WEIGHTS);
+  });
+
+  it('序盤（turn=0）では early、終盤（turn が上限）では late をそのまま返す', () => {
+    const profile = { early: { ...DEFAULT_WEIGHTS, vp: 1 }, late: { ...DEFAULT_WEIGHTS, vp: 99 } };
+    const early = createGame(3);
+    early.turn = 0;
+    const late = createGame(3);
+    late.turn = DEFAULT_BALANCE.maxTurnsPerPlayer * 2;
+    expect(weightsAt(profile, early, DEFAULT_BALANCE).vp).toBe(1);
+    expect(weightsAt(profile, late, DEFAULT_BALANCE).vp).toBe(99);
+  });
+
+  it('中間の進行度では early と late を線形補間する', () => {
+    const profile = { early: { ...DEFAULT_WEIGHTS, vp: 0 }, late: { ...DEFAULT_WEIGHTS, vp: 10 } };
+    const half = createGame(3);
+    half.turn = DEFAULT_BALANCE.maxTurnsPerPlayer; // lateness = 0.5
+    expect(weightsAt(profile, half, DEFAULT_BALANCE).vp).toBeCloseTo(5);
+  });
+});
+
 describe('行動選択', () => {
   it('必ず合法手を返す', () => {
     const g = reduce(createGame(11), { type: 'startTurn' }, DEFAULT_BALANCE);
@@ -137,19 +168,19 @@ describe('AiOptions への分解', () => {
       noise: 45,
       harassRate: 0.25,
       lookahead: false,
-      weights: DEFAULT_WEIGHTS,
+      profile: DEFAULT_PROFILE,
     });
     expect(optionsFor('normal')).toEqual({
       noise: 3,
       harassRate: 0.8,
       lookahead: false,
-      weights: DEFAULT_WEIGHTS,
+      profile: DEFAULT_PROFILE,
     });
     expect(optionsFor('hard')).toEqual({
       noise: 0,
       harassRate: 1,
       lookahead: true,
-      weights: DEFAULT_WEIGHTS,
+      profile: DEFAULT_PROFILE,
     });
   });
 
