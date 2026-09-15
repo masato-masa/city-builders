@@ -32,14 +32,14 @@ export interface BuildingArt {
 
 /** まだ素材が無い物件は登録しない。Board はその区画を空き地として描く。 */
 export const BUILDING_ART: Partial<Record<BuildingId, BuildingArt>> = {
-  fortress: { url: fortressUrl, scale: 1 },
-  cathedral: { url: cathedralUrl, scale: 1.03 },
-  tradingHouse: { url: tradingHouseUrl, scale: 0.97 },
-  wall: { url: wallUrl, scale: 0.94 },
-  factory: { url: factoryUrl, scale: 0.88 },
-  road: { url: roadUrl, scale: 0.9 },
-  exchange: { url: exchangeUrl, scale: 0.85 },
-  quarry: { url: quarryUrl, scale: 0.89 },
+  fortress: { url: fortressUrl, scale: 1.0 },
+  cathedral: { url: cathedralUrl, scale: 1.08 },
+  tradingHouse: { url: tradingHouseUrl, scale: 0.88 },
+  wall: { url: wallUrl, scale: 0.96 },
+  factory: { url: factoryUrl, scale: 0.98 },
+  road: { url: roadUrl, scale: 0.91 },
+  exchange: { url: exchangeUrl, scale: 0.95 },
+  quarry: { url: quarryUrl, scale: 0.97 },
 };
 
 /** 人物カードの絵。建物と違い scale は持たない。カードの枠いっぱいに

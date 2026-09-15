@@ -48,7 +48,7 @@ const JOBS = [
   },
   {
     label: '城塞 (fortress)',
-    input: 'refs/art/fortress-trial2.png',
+    input: 'refs/art/v2/fortress.png',
     output: 'src/assets/art/buildings/fortress.webp',
     longEdge: 320,
     quality: 85,
@@ -56,7 +56,7 @@ const JOBS = [
   },
   {
     label: '商館 (tradingHouse)',
-    input: 'refs/art/tradinghouse-trial.png',
+    input: 'refs/art/v2/tradingHouse.png',
     output: 'src/assets/art/buildings/tradingHouse.webp',
     longEdge: 320,
     quality: 85,
@@ -64,7 +64,7 @@ const JOBS = [
   },
   {
     label: '城壁 (wall)',
-    input: 'refs/art/wall-trial.webp',
+    input: 'refs/art/v2/wall.png',
     output: 'src/assets/art/buildings/wall.webp',
     longEdge: 320,
     quality: 85,
@@ -72,7 +72,7 @@ const JOBS = [
   },
   {
     label: '工場 (factory)',
-    input: 'refs/art/factory-trial.webp',
+    input: 'refs/art/v2/factory.png',
     output: 'src/assets/art/buildings/factory.webp',
     longEdge: 320,
     quality: 85,
@@ -80,7 +80,7 @@ const JOBS = [
   },
   {
     label: '街道 (road)',
-    input: 'refs/art/road-trial.webp',
+    input: 'refs/art/v2/road.png',
     output: 'src/assets/art/buildings/road.webp',
     longEdge: 320,
     quality: 85,
@@ -88,7 +88,7 @@ const JOBS = [
   },
   {
     label: '取引所 (exchange)',
-    input: 'refs/art/exchange-trial.webp',
+    input: 'refs/art/v2/exchange.png',
     output: 'src/assets/art/buildings/exchange.webp',
     longEdge: 320,
     quality: 85,
@@ -96,7 +96,7 @@ const JOBS = [
   },
   {
     label: '石切場 (quarry)',
-    input: 'refs/art/quarry-trial.webp',
+    input: 'refs/art/v2/quarry.png',
     output: 'src/assets/art/buildings/quarry.webp',
     longEdge: 320,
     quality: 85,
@@ -104,7 +104,7 @@ const JOBS = [
   },
   {
     label: '大聖堂 (cathedral)',
-    input: 'refs/art/cathedral-trial.png',
+    input: 'refs/art/v2/cathedral.png',
     output: 'src/assets/art/buildings/cathedral.webp',
     longEdge: 320,
     quality: 85,

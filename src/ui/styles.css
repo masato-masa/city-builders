@@ -335,8 +335,11 @@
   transition: filter 0.25s var(--ease, ease);
 }
 
+/* 未建設。所有者が付いていないことを表すために沈めるが、
+   落としすぎると素材が暗い塊になって何の建物か分からなくなる。
+   「まだ誰のものでもない」と伝わる最小限に留める。 */
 .plot-art.is-unbuilt {
-  filter: brightness(0.55) saturate(0.55);
+  filter: brightness(0.86) saturate(0.7);
 }
 
 .plot-art.owner-you {
