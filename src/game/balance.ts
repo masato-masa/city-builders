@@ -87,6 +87,8 @@ export interface Balance {
   fortressToll: number;
   /** 石切場: 建築家を使ったターン、2 件目以降の建設費にさらに乗る割引 */
   quarryExtraDiscount: number;
+  /** 後手の 1 ターン目だけ、開始フェーズに足す収入。先手有利の補正 */
+  secondPlayerFirstTurnBonus: number;
   /** 市場のスロット順。長さ 10 */
   market: BuildingId[];
 }
@@ -101,14 +103,14 @@ export const DEFAULT_BALANCE: Balance = {
   cards: {
     miner: { cost: 2 },
     banker: { cost: 5 },
-    architect: { cost: 5 },
+    architect: { cost: 3 },
     herald: { cost: 1 },
     festival: { cost: 3 },
     guard: { cost: 2 },
     usurer: { cost: 0 },
     spy: { cost: 3 },
-    taxman: { cost: 4 },
-    blockader: { cost: 4 },
+    taxman: { cost: 3 },
+    blockader: { cost: 3 },
   },
   minerIncome: 6,
   bankerIncome: 11,
@@ -135,6 +137,7 @@ export const DEFAULT_BALANCE: Balance = {
   festivalIncomeBonus: 2,
   fortressToll: 2,
   quarryExtraDiscount: 4,
+  secondPlayerFirstTurnBonus: 1,
   market: [
     'tradingHouse',
     'tradingHouse',

@@ -573,11 +573,16 @@ const minMax = (values: number[]): [number, number] => [Math.min(...values), Mat
   );
 }
 {
+  // 使用率の絶対値ではなく、全カード使用に占める割合で見る。
+  // 1 ターンあたり何枚使う経済かによって絶対値は上下するので、絶対値だと
+  // 「満遍なく使われているか」を測れない。均等なら 10 枚それぞれ 10%。
   const rates = ALL_CARDS.map((c) => cardOverallRate.get(c)!);
-  const [lo, hi] = minMax(rates);
-  const ok = lo >= 0.04 && hi <= 0.2;
+  const total = rates.reduce((s, v) => s + v, 0);
+  const shares = total > 0 ? rates.map((v) => v / total) : rates;
+  const [lo, hi] = minMax(shares);
+  const ok = lo >= 0.05 && hi <= 0.18;
   console.log(
-    `| カードが満遍なく使われる | 8 種すべて使用率 4%〜20% | ${pct(lo)}〜${pct(hi)} | ${ok ? '✅' : '❌'} |`,
+    `| カードが満遍なく使われる | 10 枚のシェアが 5%〜18% | ${pct(lo)}〜${pct(hi)} | ${ok ? '✅' : '❌'} |`,
   );
 }
 {

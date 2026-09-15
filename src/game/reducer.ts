@@ -253,6 +253,9 @@ function startTurn(state: GameState, balance: Balance): GameState {
   p.festivalQueued = false;
 
   p.coins += balance.baseIncome;
+  // 後手の 1 ターン目だけ補正する。先手は市場を先に取れるぶん有利なので、
+  // その差を整数 1 つのつまみで埋める。turn 2 が後手の 1 ターン目。
+  if (next.turn === 2) p.coins += balance.secondPlayerFirstTurnBonus;
   if (p.festivalActive) p.coins += balance.festivalIncomeBonus;
 
   let houseIncome = countActiveBuilding(next, player, 'tradingHouse') * balance.tradingHouseIncome;
