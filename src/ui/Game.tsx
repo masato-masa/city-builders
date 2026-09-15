@@ -5,7 +5,7 @@ import type { Difficulty } from '@/ai/choose';
 import { BUILDING_NAMES, BUILDING_TEXTS, CARD_NAMES, CARD_TEXTS, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { buildCostFor, canBuild, canUseCard, canUseRoad, reduce } from '@/game/reducer';
 import { createRng, type Rng } from '@/game/rng';
-import { handOf, roadUsesRemaining, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
+import { handOf, roadUsesRemaining, scoreOf, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 import { loadProgress, saveProgress } from '@/storage/storage';
@@ -16,7 +16,6 @@ import { CoinBar } from './CoinBar';
 import { type CpuStep, playTurnSteps } from './cpu-turn';
 import { hapticBuild, hapticLose, hapticReject, hapticUseCard, hapticWin } from './haptics';
 import { Hand } from './Hand';
-import { SettingsIcon, TurnClockIcon } from './icons';
 import { OpponentStrip } from './OpponentStrip';
 import { Sheet } from './Sheets';
 import {
@@ -42,9 +41,16 @@ type Pending =
   | { kind: 'card'; card: CardId }
   | { kind: 'heraldTarget' }
   | { kind: 'blockadeTarget' }
+  | { kind: 'menu' }
+  | { kind: 'confirmExit' }
   | { kind: 'help' }
   | { kind: 'settings' }
   | null;
+
+// CPU の 1 手ごとに空ける間隔。「結局見えない。早すぎる」という指摘を受け、
+// 手数に応じて詰めていた計算をやめ、常にこの値を使う（要望 7）。
+// ターン全体は長くなってよい。読めるかどうかが基準。
+const CPU_STEP_DELAY_MS = 900;
 
 export function Game({
   seed,
@@ -75,6 +81,9 @@ export function Game({
   const [cpuTurn, setCpuTurn] = useState<{ steps: CpuStep[]; revealed: number } | null>(null);
   // 画面に見せる実況ログ。直前の CPU の手番ぶんが、次の CPU の手番が始まるまで残る。
   const [cpuLog, setCpuLog] = useState<string[]>([]);
+  // いま出ている 1 手が何をしたか。ログの文字だけでは足りないので、盤面側にも指し示す（要望 7）。
+  const [cpuFlashCard, setCpuFlashCard] = useState<CardId | null>(null);
+  const [cpuHighlightSlot, setCpuHighlightSlot] = useState<number | null>(null);
   const cpuActing = cpuTurn !== null;
 
   const finished = state.phase === 'finished';
@@ -125,32 +134,39 @@ export function Game({
     // これは元の実装（seed だけから作る乱数で先手番を進める）をそのまま踏襲している。
     const stepRng = state.turn === 1 ? createRng(seed) : rng;
     setCpuLog([]);
+    setCpuFlashCard(null);
+    setCpuHighlightSlot(null);
     setCpuTurn({ steps: playTurnSteps(state, difficulty, stepRng, balance), revealed: 0 });
   }, [state]);
 
-  // 1 手ずつ間を空けて出す。手数に応じて間隔を決め、合計がだいたい 2 秒に収まるようにする。
-  // 振動は入れない（プレイヤーが起こしていない操作でスマホを震わせると誤動作に見えるため）。
-  // 音は CPU の手番も鳴らし、進行を実況ログと一緒に音でも伝える。
+  // 1 手ずつ、最低でも読める速さ（900ms）を空けて出す（要望 7）。
+  // 何をしたかは文字のログだけでなく、盤面側にも指し示す：
+  // カードを使ったら相手のボードのそばに絵を一瞬大きく出し、物件を建てたら
+  // その区画を光らせる。振動は入れない（プレイヤーが起こしていない操作で
+  // スマホを震わせると誤動作に見えるため）。
   useEffect(() => {
     if (!cpuTurn) return;
     const { steps, revealed } = cpuTurn;
     const step = steps[revealed];
     if (!step) return;
     const isLast = revealed === steps.length - 1;
-    const delayMs = Math.max(220, Math.min(650, 2000 / steps.length));
     const timer = window.setTimeout(() => {
       setCpuLog((prev) => [...prev, step.log]);
+      setCpuFlashCard(step.action.type === 'useCard' ? step.action.card : null);
+      setCpuHighlightSlot(step.action.type === 'build' ? step.action.slotId : null);
       if (step.action.type === 'useCard') playUseCard(step.action.card);
       else if (step.action.type === 'build') playBuild();
       else if (step.action.type === 'endTurn') playEndTurn();
       if (isLast) {
         finishCpuTurn(step.state);
         setCpuTurn(null);
+        setCpuFlashCard(null);
+        setCpuHighlightSlot(null);
       } else {
         setState(step.state);
         setCpuTurn((prev) => (prev ? { ...prev, revealed: prev.revealed + 1 } : prev));
       }
-    }, delayMs);
+    }, CPU_STEP_DELAY_MS);
     return () => window.clearTimeout(timer);
     // eslint 的な exhaustive-deps はこのプロジェクトに無い。cpuTurn の変化だけを見る。
   }, [cpuTurn]);
@@ -191,37 +207,16 @@ export function Game({
 
   return (
     <div className="app app-play" style={{ backgroundImage: `url(${FIELD_URL})` }}>
-      <header className="header">
-        <div className="header-row">
-          <div className="header-left">
-            <button className="icon-btn" onClick={onExit} aria-label="戻る">
-              ←
-            </button>
-          </div>
-          <div className="turn-clock" aria-label={`残り ${turnsRemaining(state, balance)} ターン`}>
-            <TurnClockIcon />
-            <span className="turn-clock-text">
-              残り <span className="turn-clock-num">{turnsRemaining(state, balance)}</span> ターン
-            </span>
-          </div>
-          <div className="header-actions">
-            <button className="icon-btn" aria-label="あそびかた" onClick={() => setSheet({ kind: 'help' })}>
-              ?
-            </button>
-            <button className="icon-btn" aria-label="設定" onClick={() => setSheet({ kind: 'settings' })}>
-              <SettingsIcon />
-            </button>
-          </div>
-        </div>
-      </header>
-
+      {/* ヘッダーの行は廃止（要望 1）。あきらめる／あそびかた／設定は
+          手札の「次」の上のメニューボタン 1 つにまとめた（要望 2）。 */}
       <main className="play">
         <div className="board-shell">
-          <OpponentStrip state={state} balance={balance} log={cpuLog} />
+          <OpponentStrip state={state} balance={balance} log={cpuLog} flashCard={cpuFlashCard} />
           <div className="board-area">
             <Board
               state={state}
               balance={balance}
+              highlightSlot={cpuHighlightSlot}
               onPick={(slotId) => {
                 if (cpuActing) return;
                 const slot = state.market[slotId];
@@ -254,6 +249,10 @@ export function Game({
                 hapticReject();
               }
               setSheet({ kind: 'card', card });
+            }}
+            onMenu={() => {
+              playSelect();
+              setSheet({ kind: 'menu' });
             }}
           />
         </div>
@@ -391,6 +390,38 @@ export function Game({
                   {BUILDING_NAMES[s.buildingId]}
                 </button>
               ))}
+          </Sheet>
+        ) : null}
+      </AnimatePresence>
+
+      {/* 新しいメニュー。あきらめる／あそびかた／設定の 3 つだけ（要望 2）。
+          「戻る」ではなく「あきらめる」。いきなり戻さず、確認を挟む。 */}
+      <AnimatePresence>
+        {sheet?.kind === 'menu' ? (
+          <Sheet key="menu" title="メニュー" onClose={() => setSheet(null)}>
+            <button className="sheet-row danger" onClick={() => setSheet({ kind: 'confirmExit' })}>
+              あきらめる
+            </button>
+            <button className="sheet-row" onClick={() => setSheet({ kind: 'help' })}>
+              あそびかた
+            </button>
+            <button className="sheet-row" onClick={() => setSheet({ kind: 'settings' })}>
+              設定
+            </button>
+          </Sheet>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {sheet?.kind === 'confirmExit' ? (
+          <Sheet key="confirmExit" title="あきらめますか？" onClose={() => setSheet({ kind: 'menu' })}>
+            <p className="sheet-text">ここまでの進行はきろくに残りません。</p>
+            <button className="home-btn primary" onClick={onExit}>
+              あきらめる
+            </button>
+            <button className="sheet-link" onClick={() => setSheet({ kind: 'menu' })}>
+              もどる
+            </button>
           </Sheet>
         ) : null}
       </AnimatePresence>

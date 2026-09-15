@@ -19,7 +19,23 @@ export function TurnClockIcon() {
   );
 }
 
-/** 設定ボタン（ヘッダー右上、? の隣）に置く歯車。 */
+/** 手札「次」の真上、横長メニューボタンの中の三本線（要望 2）。文字は入れない。 */
+export function MenuIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <path d="M4 7 h16 M4 12 h16 M4 17 h16" />
+    </svg>
+  );
+}
+
+/** 設定ボタン（? の隣）に置く歯車。 */
 export function SettingsIcon() {
   return (
     <svg

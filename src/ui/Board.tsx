@@ -1,20 +1,33 @@
 import { motion } from 'motion/react';
 
 import { BUILDING_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
-import { buildCostFor } from '@/game/reducer';
 import { vpOfSlot } from '@/game/selectors';
 import type { GameState } from '@/game/types';
 
 import { BUILDING_ART } from './art';
 import { PLOTS, PLOT_WIDTH } from './board-layout';
 
+/** 大聖堂だけ VP が「自分の他の物件 1 件につき +N」で決まるため、未所有だと
+ *  vpOfSlot が 0 を返す。未建設のときだけ、その決まり方が分かる表示に変える
+ *  （要望 5。ここだけ建設前後で文字の内容が変わる、唯一の例外）。 */
+function vpTextFor(state: GameState, slotId: number, balance: Balance): string {
+  const slot = state.market[slotId]!;
+  if (slot.buildingId === 'cathedral' && slot.owner === null) {
+    return `+${balance.cathedralVpPerBuilding}/件`;
+  }
+  return `${vpOfSlot(state, slot, balance)} VP`;
+}
+
 export function Board({
   state,
   balance = DEFAULT_BALANCE,
+  highlightSlot,
   onPick,
 }: {
   state: GameState;
   balance?: Balance;
+  /** CPU がいま建てた区画。一瞬だけ光らせる（要望 7）。 */
+  highlightSlot?: number | null;
   onPick: (slotId: number) => void;
 }) {
   return (
@@ -27,11 +40,8 @@ export function Board({
         const blocked = !owned && state.players.you.blockedSlot === slot.slotId;
         const art = BUILDING_ART[slot.buildingId];
         // 建った区画は plot-art の alt="" で物件名が読み上げに出ないので、
-        // ボタン自体に物件名と VP を含む aria-label を付ける。空き地は
-        // plot-cost の文字がそのまま読まれるので付けない。
-        const ariaLabel = owned
-          ? `${BUILDING_NAMES[slot.buildingId]} ${vpOfSlot(state, slot, balance)} VP`
-          : undefined;
+        // ボタン自体に物件名と VP を含む aria-label を付ける。
+        const ariaLabel = `${BUILDING_NAMES[slot.buildingId]} ${vpTextFor(state, slot.slotId, balance)}`;
         return (
           <button
             key={slot.slotId}
@@ -44,32 +54,38 @@ export function Board({
             aria-label={ariaLabel}
             onClick={() => onPick(slot.slotId)}
           >
-            {/* 区画の外周の枠。所有者を示す 3 つの合図のうちの 1 つ（要望 1）。
-                未建設でも同じ太さの透明な枠を置き、建っても矩形が動かないようにする。 */}
-            <span className={`plot-ring${owned ? ` owner-${slot.owner}` : ''}`} />
-            {owned && art ? (
-              // 建った瞬間だけ、小さく飛び出してから収まる（scale のバネ）。
-              // .plot-art は CSS で transform: translateX(-50%) を持つが、
-              // motion がインライン transform を上書きするので、同じ中央寄せを
-              // motion 側の x: '-50%' として渡し直す（scale と合成させる）。
+            {/* 名前。常に出す。色だけ所有者で変える（要望 5）。 */}
+            <span className={`plot-name${owned ? ` owner-${slot.owner}` : ''}`}>
+              {BUILDING_NAMES[slot.buildingId]}
+            </span>
+            {/* 建物の絵。未建設でも最初から置き、状態が変わっても矩形は動かさない。
+                沈める／光らせるは filter と drop-shadow の色だけで表す（要望 5）。 */}
+            {art ? (
               <motion.img
-                className={`plot-art owner-${slot.owner}`}
+                className={`plot-art${owned ? ` owner-${slot.owner}` : ' is-unbuilt'}`}
                 src={art.url}
                 alt=""
                 style={{ width: `${art.scale * 100}%`, x: '-50%' }}
-                initial={{ scale: 0.35, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
+                animate={{ scale: owned ? 1 : 0.92 }}
                 transition={{ type: 'spring', stiffness: 360, damping: 15 }}
               />
-            ) : (
-              <span className={owned ? 'plot-noart' : 'plot-empty'}>
-                {BUILDING_NAMES[slot.buildingId]}
+            ) : null}
+            {/* CPU がいま建てた区画だけ、一瞬光らせる（要望 7）。絵そのものは染めない。 */}
+            {highlightSlot === slot.slotId ? (
+              <motion.span
+                key={`flash-${state.turn}`}
+                className="plot-flash"
+                initial={{ opacity: 0.9 }}
+                animate={{ opacity: 0 }}
+                transition={{ duration: 0.9, ease: 'easeOut' }}
+              />
+            ) : null}
+            {/* コストと VP。常に両方出す（要望 5）。 */}
+            <span className="plot-badges">
+              <span className="plot-cost">{balance.buildings[slot.buildingId].cost}</span>
+              <span className={`plot-vp${owned ? ` owner-${slot.owner}` : ''}`}>
+                {vpTextFor(state, slot.slotId, balance)}
               </span>
-            )}
-            <span className={`${owned ? 'plot-vp' : 'plot-cost'}${owned ? ` owner-${slot.owner}` : ''}`}>
-              {owned
-                ? `${vpOfSlot(state, slot, balance)} VP`
-                : buildCostFor(state, 'you', slot.slotId, balance)}
             </span>
           </button>
         );

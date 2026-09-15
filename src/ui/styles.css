@@ -19,6 +19,9 @@
   --owner-you-ink: #04203f;
   --owner-cpu: #a8441a;
   --owner-cpu-ink: #3a1608;
+  /* 物件名を暗い地の上で読ませるための、所有者色の明るい版（要望 5）。 */
+  --owner-you-glow: #6cb2f2;
+  --owner-cpu-glow: #ffa06e;
 
   /* rgb() の中で使うための 3 つ組。--chrome-2 に透明度を付けるときに使う
      （プレイ画面の背景オーバーレイと同じ地の色をホームでも使うため）。 */
@@ -41,10 +44,13 @@
 /* プレイ画面だけ、画面の高さちょうどに固定する。
    shared-ui の .app は min-height: 100dvh で上限が無いため、背の低い画面では
    コンテンツの自然高さまで伸びてしまい、盤面を縮めるフレックスの連鎖が働かない。
-   ホーム画面は .app-home なので影響しない。 */
+   ホーム画面は .app-home なので影響しない。
+   ヘッダーの行を廃止した（要望 1・2）ので、shared-ui の .app が持つ上の
+   余白（16px）も詰める。相手の情報ボードを画面の最上段に置くため（要望 3）。 */
 .app.app-play {
   height: 100dvh;
   overflow: hidden;
+  padding-top: 6px;
   position: relative;
   /* 盤面の地を画面全体の背景にする（要望 4）。background-image は Game.tsx から
      インラインで渡す。読み込みまでの一瞬は下の background-color を見せる
@@ -110,9 +116,10 @@
   container-type: size;
 }
 
-/* 相手（CPU）の帯。上段が色の印・名前・コイン・VP、下段が行動ログ（要望 3・6）。
-   2 段とも高さを固定し、ログが空でも領域が潰れないようにする。 */
-.opponent {
+/* 自分・相手、共通の情報ボードの骨格（要望 3・4）。骨格は 2 人とも同じにし、
+   色と中身の差し替えだけで区別する。相手は画面の最上段、自分は手札の上に置く。
+   2 段とも高さを固定し、2 段目が空でも領域が潰れないようにする（縦位置が動かない）。 */
+.info-board {
   display: flex;
   flex-direction: column;
   /* 全面背景を活かすため、不透明な板ではなく透かした暗幕にする。
@@ -122,7 +129,7 @@
   border-radius: var(--card-radius);
 }
 
-.opponent-row {
+.info-board-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -130,8 +137,8 @@
   padding: 0 var(--pad);
 }
 
-/* 所有者の色の印。区画の枠・建物の影・VP バッジの地と同じ色を、
-   帯の側にも小さく置く（自分側は CoinBar 側に同じクラスで置く）。 */
+/* 所有者の色の印。区画の枠・建物の光・VP バッジの地と同じ色を、
+   帯の側にも小さく置く（要望 4：両者で同じ場所・同じ大きさ）。 */
 .owner-mark {
   width: 11px;
   height: 11px;
@@ -148,23 +155,22 @@
   background: var(--owner-cpu);
 }
 
-.opponent-name {
+.info-board-name {
   font-size: 12px;
   font-weight: 700;
   color: var(--chrome-ink-dim);
 }
 
-.opponent-coins {
+.info-board-coins {
   font-size: 16px;
   font-weight: 700;
   color: var(--coin);
   font-variant-numeric: tabular-nums;
-  /* 1桁→3桁に増えても隣の VP が動かないよう、最小幅を確保する（coinbar-amount と同じ考え方）。 */
+  /* 1桁→3桁に増えても隣の VP が動かないよう、最小幅を確保する。 */
   min-width: 30px;
 }
 
-.opponent-vp {
-  margin-left: auto;
+.info-board-vp {
   min-width: 44px;
   text-align: right;
   font-size: 13px;
@@ -173,28 +179,79 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* CPU の行動ログ。中身が無くても常にこの高さを取る（要望 3）。
-   overflow: hidden で、増えた行は上から静かにあふれさせる（スクロールは出さない）。 */
-.cpu-log {
-  /* 中身が空でも高さを取る。消すと CPU の手番のたびに盤面が上下に飛ぶ。
-     ただし 44px は背景を潰しすぎるので 2 行ぶんに詰める。 */
+.info-board-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+/* 2 段目。相手なら行動ログ、自分なら次のターンの見込み。
+   中身が無くても常にこの高さを取る（要望 3・4）。消すと手番のたびに盤面が
+   上下に飛ぶ。overflow: hidden で、増えた行は静かにあふれさせる（スクロールなし）。 */
+.info-board-sub {
   height: 32px;
   padding: 2px var(--pad) 5px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  background: transparent;
+}
+
+.cpu-log {
+  width: 100%;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   gap: 1px;
   overflow: hidden;
-  background: transparent;
 }
 
-.cpu-log-line {
-  font-size: 11px;
-  line-height: 1.4;
+/* 直前より前の手。小さく、控えめに残す（要望 7）。 */
+.cpu-log-line-old {
+  font-size: 10px;
+  line-height: 1.3;
   color: var(--chrome-ink-dim);
+  opacity: 0.65;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* いちばん最新の 1 手。読み取れることを最優先に、はっきり大きく出す（要望 7）。 */
+.cpu-log-line-latest {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* カードを使った瞬間、相手の情報ボードのすぐ下に絵を一瞬大きく出す（要望 7）。
+   ログの文字だけでは「結局見えない」という指摘への対応。 */
+.opponent-wrap {
+  position: relative;
+}
+
+.cpu-card-flash {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  margin-top: 6px;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 10px rgb(0 0 0 / 0.55));
+}
+
+.cpu-card-flash-art {
+  display: block;
+  width: 58px;
+  aspect-ratio: 68 / 84;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 2px solid var(--owner-cpu);
 }
 
 /* 盤面。幅を起点にして、高さは 3:4 から決める。
@@ -239,33 +296,34 @@
   opacity: 0.4;
 }
 
-/* 区画の外周の枠。所有者を示す 3 つの合図の 1 つ（要望 1）。以前は建物の土台
-   （塗りつぶした楕円）だったが、絵と VP バッジに挟まれてほとんど見えなかった
-   ので、輪郭の枠に変えた。未建設でも同じ太さの透明な枠を常に置き、
-   建っても矩形が 1px も動かないようにする（太さは状態で変えない。色だけ変える）。 */
-.plot-ring {
+/* 名前。常に出す（要望 5）。位置・大きさは状態で変えず、色だけ変える。
+   未建設は中立の白、所有者が付くとその色にする。 */
+.plot-name {
   position: absolute;
   left: 50%;
-  bottom: 6%;
-  transform: translateX(-50%);
-  width: 78%;
-  height: 26%;
-  border-radius: 50%;
-  border: 3px solid transparent;
-  background: none;
-  transition: border-color 0.25s var(--ease, ease);
+  top: -4%;
+  transform: translate(-50%, -50%);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: color 0.25s var(--ease, ease);
 }
 
-.plot-ring.owner-you {
-  border-color: var(--owner-you);
+.plot-name.owner-you {
+  color: var(--owner-you-glow, #6cb2f2);
 }
 
-.plot-ring.owner-cpu {
-  border-color: var(--owner-cpu);
+.plot-name.owner-cpu {
+  color: var(--owner-cpu-glow, #ffa06e);
 }
 
-/* 建物の素材。足元を基準に置き、上へ伸びる。所有者を示す 3 つの合図の 1 つ。
-   絵そのものは染めず、影の色だけで示す（要望 1）。 */
+/* 建物の素材。最初から置き、足元を基準に上へ伸びる（要望 5）。
+   未建設は少し沈め、建つと所有者の色の光で周りを囲う。矩形自体は動かさず、
+   filter と drop-shadow の色だけで示す。 */
 .plot-art {
   position: absolute;
   left: 50%;
@@ -277,59 +335,68 @@
   transition: filter 0.25s var(--ease, ease);
 }
 
+.plot-art.is-unbuilt {
+  filter: brightness(0.55) saturate(0.55);
+}
+
 .plot-art.owner-you {
-  filter: drop-shadow(0 0 5px var(--owner-you)) drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
+  filter: drop-shadow(0 0 6px var(--owner-you)) drop-shadow(0 0 6px var(--owner-you))
+    drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
 }
 
 .plot-art.owner-cpu {
-  filter: drop-shadow(0 0 5px var(--owner-cpu)) drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
+  filter: drop-shadow(0 0 6px var(--owner-cpu)) drop-shadow(0 0 6px var(--owner-cpu))
+    drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
 }
 
-/* 空き地。まだ建っていない区画 */
-.plot-empty,
-.plot-noart {
+/* CPU がいま建てた区画だけ、一瞬だけ光を足す（要望 7）。透明度だけを動かすので
+   矩形は動かない。常に同じ大きさの円をここに置いておける（未使用時は描画しない）。 */
+.plot-flash {
   position: absolute;
   left: 50%;
-  top: 42%;
-  transform: translate(-50%, -50%);
-  padding: 3px 6px;
-  border-radius: 6px;
-  background: rgb(0 0 0 / 0.45);
-  color: #f2ece0;
-  font-size: 10px;
-  white-space: nowrap;
+  bottom: 10%;
+  transform: translateX(-50%);
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 200 61 / 0.85) 0%, rgb(255 200 61 / 0) 68%);
+  pointer-events: none;
 }
 
-/* 建設費。空き地に金色で出る */
-.plot-cost {
+/* コストと VP。常に両方出す（要望 5）。建設費は所有者が付いても同じ値のまま
+   （買う前と後で情報を変えない）。左右に並べ、建設費と同じ位置に収める。 */
+.plot-badges {
   position: absolute;
   left: 50%;
   bottom: -4%;
   transform: translateX(-50%);
-  min-width: 24px;
-  padding: 2px 6px;
+  display: flex;
+  gap: 3px;
+}
+
+.plot-cost {
+  min-width: 22px;
+  padding: 2px 5px;
   border-radius: 10px;
   background: var(--coin);
   color: var(--coin-ink);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
+  text-align: center;
 }
 
-/* VP。建った区画で、建設費と同じ場所に出る。地を所有者の色にする
-   （要望 1 の 3 つの合図のうちの 1 つ）。 */
+/* VP。地を所有者の色にする（要望 5）。大聖堂だけ未建設のとき
+   「1 件につき +2」の形（+N/件）に文字が変わる例外を持つ（Board.tsx 参照）。 */
 .plot-vp {
-  position: absolute;
-  left: 50%;
-  bottom: -4%;
-  transform: translateX(-50%);
-  min-width: 24px;
-  padding: 2px 6px;
+  min-width: 30px;
+  padding: 2px 5px;
   border-radius: 10px;
   background: rgb(0 0 0 / 0.6);
   color: #ffffff;
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
+  text-align: center;
   transition: background-color 0.25s var(--ease, ease);
 }
 
@@ -341,45 +408,15 @@
   background: var(--owner-cpu);
 }
 
-/* コインバー。手札のすぐ上に全幅で置く。
-   「今いくら」「次いくら」「終える」が同じ視線の中に並ぶ。 */
-.coinbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 52px;
-  padding: 0 var(--pad);
-  background: var(--chrome);
-}
-
-.coinbar-amount {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--coin);
-  /* 三桁になっても隣を押し縮めすぎないよう、最小幅を確保する */
-  min-width: 40px;
-}
-
+/* 自分の情報ボードの見込み表示（2 段目）。「次いくら」が読めることで、
+   今建てるか次のターンに回すかを比べられる。 */
 .coinbar-forecast {
-  flex: 1;
   min-width: 0;
   font-size: 12px;
   color: var(--chrome-ink-dim);
-  /* 箱より長くなったときに隣のボタンへ重ならないよう、内側で切る */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* 自分の VP。桁が増えても他の数字の位置が動かないよう、等幅にして最小幅を取る（要望 6）。 */
-.coinbar-vp {
-  min-width: 44px;
-  text-align: right;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--chrome-ink);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 .coinbar-btn {
@@ -414,6 +451,43 @@
   margin-inline: calc(var(--pad) * -1);
   padding: 0 8px 14px;
   background: var(--chrome-2);
+}
+
+/* メニューボタンと「次」を縦に積む列。幅をそろえて、メニューボタンが
+   「次」の真上に来るようにする（要望 2）。hand-row の下端にそろえる。 */
+.next-col {
+  width: 38px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 新しいメニュー。「次」と同じ幅・固定の高さの横長ボタン。文字は入れず
+   三本線だけ（要望 2）。押すとシートが開き、あきらめる／あそびかた／設定が並ぶ。 */
+.menu-btn {
+  width: 38px;
+  height: 22px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--chrome);
+  color: var(--chrome-ink-dim);
+  cursor: pointer;
+  transition: transform 0.15s var(--ease, ease), opacity 0.15s var(--ease, ease);
+}
+
+.menu-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.menu-btn:active {
+  transform: scale(0.9);
 }
 
 .next {
@@ -476,13 +550,21 @@
   gap: 5px;
 }
 
-/* 実測した参考値のとおり縦長にする(68 x 84、比 1 : 1.235)。
-   高さは aspect-ratio で決まるので、名前の長さで動かない。 */
-.card {
+/* 手札の枠そのもの（要望 6）。グリッドの列幅・比率はここが持つ。中の .card は
+   position: absolute でこの枠いっぱいに重なるので、カードが入れ替わる瞬間に
+   古い札と新しい札が一瞬同居しても、枠の大きさは 1px も動かない。 */
+.card-slot {
   position: relative;
   min-width: 0;
   min-height: 0;
   aspect-ratio: 68 / 84;
+}
+
+/* 実測した参考値のとおり縦長にする(68 x 84、比 1 : 1.235)。
+   枠（.card-slot）いっぱいに重ねるので、高さは枠の aspect-ratio で決まる。 */
+.card {
+  position: absolute;
+  inset: 0;
   padding: 0;
   border: 2px solid var(--card-edge);
   border-radius: 8px;
@@ -633,40 +715,35 @@
   paint-order: stroke fill;
 }
 
-.coinbar-amount {
+.info-board-coins {
   -webkit-text-stroke: 3px rgb(0 0 0 / 0.3);
   paint-order: stroke fill;
 }
 
-/* 残りターン。ヘッダー中央（要望 7）。タイトルを消したこの列に代わりに置く。
+/* 残りターン。相手の情報ボードの右端、時計の印を添えて出す（要望 3・4）。
+   地が情報ボードの暗幕なので、明るい文字で読ませる。
    数字は最大 2 桁（maxTurnsPerPlayer * 2）なので、その幅を確保して 1 桁になっても
    前後の文字の位置が動かないようにする。 */
 .turn-clock {
   display: flex;
   align-items: center;
-  gap: 4px;
-  /* 背景が石畳の写真になったので、地の色を前提にした --title では読めない。
-     白に濃い影を落として、明るい石にも暗い石にも乗るようにする。 */
-  color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+  gap: 3px;
+  color: var(--chrome-ink);
   white-space: nowrap;
 }
 
 .turn-clock svg {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   flex: none;
-}
-
-.turn-clock-text {
-  font-size: 13px;
-  font-weight: 600;
 }
 
 .turn-clock-num {
   display: inline-block;
-  min-width: 1.5em;
+  min-width: 1.4em;
   text-align: center;
+  font-size: 13px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
