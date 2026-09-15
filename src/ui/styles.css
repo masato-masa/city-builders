@@ -715,8 +715,14 @@
 }
 
 .app.app-home > .home,
-.app.app-home > .dev-pill {
+/* テスト用は画面の右下に置く（CLAUDE.md）。shared-ui 側が position: absolute で
+   右下に寄せているので、その基準になるよう .app-home 側に position を持たせる。
+   流れの中に入れると戦績ピルと重なる。 */
+.app.app-home {
   position: relative;
+}
+
+.app.app-home > .dev-pill {
   z-index: 1;
 }
 
@@ -762,11 +768,14 @@
   border-radius: 18px;
   padding: 14px 20px 12px;
   font: inherit;
-  color: var(--title);
-  background: var(--surface);
+  /* 明るい地の色のままだと、石畳の背景の上でもプレイ画面の色域からも浮く。
+     相手の帯と同じ「透かした暗幕」に揃える。 */
+  color: var(--chrome-ink);
+  background: rgb(22 32 41 / 0.82);
+  backdrop-filter: blur(2px);
   box-shadow:
-    0 2px 0 rgb(0 0 0 / 0.2),
-    0 8px 18px rgb(0 0 0 / 0.3);
+    0 2px 0 rgb(0 0 0 / 0.3),
+    0 8px 18px rgb(0 0 0 / 0.35);
   cursor: pointer;
   transition:
     transform 0.15s var(--ease),
@@ -787,7 +796,7 @@
 .home-btn-desc {
   font-size: 12px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--chrome-ink-dim);
 }
 
 /* 強調は色と外側の光暈（box-shadow）だけ。border-color の変化にすると
