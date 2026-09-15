@@ -79,6 +79,26 @@ export function scoreOf(
   return ownedSlots(state, player).reduce((n, slot) => n + vpOfSlot(state, slot, balance), 0);
 }
 
+/** 強制終了までの残りターン数（両者合計、いま進行中の 1 手を含む）。
+ *  全区画が建ち切って先に終わる場合は、実際にはこれより早く終わる。
+ *  プレイ画面右上の残りターン表示のために追加した読み取り専用の派生値。 */
+export function turnsRemaining(state: GameState, balance: Balance = DEFAULT_BALANCE): number {
+  if (state.phase === 'finished') return 0;
+  return Math.max(0, balance.maxTurnsPerPlayer * 2 - state.turn + 1);
+}
+
+/** 街道があと何回使えるか。祝祭中は festivalMultiplier 回、それ以外は 1 回。
+ *  カード選択シートの「山の底へ送る」ボタンに添える残り回数のために追加した。 */
+export function roadUsesRemaining(
+  state: GameState,
+  player: PlayerId,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
+  const p = state.players[player];
+  const limit = p.festivalActive ? balance.festivalMultiplier : 1;
+  return Math.max(0, limit - p.roadUsesThisTurn);
+}
+
 /** 1 ターンあたりの見込み収入。商館の毎ターン収入と、城塞の通行料の期待値
  *  （相手が残りの区画の半分を建てるという見込み）を織り込む。封鎖者で止まって
  *  いる物件は activeOwnedSlots が除外するのでここには含まれない。
