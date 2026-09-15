@@ -43,14 +43,10 @@ describe('素材の対応表', () => {
     }
   });
 
-  it('封鎖者はまだ絵が無い（名前だけで描く）', () => {
-    const blockader: CardId = 'blockader';
-    expect(CARD_ART[blockader]).toBeUndefined();
-  });
-
-  it('人物カード 10 種中 9 種の絵がそろっている', () => {
-    const done = Object.keys(CARD_ART).length;
-    expect(done).toBe(9);
-    expect(done).toBeLessThan(Object.keys(DEFAULT_BALANCE.cards).length);
+  it('人物カード 10 種すべての絵がそろっている', () => {
+    for (const id of Object.keys(DEFAULT_BALANCE.cards) as CardId[]) {
+      expect(CARD_ART[id], id).toBeTruthy();
+    }
+    expect(Object.keys(CARD_ART).length).toBe(Object.keys(DEFAULT_BALANCE.cards).length);
   });
 });

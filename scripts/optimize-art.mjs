@@ -110,7 +110,15 @@ const JOBS = [
     quality: 85,
     alpha: true,
   },
-  // 人物カード 9 種。表示は 68px 幅なので、建物（320）より小さい 256 で足りる。
+  // 人物カード 10 種。表示は 68px 幅なので、建物（320）より小さい 256 で足りる。
+  {
+    label: '封鎖者 (blockader)',
+    input: 'refs/art/cards/blockader-trial.png',
+    output: 'src/assets/art/cards/blockader.webp',
+    longEdge: 256,
+    quality: 85,
+    alpha: true,
+  },
   {
     label: '採掘師 (miner)',
     input: 'refs/art/cards/miner-trial.webp',

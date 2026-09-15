@@ -17,6 +17,7 @@ import heraldUrl from '@/assets/art/cards/herald.webp';
 import minerUrl from '@/assets/art/cards/miner.webp';
 import spyUrl from '@/assets/art/cards/spy.webp';
 import taxmanUrl from '@/assets/art/cards/taxman.webp';
+import blockaderUrl from '@/assets/art/cards/blockader.webp';
 import usurerUrl from '@/assets/art/cards/usurer.webp';
 
 /** 盤面の地。縦横比 1:1.5 なので、3:4 の枠に object-fit: cover で収める。 */
@@ -54,4 +55,5 @@ export const CARD_ART: Partial<Record<CardId, string>> = {
   usurer: usurerUrl,
   spy: spyUrl,
   taxman: taxmanUrl,
+  blockader: blockaderUrl,
 };
