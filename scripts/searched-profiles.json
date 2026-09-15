@@ -1,0 +1,150 @@
+[
+  {
+    "name": "回転",
+    "profile": {
+      "early": {
+        "vp": 10,
+        "coin": 0.5,
+        "opponentCoin": -0.8,
+        "pendingIncome": 2.4,
+        "incomePerTurn": 24,
+        "opponentVp": -8,
+        "reach": 4,
+        "opponentReach": -1.6,
+        "opponentIncome": -2,
+        "debt": -1.2,
+        "guarded": 0.5,
+        "opponentBound": 0.625,
+        "stuck": -1.5,
+        "opponentStuck": 1
+      },
+      "late": {
+        "vp": 5,
+        "coin": 0.5,
+        "opponentCoin": -0.8,
+        "pendingIncome": 19.2,
+        "incomePerTurn": 3,
+        "opponentVp": -8,
+        "reach": 0.5,
+        "opponentReach": -0.2,
+        "opponentIncome": -2,
+        "debt": -1.2,
+        "guarded": 0.5,
+        "opponentBound": 0.625,
+        "stuck": -1.5,
+        "opponentStuck": 1
+      }
+    }
+  },
+  {
+    "name": "妨害",
+    "profile": {
+      "early": {
+        "vp": 10,
+        "coin": 0.5,
+        "opponentCoin": -1.6,
+        "pendingIncome": 4.8,
+        "incomePerTurn": 3,
+        "opponentVp": -8,
+        "reach": 4,
+        "opponentReach": -6.4,
+        "opponentIncome": -2,
+        "debt": -1.2,
+        "guarded": 0.5,
+        "opponentBound": 5,
+        "stuck": -1.5,
+        "opponentStuck": 1
+      },
+      "late": {
+        "vp": 10,
+        "coin": 1,
+        "opponentCoin": -0.4,
+        "pendingIncome": 9.6,
+        "incomePerTurn": 6,
+        "opponentVp": -8,
+        "reach": 8,
+        "opponentReach": -1.6,
+        "opponentIncome": -2,
+        "debt": -1.2,
+        "guarded": 0.5,
+        "opponentBound": 5,
+        "stuck": -1.5,
+        "opponentStuck": 1
+      }
+    }
+  },
+  {
+    "name": "大器晩成",
+    "profile": {
+      "early": {
+        "vp": 10,
+        "coin": 0.25,
+        "opponentCoin": -1.6,
+        "pendingIncome": 9.6,
+        "incomePerTurn": 6,
+        "opponentVp": -8,
+        "reach": 0.25,
+        "opponentReach": -1.6,
+        "opponentIncome": -2,
+        "debt": -1.2,
+        "guarded": 0.5,
+        "opponentBound": 0.625,
+        "stuck": -1.5,
+        "opponentStuck": 1
+      },
+      "late": {
+        "vp": 7.5,
+        "coin": 0.5,
+        "opponentCoin": -3.2,
+        "pendingIncome": 4.8,
+        "incomePerTurn": 12,
+        "opponentVp": -8,
+        "reach": 4,
+        "opponentReach": -0.4,
+        "opponentIncome": -2,
+        "debt": -1.2,
+        "guarded": 0.5,
+        "opponentBound": 0.625,
+        "stuck": -1.5,
+        "opponentStuck": 1
+      }
+    }
+  },
+  {
+    "name": "均衡",
+    "profile": {
+      "early": {
+        "vp": 2.5,
+        "coin": 0.125,
+        "opponentCoin": -0.2,
+        "pendingIncome": 4.8,
+        "incomePerTurn": 12,
+        "opponentVp": -8,
+        "reach": 2,
+        "opponentReach": -3.2,
+        "opponentIncome": -2,
+        "debt": -1.2,
+        "guarded": 0.5,
+        "opponentBound": 0.625,
+        "stuck": -1.5,
+        "opponentStuck": 1
+      },
+      "late": {
+        "vp": 10,
+        "coin": 0.5,
+        "opponentCoin": -1.6,
+        "pendingIncome": 2.4,
+        "incomePerTurn": 6,
+        "opponentVp": -8,
+        "reach": 1,
+        "opponentReach": -0.8,
+        "opponentIncome": -2,
+        "debt": -1.2,
+        "guarded": 0.5,
+        "opponentBound": 2.5,
+        "stuck": -1.5,
+        "opponentStuck": 1
+      }
+    }
+  }
+]
