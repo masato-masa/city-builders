@@ -113,7 +113,7 @@ const JOBS = [
   // 人物カード 10 種。表示は 68px 幅なので、建物（320）より小さい 256 で足りる。
   {
     label: '封鎖者 (blockader)',
-    input: 'refs/art/cards/blockader-trial.png',
+    input: 'refs/art/v2/cards/blockader.png',
     output: 'src/assets/art/cards/blockader.webp',
     longEdge: 256,
     quality: 85,
@@ -121,7 +121,7 @@ const JOBS = [
   },
   {
     label: '採掘師 (miner)',
-    input: 'refs/art/cards/miner-trial.webp',
+    input: 'refs/art/v2/cards/miner.png',
     output: 'src/assets/art/cards/miner.webp',
     longEdge: 256,
     quality: 85,
@@ -129,7 +129,7 @@ const JOBS = [
   },
   {
     label: '銀行家 (banker)',
-    input: 'refs/art/cards/banker-trial.webp',
+    input: 'refs/art/v2/cards/banker.png',
     output: 'src/assets/art/cards/banker.webp',
     longEdge: 256,
     quality: 85,
@@ -137,7 +137,7 @@ const JOBS = [
   },
   {
     label: '建築家 (architect)',
-    input: 'refs/art/cards/architect-trial.webp',
+    input: 'refs/art/v2/cards/architect.png',
     output: 'src/assets/art/cards/architect.webp',
     longEdge: 256,
     quality: 85,
@@ -145,7 +145,7 @@ const JOBS = [
   },
   {
     label: '伝令 (herald)',
-    input: 'refs/art/cards/herald-trial.webp',
+    input: 'refs/art/v2/cards/herald.png',
     output: 'src/assets/art/cards/herald.webp',
     longEdge: 256,
     quality: 85,
@@ -153,7 +153,7 @@ const JOBS = [
   },
   {
     label: '祝祭 (festival)',
-    input: 'refs/art/cards/festival-trial.webp',
+    input: 'refs/art/v2/cards/festival.png',
     output: 'src/assets/art/cards/festival.webp',
     longEdge: 256,
     quality: 85,
@@ -161,7 +161,7 @@ const JOBS = [
   },
   {
     label: '衛兵 (guard)',
-    input: 'refs/art/cards/guard-trial.webp',
+    input: 'refs/art/v2/cards/guard.png',
     output: 'src/assets/art/cards/guard.webp',
     longEdge: 256,
     quality: 85,
@@ -169,7 +169,7 @@ const JOBS = [
   },
   {
     label: '高利貸 (usurer)',
-    input: 'refs/art/cards/usurer-trial.webp',
+    input: 'refs/art/v2/cards/usurer.png',
     output: 'src/assets/art/cards/usurer.webp',
     longEdge: 256,
     quality: 85,
@@ -177,7 +177,7 @@ const JOBS = [
   },
   {
     label: '買収者 (spy)',
-    input: 'refs/art/cards/spy-trial.webp',
+    input: 'refs/art/v2/cards/spy.png',
     output: 'src/assets/art/cards/spy.webp',
     longEdge: 256,
     quality: 85,
@@ -185,7 +185,7 @@ const JOBS = [
   },
   {
     label: '徴税官 (taxman)',
-    input: 'refs/art/cards/taxman-trial.webp',
+    input: 'refs/art/v2/cards/taxman.png',
     output: 'src/assets/art/cards/taxman.webp',
     longEdge: 256,
     quality: 85,
