@@ -6,6 +6,7 @@ import { clearProgress, loadProgress } from '@/storage/storage';
 
 import { loadBalance, resetBalance, saveBalance } from './balance-store';
 import { Sheet } from './Sheets';
+import { primeAudio } from './sound';
 
 const LABELS: Record<Difficulty, string> = {
   easy: 'やさしい',
@@ -33,7 +34,12 @@ export function Home({ onStart }: { onStart: (d: Difficulty) => void }) {
             <button
               key={d}
               className={`home-btn${d === progress.lastDifficulty ? ' primary' : ''}`}
-              onClick={() => onStart(d)}
+              onClick={() => {
+                // 最初のユーザー操作。AudioContext をここで作っておく
+                // （ページ読み込み時に作るとブラウザに止められるため）。
+                primeAudio();
+                onStart(d);
+              }}
             >
               {LABELS[d]}
             </button>

@@ -155,6 +155,8 @@
   font-weight: 700;
   color: var(--coin);
   font-variant-numeric: tabular-nums;
+  /* 1桁→3桁に増えても隣の VP が動かないよう、最小幅を確保する（coinbar-amount と同じ考え方）。 */
+  min-width: 30px;
 }
 
 .opponent-vp {

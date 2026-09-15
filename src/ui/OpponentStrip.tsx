@@ -4,6 +4,8 @@ import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { scoreOf } from '@/game/selectors';
 import type { GameState } from '@/game/types';
 
+import { RollingNumber } from './RollingNumber';
+
 /** 相手（CPU）の帯。色の印・名前・所持コイン・VP を出す（残り区画数は出さない）。
  *  下にはこの手番で CPU が何をしたかのログを 1 行ずつ出す。ログの領域は
  *  中身が無くても同じ高さを取り、CPU の手番でなくても盤面の縦位置が動かない。 */
@@ -22,7 +24,7 @@ export function OpponentStrip({
       <div className="opponent-row">
         <span className="owner-mark owner-mark-cpu" aria-hidden="true" />
         <span className="opponent-name">CPU</span>
-        <span className="opponent-coins">{state.players.cpu.coins}</span>
+        <RollingNumber className="opponent-coins" value={state.players.cpu.coins} />
         <span className="opponent-vp">{scoreOf(state, 'cpu', balance)} VP</span>
       </div>
       <div className="cpu-log" aria-live="polite">

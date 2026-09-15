@@ -5,10 +5,12 @@ import { reduce } from '@/game/reducer';
 import type { Rng } from '@/game/rng';
 import type { Action, GameState } from '@/game/types';
 
-/** CPU の 1 手ぶんの結果。UI が順番に出す実況ログと、その時点の盤面。 */
+/** CPU の 1 手ぶんの結果。UI が順番に出す実況ログと、その時点の盤面。
+ *  action は UI 側が手触り（効果音）を選ぶために持たせる。判定には使わない。 */
 export interface CpuStep {
   state: GameState;
   log: string;
+  action: Action;
 }
 
 /** 1 手を短い日本語の実況文にする。表示専用で、ゲームの判定には使わない。 */
@@ -42,9 +44,10 @@ export function playTurnSteps(
     if (action.type === 'endTurn') break;
     const applied = reduce(cur, action, balance);
     if (applied === cur) break;
-    steps.push({ state: applied, log: describeAction(cur, action) });
+    steps.push({ state: applied, log: describeAction(cur, action), action });
     cur = applied;
   }
-  steps.push({ state: reduce(cur, { type: 'endTurn' }, balance), log: 'ターンを終えた' });
+  const endAction: Action = { type: 'endTurn' };
+  steps.push({ state: reduce(cur, endAction, balance), log: 'ターンを終えた', action: endAction });
   return steps;
 }

@@ -1,3 +1,5 @@
+import { motion } from 'motion/react';
+
 import { BUILDING_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { buildCostFor } from '@/game/reducer';
 import { vpOfSlot } from '@/game/selectors';
@@ -46,11 +48,18 @@ export function Board({
                 未建設でも同じ太さの透明な枠を置き、建っても矩形が動かないようにする。 */}
             <span className={`plot-ring${owned ? ` owner-${slot.owner}` : ''}`} />
             {owned && art ? (
-              <img
+              // 建った瞬間だけ、小さく飛び出してから収まる（scale のバネ）。
+              // .plot-art は CSS で transform: translateX(-50%) を持つが、
+              // motion がインライン transform を上書きするので、同じ中央寄せを
+              // motion 側の x: '-50%' として渡し直す（scale と合成させる）。
+              <motion.img
                 className={`plot-art owner-${slot.owner}`}
                 src={art.url}
                 alt=""
-                style={{ width: `${art.scale * 100}%` }}
+                style={{ width: `${art.scale * 100}%`, x: '-50%' }}
+                initial={{ scale: 0.35, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 360, damping: 15 }}
               />
             ) : (
               <span className={owned ? 'plot-noart' : 'plot-empty'}>

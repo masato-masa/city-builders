@@ -2,6 +2,8 @@ import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { countBuilding, hasBuilding, ownedSlots, scoreOf } from '@/game/selectors';
 import type { GameState } from '@/game/types';
 
+import { RollingNumber } from './RollingNumber';
+
 /** 次のターン開始時に入る見込み額。遅延収入のゲームなので、これが無いと判断できない。 */
 function forecast(state: GameState, balance: Balance): number {
   const p = state.players.you;
@@ -34,7 +36,7 @@ export function CoinBar({
   return (
     <div className="coinbar">
       <span className="owner-mark owner-mark-you" aria-hidden="true" />
-      <span className="coinbar-amount">{state.players.you.coins}</span>
+      <RollingNumber className="coinbar-amount" value={state.players.you.coins} />
       <span className="coinbar-forecast">次のターン +{forecast(state, balance)}</span>
       <span className="coinbar-vp">{scoreOf(state, 'you', balance)} VP</span>
       <button className="coinbar-btn is-primary" onClick={onEndTurn} disabled={!endTurnEnabled}>
