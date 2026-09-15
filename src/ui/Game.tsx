@@ -10,7 +10,7 @@ import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 import { loadProgress, saveProgress } from '@/storage/storage';
 
-import { FIELD_URL } from './art';
+import { CARD_ART, FIELD_URL } from './art';
 import { Board } from './Board';
 import { CoinBar } from './CoinBar';
 import { type CpuStep, playTurnSteps } from './cpu-turn';
@@ -304,6 +304,9 @@ export function Game({
             subtitle={`コスト ${balance.cards[sheet.card].cost}`}
             onClose={() => setSheet(null)}
           >
+            {CARD_ART[sheet.card] ? (
+              <img className="sheet-card-art" src={CARD_ART[sheet.card]} alt="" />
+            ) : null}
             <p className="sheet-text">{CARD_TEXTS[sheet.card]}</p>
             {/* 街道の効果。以前はコインバーの専用ボタンから対象を選んでいたが、
                 いまはカードを選んだこのシートの中、「使う」の上に置く（要望 2）。

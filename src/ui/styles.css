@@ -425,6 +425,8 @@
 }
 
 .next-card {
+  position: relative;
+  overflow: hidden;
   width: 38px;
   height: 47px;
   border-radius: 6px;
@@ -434,6 +436,27 @@
   font-size: 9px;
   color: var(--chrome-ink-dim);
   text-align: center;
+}
+
+.next-card-name {
+  padding: 0 2px;
+}
+
+/* 絵のある「次」札は、絵の上に名前の帯を重ねる（.card.has-art と同じ考え方）。 */
+.next-card.has-art {
+  display: block;
+}
+
+.next-card.has-art .next-card-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 2px 2px 3px;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.85), rgb(0 0 0 / 0));
+  font-size: 7px;
+  line-height: 1.1;
+  color: var(--chrome-ink);
 }
 
 .hand {
@@ -458,18 +481,57 @@
   background: var(--card-face);
   color: var(--chrome-ink);
   font-size: 11px;
+}
+
+/* 「使えない」の表現。絵の有無にかかわらず同じ 2 段構え：
+   暗くするだけでは絵のある札で差が付きにくいので、彩度も落とす。
+   opacity/filter/transform だけを使い、寸法には触れない（CLAUDE.md）。 */
+.card.is-dim {
+  opacity: 0.45;
+  filter: saturate(0.35);
+}
+
+/* 絵と名前を収める内側の層。コストバッジ（.card-cost、下端で少しはみ出す）は
+   この層の外・.card 直下に置くので、この層だけを overflow: hidden で切っても
+   バッジのはみ出しは影響を受けない。角丸は縁の内側に合わせて少し小さくする。 */
+.card-body {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 6px;
   display: grid;
   place-items: center;
 }
 
-.card.is-dim {
-  opacity: 0.4;
+/* 絵。カードの地として枠いっぱいに敷く。はみ出しは .card-body の overflow: hidden で切る。 */
+.card-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .card-name {
   padding: 0 2px;
   text-align: center;
   line-height: 1.2;
+}
+
+/* 絵のある札は、名前を絵の上に重ねる。明暗どちらの絵でも読めるように、
+   名前の下へ暗い帯を敷く（要件: 絵が明るくても暗くても読める）。 */
+.card.has-art .card-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 3px 3px 15px;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.82) 40%, rgb(0 0 0 / 0));
+  font-size: 10px;
+  line-height: 1.15;
 }
 
 /* コストはカード下端に重なる丸バッジ。実測どおり直径 19。 */
@@ -487,6 +549,17 @@
   font-weight: 700;
   display: grid;
   place-items: center;
+}
+
+/* カード詳細シートの絵。手札のカードと同じ比率（68:84）で大きめに見せる。 */
+.sheet-card-art {
+  display: block;
+  width: 128px;
+  aspect-ratio: 68 / 84;
+  object-fit: cover;
+  border-radius: 12px;
+  margin: 10px auto 14px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.25);
 }
 
 .sheet-text {
