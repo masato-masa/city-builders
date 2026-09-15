@@ -21,17 +21,20 @@ export function Sheet({
       className="overlay"
       onClick={onClose}
       initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0, pointerEvents: 'none' }}
-      transition={{ duration: 0.16 }}
+      animate={{ opacity: 1, transition: { duration: 0.16 } }}
+      // exit はバネではなく tween にする。バネは目標値に漸近するだけで、
+      // 状況によっては「止まった」と判定されるまでに時間がかかることがある。
+      // AnimatePresence は全ての exit アニメーションが終わるまで要素を
+      // DOM に残す（その間だけ pointerEvents: none でクリックを吸わせない）ので、
+      // tween にして退場時間を固定し、確実に一定時間で終わるようにする。
+      exit={{ opacity: 0, pointerEvents: 'none', transition: { duration: 0.16 } }}
     >
       <motion.div
         className="sheet"
         onClick={(e) => e.stopPropagation()}
         initial={{ opacity: 0, y: '14%' }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: '14%', pointerEvents: 'none' }}
-        transition={{ type: 'spring', stiffness: 440, damping: 40 }}
+        animate={{ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 440, damping: 40 } }}
+        exit={{ opacity: 0, y: '14%', pointerEvents: 'none', transition: { duration: 0.18, ease: 'easeIn' } }}
       >
         <h2 className="sheet-title">{title}</h2>
         {subtitle ? <p className="sheet-subtitle">{subtitle}</p> : null}
