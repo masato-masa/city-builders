@@ -44,44 +44,86 @@ function isHarass(action: Action): boolean {
   );
 }
 
-/** つよいの1手先読み。after（自分の行動を打った直後の局面）から、
- *  必要なら endTurn を通して手番を相手に渡し、相手がその局面で最善と判断する
- *  1手を選んだと仮定して、その結果を自分（player）視点で評価する。
+/** 相手の応手候補を絞る工夫の上限。1手あたりの実測が重かったときだけ効かせる
+ *  安全弁で、実測（.superpowers/sdd/hard-lookahead-report.md）では市場10区画・
+ *  手札4枚という盤面規模なら絞らなくても150msに収まったため、既定は
+ *  Infinity（絞らない）のまま使っていない。将来カードや市場が増えて重くなった
+ *  ときのための保険として残す。 */
+const MAX_REPLY_CANDIDATES = Number.POSITIVE_INFINITY;
+
+/** state（actor の手番）から、actor が「自分の重みで最善」と判断する1手を
+ *  打った後の局面を返す。候補が MAX_REPLY_CANDIDATES を超える場合は、
+ *  行動そのものの合法性チェックだけで絞れる範囲で数を抑える
+ *  （現状は使っていないが、MAX_REPLY_CANDIDATES を実数に下げれば効く）。 */
+function bestReplyState(
+  state: GameState,
+  actor: PlayerId,
+  weights: Weights,
+  balance: Balance,
+): GameState {
+  let candidates = legalActions(state, balance);
+  if (candidates.length > MAX_REPLY_CANDIDATES) {
+    candidates = candidates.slice(0, MAX_REPLY_CANDIDATES);
+  }
+
+  let best = state;
+  let bestScore = -Infinity;
+  for (const action of candidates) {
+    const next = reduce(state, action, balance);
+    const score = evaluateState(next, actor, balance, weights);
+    if (score > bestScore) {
+      bestScore = score;
+      best = next;
+    }
+  }
+  return best;
+}
+
+/** state が from の手番なら、endTurn を通して次の手番に渡す。
+ *  すでに他者の手番・試合が終わっている場合はそのまま返す。 */
+function handOver(state: GameState, from: PlayerId, balance: Balance): GameState {
+  if (state.phase === 'playing' && state.current === from) {
+    return reduce(state, { type: 'endTurn' }, balance);
+  }
+  return state;
+}
+
+/** つよいの2手先読み。after（自分の行動を打った直後の局面）から、
+ *  「自分の手 → ターンを終える → 相手の最善手 → ターンを終える → 自分の最善手」
+ *  まで一直線に読み、最後の局面を自分（player）視点で評価する。
+ *  1段目は「相手に妨害される」局面、2段目は「妨害されたあと自分がどう
+ *  立て直せるか」を織り込むためのもの。
  *
- *  相手の「最善」は、こちらと同じ重み（weights）で測る。実際の相手の重みは
- *  分からない（人間かもしれないし、性格の違う CPU かもしれない）ので、
- *  「相手も自分と同じ物差しで最善を選ぶ」という前提を置く、想定応手の近似。
+ *  相手・未来の自分の「最善」は、どちらもこちらと同じ重み（weights）で測る。
+ *  実際の相手の重みは分からない（人間かもしれないし、性格の違う CPU かも
+ *  しれない）ので、「お互い同じ物差しで最善を選ぶ」という前提を置く近似。
+ *  各段は total-order のミニマックスではなく、その時点の手番の持ち主が
+ *  自分自身の評価だけを見て貪欲に選ぶ一直線読み（相手は「自分がこう返される
+ *  かもしれないから」までは読まない）。
  *
- *  すでに手番が相手に渡っている（action が endTurn だった）場合はそのまま使う。
- *  手番が渡らない・試合が終わる場合は、渡せた局面をそのまま評価して返す
- *  （相手の応手は存在しないので、読むものが無い）。 */
+ *  どこかの段で試合が終わる・手番が渡らない場合は、そこまでの局面をそのまま
+ *  自分視点で評価して返す（それ以上読むものが無いため）。 */
 export function lookaheadScore(
   after: GameState,
   player: PlayerId,
   weights: Weights,
   balance: Balance,
 ): number {
-  const handedOver =
-    after.phase === 'playing' && after.current === player
-      ? reduce(after, { type: 'endTurn' }, balance)
-      : after;
-
-  if (handedOver.phase !== 'playing' || handedOver.current === player) {
-    return evaluateState(handedOver, player, balance, weights);
+  // 1段目: 相手に手番を渡し、相手の最善手を読む
+  const handedToFoe = handOver(after, player, balance);
+  if (handedToFoe.phase !== 'playing' || handedToFoe.current === player) {
+    return evaluateState(handedToFoe, player, balance, weights);
   }
+  const foe = handedToFoe.current;
+  const afterFoeBest = bestReplyState(handedToFoe, foe, weights, balance);
 
-  const foe = handedOver.current;
-  let bestFoeState = handedOver;
-  let bestFoeScore = -Infinity;
-  for (const foeAction of legalActions(handedOver, balance)) {
-    const afterFoe = reduce(handedOver, foeAction, balance);
-    const foeScore = evaluateState(afterFoe, foe, balance, weights);
-    if (foeScore > bestFoeScore) {
-      bestFoeScore = foeScore;
-      bestFoeState = afterFoe;
-    }
+  // 2段目: 自分に手番を戻し、相手に妨害されたあとの自分の最善手（立て直し）を読む
+  const handedBack = handOver(afterFoeBest, foe, balance);
+  if (handedBack.phase !== 'playing' || handedBack.current !== player) {
+    return evaluateState(handedBack, player, balance, weights);
   }
-  return evaluateState(bestFoeState, player, balance, weights);
+  const afterSelfBest = bestReplyState(handedBack, player, weights, balance);
+  return evaluateState(afterSelfBest, player, balance, weights);
 }
 
 export function chooseAction(
@@ -109,9 +151,8 @@ export function chooseAction(
     // 手番が移った後の局面をそのまま自分視点で測る
     let score = evaluateState(after, player, balance, weights);
     if (options.lookahead) {
-      // 相手の想定応手を1つ読む（ミニマックス1段）。自分の手だけを読んでいた
-      // 旧実装と違い、ここで実際に手番を相手へ渡した局面から相手の最善手を
-      // 展開する。詳細は lookaheadScore を参照。
+      // 自分の手 → 相手の最善手 → 自分の最善手、まで2段読む。詳細は
+      // lookaheadScore を参照。
       const follow = lookaheadScore(after, player, weights, balance);
       score = score * 0.6 + follow * 0.4;
     }

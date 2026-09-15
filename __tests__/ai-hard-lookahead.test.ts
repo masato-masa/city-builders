@@ -100,18 +100,56 @@ describe('lookaheadScore: 相手の想定応手を読む', () => {
     const staticB = evaluateState(afterB, 'you', DEFAULT_BALANCE, DEFAULT_WEIGHTS);
     expect(staticA).toBe(staticB);
 
-    // ところが lookaheadScore（つよいが使う先読み）は、相手が実際に徴税官を
-    // 撃ってくることを読んで、自分視点のスコアを下げる。旧実装（手番が移る前の
-    // 自分の次の一手を読んでいただけ）では、相手の手札の中身は一度も参照されない
-    // ので、この差は絶対に出なかった。
+    // ところが lookaheadScore（つよいが使う2段先読み: 自分 → 相手の最善手 →
+    // 自分の最善手）は、相手が実際に徴税官を撃ってくることを読んで、自分視点の
+    // スコアを下げる。旧実装（手番が移る前の自分の次の一手を読んでいただけ）
+    // では、相手の手札の中身は一度も参照されないので、この差は絶対に出なかった。
     const lookA = lookaheadScore(afterA, 'you', DEFAULT_WEIGHTS, DEFAULT_BALANCE);
     const lookB = lookaheadScore(afterB, 'you', DEFAULT_WEIGHTS, DEFAULT_BALANCE);
     expect(lookA).toBeLessThan(lookB);
 
-    // 静的評価と比べても、徴税官を読んだほうはスコアが下がっている
-    // （建築家のほうは、相手が結局何もしない＝実害がほぼ無いので、静的評価に近いまま）。
+    // 2段目（自分の立て直し）を足しても、徴税官で削られた分（コイン-6・reach低下）を
+    // 完全には取り戻せず、静的評価（相手がまだ何もしていない時点の評価）より低いまま。
     expect(lookA).toBeLessThan(staticA);
-    expect(Math.abs(lookB - staticB)).toBeLessThan(1);
+    // 建築家のほうは相手が結局何もしない（cpu の最善手は endTurn）ので、
+    // 手番が返ってきた自分は 10 コインまるごと使って立て直せる。その分だけ
+    // 静的評価より明確に高くなる。
+    expect(lookB).toBeGreaterThan(staticB);
+  });
+
+  it('1段読みだけでは出ない「自分の立て直し」の価値が、2段読みでは出る', () => {
+    // 1段読み（このセッションで直す前の実装）を、比較用にそのままここへ写す:
+    // 自分の行動 → 相手の最善手、までしか読まない。
+    const onePly = (after: GameState): number => {
+      const handedOver =
+        after.phase === 'playing' && after.current === 'you'
+          ? reduce(after, { type: 'endTurn' }, DEFAULT_BALANCE)
+          : after;
+      if (handedOver.phase !== 'playing' || handedOver.current === 'you') {
+        return evaluateState(handedOver, 'you', DEFAULT_BALANCE, DEFAULT_WEIGHTS);
+      }
+      const foe = handedOver.current;
+      let best = handedOver;
+      let bestScore = -Infinity;
+      for (const action of legalActions(handedOver, DEFAULT_BALANCE)) {
+        const next = reduce(handedOver, action, DEFAULT_BALANCE);
+        const score = evaluateState(next, foe, DEFAULT_BALANCE, DEFAULT_WEIGHTS);
+        if (score > bestScore) {
+          bestScore = score;
+          best = next;
+        }
+      }
+      return evaluateState(best, 'you', DEFAULT_BALANCE, DEFAULT_WEIGHTS);
+    };
+
+    // 建築家シナリオ: cpu の最善手は「何もせず手番を終える」なので、1段読みは
+    // 静的評価とほぼ同じ値にしかならない。2段読みはそこからさらに、手番が
+    // 返ってきた自分が 10 コインで最善の一手を打てることまで見るので、
+    // はっきり高いスコアになる。
+    const afterB = reduce(scenario('architect'), { type: 'endTurn' }, DEFAULT_BALANCE);
+    const onePlyB = onePly(afterB);
+    const twoPlyB = lookaheadScore(afterB, 'you', DEFAULT_WEIGHTS, DEFAULT_BALANCE);
+    expect(twoPlyB).toBeGreaterThan(onePlyB);
   });
 
   it('手番がすでに相手に渡っている局面では、そのまま使う（二重に endTurn を挟まない）', () => {
