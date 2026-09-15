@@ -44,9 +44,12 @@ describe('遅延収入', () => {
 
   it('商館 1 件につき開始時 +1', () => {
     const g = fixture(0);
-    g.market.filter((s) => s.buildingId === 'tradingHouse').forEach((s) => (s.owner = 'you'));
+    const houses = g.market.filter((s) => s.buildingId === 'tradingHouse');
+    houses.forEach((s) => (s.owner = 'you'));
     const after = reduce(g, { type: 'startTurn' }, DEFAULT_BALANCE);
-    expect(after.players.you.coins).toBe(DEFAULT_BALANCE.baseIncome + 3 * DEFAULT_BALANCE.tradingHouseIncome);
+    expect(after.players.you.coins).toBe(
+      DEFAULT_BALANCE.baseIncome + houses.length * DEFAULT_BALANCE.tradingHouseIncome,
+    );
   });
 
   it('銀行家は解決時の物件数で増える', () => {

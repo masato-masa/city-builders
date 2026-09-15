@@ -60,7 +60,7 @@ describe('建設', () => {
     for (const slotId of slots) {
       g = reduce(g, { type: 'build', slotId }, DEFAULT_BALANCE);
     }
-    expect(g.market.filter((s) => s.owner === 'you')).toHaveLength(3);
+    expect(g.market.filter((s) => s.owner === 'you')).toHaveLength(slots.length);
   });
 
   it('建築家はこのターン建てる物件すべてを割り引く', () => {

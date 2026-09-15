@@ -29,7 +29,7 @@ export const CARD_NAMES: Record<CardId, string> = {
 export const CARD_TEXTS: Record<CardId, string> = {
   miner: '次のターン コイン +6',
   banker: '次のターン コイン +11。さらに解決時の自分の物件 1 件につき +1',
-  architect: 'このターン建てる物件すべて、建設費 −4',
+  architect: 'このターン建てる物件すべて、建設費 −6',
   herald: '手札 1 枚を使わずに山の底へ送り、補充する',
   festival: '次の自分のターン、自分の物件の効果がすべて 2 倍。さらにそのターンの収入 +2',
   guard: '次の自分のターンまで、徴税官・買収者・封鎖者の効果を受けない',
@@ -47,6 +47,7 @@ export const BUILDING_NAMES: Record<BuildingId, string> = {
   cathedral: '大聖堂',
   fortress: '城塞',
   exchange: '取引所',
+  quarry: '石切場',
 };
 
 export const BUILDING_TEXTS: Record<BuildingId, string> = {
@@ -57,6 +58,7 @@ export const BUILDING_TEXTS: Record<BuildingId, string> = {
   cathedral: '自分の他の物件 1 件につき +2 VP',
   fortress: '相手が物件を建てるたび コイン +2',
   exchange: '人物カードの「次のターン コイン +X」がすべて +2',
+  quarry: '建築家を使ったターン、2 件目以降の建設費がさらに −4',
 };
 
 export interface Balance {
@@ -83,6 +85,8 @@ export interface Balance {
   festivalIncomeBonus: number;
   /** 城塞: 相手が物件を建てたとき、城塞 1 件につき入るコイン */
   fortressToll: number;
+  /** 石切場: 建築家を使ったターン、2 件目以降の建設費にさらに乗る割引 */
+  quarryExtraDiscount: number;
   /** 市場のスロット順。長さ 10 */
   market: BuildingId[];
 }
@@ -97,7 +101,7 @@ export const DEFAULT_BALANCE: Balance = {
   cards: {
     miner: { cost: 2 },
     banker: { cost: 5 },
-    architect: { cost: 3 },
+    architect: { cost: 5 },
     herald: { cost: 1 },
     festival: { cost: 3 },
     guard: { cost: 2 },
@@ -109,7 +113,7 @@ export const DEFAULT_BALANCE: Balance = {
   minerIncome: 6,
   bankerIncome: 11,
   bankerPerBuilding: 1,
-  architectDiscount: 4,
+  architectDiscount: 6,
   taxmanAmount: 6,
   buildings: {
     tradingHouse: { cost: 7, vp: 2 },
@@ -119,6 +123,7 @@ export const DEFAULT_BALANCE: Balance = {
     cathedral: { cost: 16, vp: 0 },
     fortress: { cost: 18, vp: 6 },
     exchange: { cost: 20, vp: 3 },
+    quarry: { cost: 13, vp: 3 },
   },
   tradingHouseIncome: 1,
   factoryDiscount: 2,
@@ -129,10 +134,11 @@ export const DEFAULT_BALANCE: Balance = {
   festivalMultiplier: 2,
   festivalIncomeBonus: 2,
   fortressToll: 2,
+  quarryExtraDiscount: 4,
   market: [
     'tradingHouse',
     'tradingHouse',
-    'tradingHouse',
+    'quarry',
     'wall',
     'factory',
     'road',

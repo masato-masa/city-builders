@@ -82,7 +82,10 @@ export function reduce(
 /** 次のターン開始時に払い出される投資カード。 */
 const INCOME_CARDS: readonly CardId[] = ['miner', 'banker'];
 
-/** 建築家の割引を織り込んだ、いま実際に払う額。 */
+/** 建築家の割引と、石切場の追加割引を織り込んだ、いま実際に払う額。
+ *  石切場の追加割引は、建築家を使っているとき（buildDiscount > 0）かつ、
+ *  そのターンすでに 1 件以上建てている（buildsThisTurn >= 1）ときだけ乗る。
+ *  石切場自体が封鎖者で効果を止められていれば乗らない（activeOwnedBuilding で判定）。 */
 export function buildCostFor(
   state: GameState,
   player: PlayerId,
@@ -92,7 +95,12 @@ export function buildCostFor(
   const slot = state.market[slotId];
   if (!slot) return Number.POSITIVE_INFINITY;
   const base = balance.buildings[slot.buildingId].cost;
-  return Math.max(0, base - state.players[player].buildDiscount);
+  const p = state.players[player];
+  let discount = p.buildDiscount;
+  if (p.buildDiscount > 0 && p.buildsThisTurn >= 1 && hasActiveBuilding(state, player, 'quarry')) {
+    discount += balance.quarryExtraDiscount;
+  }
+  return Math.max(0, base - discount);
 }
 
 export function canBuild(
@@ -119,6 +127,7 @@ function build(
   const foe = opponentOf(player);
   next.players[player].coins -= buildCostFor(state, player, action.slotId, balance);
   next.market[action.slotId]!.owner = player;
+  next.players[player].buildsThisTurn += 1;
 
   // 城塞の通行料: 建てたのが自分でも、相手が城塞を持っていれば相手に入る。
   // 自分が城塞を持っていて自分で建てても、自分には入らない。
@@ -262,6 +271,7 @@ function startTurn(state: GameState, balance: Balance): GameState {
   p.usedThisTurn = [];
   p.usedAnyCardThisTurn = false;
   p.buildDiscount = 0;
+  p.buildsThisTurn = 0;
   p.roadUsesThisTurn = 0;
 
   // 買収者を受けていたら、このときの手札から 1 枚を抽選して縛る

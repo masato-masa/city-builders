@@ -17,7 +17,8 @@ export type BuildingId =
   | 'road'
   | 'cathedral'
   | 'fortress'
-  | 'exchange';
+  | 'exchange'
+  | 'quarry';
 
 export type PlayerId = 'you' | 'cpu';
 
@@ -39,6 +40,8 @@ export interface PlayerState {
   pendingIncome: CardId[];
   /** このターン限りの建設費割引（建築家） */
   buildDiscount: number;
+  /** このターンにすでに建てた件数。石切場の「2 件目以降」判定に使う */
+  buildsThisTurn: number;
   /** このターン 1 枚でもカードを使ったか（工場の割引判定） */
   usedAnyCardThisTurn: boolean;
   /** 封鎖者に指定されたスロット。自分のターンに建設できない */

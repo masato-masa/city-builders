@@ -9,6 +9,7 @@ function emptyPlayer(coins: number, deck: PlayerState['deck']): PlayerState {
     usedThisTurn: [],
     pendingIncome: [],
     buildDiscount: 0,
+    buildsThisTurn: 0,
     usedAnyCardThisTurn: false,
     blockedSlot: null,
     roadUsesThisTurn: 0,

@@ -19,12 +19,19 @@ describe('データ定義', () => {
     expect(DEFAULT_BALANCE.market).toHaveLength(10);
   });
 
-  it('市場の構成は城塞2・工場1・商館3・その他4', () => {
+  it('市場の構成は城塞2・工場1・商館2・石切場1・その他4', () => {
     const count = (id: string) => DEFAULT_BALANCE.market.filter((m) => m === id).length;
     expect(count('fortress')).toBe(2);
     expect(count('factory')).toBe(1);
-    expect(count('tradingHouse')).toBe(3);
-    expect(DEFAULT_BALANCE.market.length - count('fortress') - count('factory') - count('tradingHouse')).toBe(4);
+    expect(count('tradingHouse')).toBe(2);
+    expect(count('quarry')).toBe(1);
+    expect(
+      DEFAULT_BALANCE.market.length -
+        count('fortress') -
+        count('factory') -
+        count('tradingHouse') -
+        count('quarry'),
+    ).toBe(4);
   });
 
   it('市場に出る物件はすべて定義と日本語名を持つ', () => {

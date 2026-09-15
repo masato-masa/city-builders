@@ -1,10 +1,10 @@
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import {
+  activeOwnedSlots,
   handOf,
   incomePerTurnOf,
   opponentOf,
   ownedSlots,
-  reachOf,
   scoreOf,
 } from '@/game/selectors';
 import type { GameState, PlayerId } from '@/game/types';
@@ -19,8 +19,9 @@ export interface Weights {
   pendingIncome: number;
   incomePerTurn: number;
   opponentVp: number;
-  /** いま自分が実際に払える未建設の区画のうち、いちばん VP が高いものの VP。
-   *  建築家の割引と高利貸で増やしたコインが、ここで初めて価値になる。 */
+  /** いまの所持コインで、このターン中に VP の高い順に貪欲に買っていったときの、
+   *  買えた VP の合計（まとめ買い込み）。建築家の割引・石切場の追加割引・高利貸で
+   *  増やしたコインが、ここで初めて価値になる。 */
   reach: number;
   /** 相手の reach。マイナスに効く。封鎖者（相手の射程を削る）と徴税官（相手のコインを削る）の
    *  価値を、これで同じ物差しで測る。 */
@@ -59,6 +60,39 @@ export const DEFAULT_WEIGHTS: Weights = {
 /** 残りターンの多さ。序盤は収入を、終盤は VP を重く見るための係数。 */
 function lateness(state: GameState, balance: Balance): number {
   return Math.min(1, state.turn / (balance.maxTurnsPerPlayer * 2));
+}
+
+/** いまの所持コインで、このターン中に実際に買える区画を VP の高い順に貪欲に買って
+ *  いったときの、買えた VP の合計。建築家の割引・石切場の追加割引・すでに建てた件数を
+ *  buildCostFor と同じ規則で織り込む。払えない区画があっても止めず、次の（もっと安い
+ *  かもしれない）区画を試す。買えるものが 1 つも無ければ 0。
+ *  structuredClone は使わず、コインと建設件数を数値のコピーとして持つだけで済ませる。 */
+function reachOf(state: GameState, player: PlayerId, balance: Balance): number {
+  const p = state.players[player];
+  const hasQuarry = activeOwnedSlots(state, player).some((s) => s.buildingId === 'quarry');
+
+  const candidates = state.market
+    .filter((s) => s.owner === null && s.slotId !== p.blockedSlot)
+    .map((s) => balance.buildings[s.buildingId])
+    .sort((a, b) => b.vp - a.vp);
+
+  let coins = p.coins;
+  let builds = p.buildsThisTurn;
+  let totalVp = 0;
+
+  for (const building of candidates) {
+    let discount = p.buildDiscount;
+    if (p.buildDiscount > 0 && builds >= 1 && hasQuarry) {
+      discount += balance.quarryExtraDiscount;
+    }
+    const cost = Math.max(0, building.cost - discount);
+    if (coins < cost) continue;
+    coins -= cost;
+    builds += 1;
+    totalVp += building.vp;
+  }
+
+  return totalVp;
 }
 
 export function evaluateState(
