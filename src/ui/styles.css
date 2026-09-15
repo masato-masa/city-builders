@@ -19,6 +19,10 @@
   --owner-you-ink: #04203f;
   --owner-cpu: #a8441a;
   --owner-cpu-ink: #3a1608;
+
+  /* rgb() の中で使うための 3 つ組。--chrome-2 に透明度を付けるときに使う
+     （プレイ画面の背景オーバーレイと同じ地の色をホームでも使うため）。 */
+  --chrome-2-rgb: 22 32 42;
 }
 
 /* ボタンと入力要素は既定の書体を持つので、明示的に継がせる。
@@ -603,4 +607,177 @@
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
+}
+
+/* ---- ホーム ----
+   プレイ画面と同じ石畳（FIELD_URL）を敷き、プレイ画面より暗く沈めて
+   文字を主役にする。色のトークンはプレイ画面の --chrome 系に揃える。
+   shared-ui の .app（flex 列・min-height・padding）と .app-home
+   （position: relative・中央寄せ）を両方効かせるため、Home.tsx 側で
+   "app app-home" の 2 クラスを付ける（プレイ画面の "app app-play" と同じ形）。 */
+.app.app-home {
+  position: relative;
+  overflow: hidden;
+  background-color: #b8a8a1; /* field の平均色。読み込みまでの一瞬だけ見える */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* 背景の上に暗いグラデーションを重ねる。プレイ画面より濃くして、
+   石畳が「見えるが邪魔をしない」状態にする。 */
+.app.app-home::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--chrome-2-rgb) / 0.82) 0%,
+    rgb(var(--chrome-2-rgb) / 0.58) 38%,
+    rgb(var(--chrome-2-rgb) / 0.58) 64%,
+    rgb(var(--chrome-2-rgb) / 0.88) 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app.app-home > .home,
+.app.app-home > .dev-pill {
+  position: relative;
+  z-index: 1;
+}
+
+/* タイトル。素材が無いので文字組みで作る。写真の上でも必ず読めるよう、
+   濃い影を二重に落とす（縁取りだけだと明るい石の上で滲んで見えた）。 */
+.home-title {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.01em; /* 「字間を少し詰める」の指示どおり、既定より詰める */
+  color: #fff;
+  white-space: nowrap;
+  text-shadow:
+    0 1px 2px rgb(0 0 0 / 0.9),
+    0 4px 10px rgb(0 0 0 / 0.55);
+}
+
+.home-sub {
+  margin: 7px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(232 238 243 / 0.8);
+  text-shadow: 0 1px 4px rgb(0 0 0 / 0.7);
+}
+
+.home-buttons {
+  margin-top: 30px;
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+/* 難易度ボタン。ここがいちばん押される場所なので大きく、縦に並べる。
+   primary（前回遊んだ難易度）は色と影だけで強調し、border・padding は
+   状態に関わらず一切変えない（寸法が 1px も動かないようにするため）。 */
+.home-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  border: 0;
+  border-radius: 18px;
+  padding: 14px 20px 12px;
+  font: inherit;
+  color: var(--title);
+  background: var(--surface);
+  box-shadow:
+    0 2px 0 rgb(0 0 0 / 0.2),
+    0 8px 18px rgb(0 0 0 / 0.3);
+  cursor: pointer;
+  transition:
+    transform 0.15s var(--ease),
+    background-color 0.15s var(--ease),
+    color 0.15s var(--ease),
+    box-shadow 0.15s var(--ease);
+}
+
+.home-btn:active {
+  transform: scale(0.97);
+}
+
+.home-btn-label {
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.home-btn-desc {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* 強調は色と外側の光暈（box-shadow）だけ。border-color の変化にすると
+   ボタンの矩形が動くことがある実装があるため、あえて使わない。
+   padding は base の .home-btn と同じ値をここでも明示する。
+   shared-ui 側に .home-btn.primary { padding: 14px 24px } が残っていて
+   （クラス 2 つ分、こちらの base 指定より詳細度が高い）、ここで上書きしないと
+   primary のときだけ矩形が 2px 変わってしまう。 */
+.home-btn.primary {
+  padding: 14px 20px 12px;
+  color: var(--accent-ink);
+  background: var(--accent);
+  box-shadow:
+    0 0 0 3px rgb(255 255 255 / 0.5),
+    0 2px 0 rgb(0 0 0 / 0.2),
+    0 10px 22px rgb(51 33 87 / 0.55);
+}
+
+.home-btn.primary .home-btn-desc {
+  color: rgb(255 255 255 / 0.82);
+}
+
+/* 戦績。1 試合もしていないときは別の文言（home-progress-empty）にする。
+   勝ち負けの数字は等幅にして、桁が増えても位置が動かないようにする。 */
+.home-progress {
+  margin: 22px 0 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.3);
+  font-size: 13px;
+  font-weight: 700;
+  color: rgb(232 238 243 / 0.85);
+}
+
+.home-progress-num {
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.home-progress-win {
+  color: #7fe0a0;
+}
+
+.home-progress-lose {
+  color: #ff9a8c;
+}
+
+.home-progress-empty {
+  color: rgb(232 238 243 / 0.75);
+}
+
+/* ---- 開発者メニューのピル ----
+   ホームでは背景が写真なので、shared-ui 既定の薄い地では沈んで読めない。
+   位置・大きさ・中身はそのまま、色だけ背景に馴染ませる。 */
+.app.app-home .dev-pill {
+  color: rgb(232 238 243 / 0.7);
+  background: rgb(0 0 0 / 0.32);
+}
+
+.app.app-home .dev-pill:active {
+  opacity: 0.5;
 }
