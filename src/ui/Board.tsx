@@ -12,8 +12,12 @@ import { PLOTS, PLOT_WIDTH } from './board-layout';
  *  （要望 5。ここだけ建設前後で文字の内容が変わる、唯一の例外）。 */
 function vpTextFor(state: GameState, slotId: number, balance: Balance): string {
   const slot = state.market[slotId]!;
-  if (slot.buildingId === 'cathedral' && slot.owner === null) {
-    return `+${balance.cathedralVpPerBuilding}/件`;
+  if (slot.owner === null) {
+    // vpOfSlot は未所有だと必ず 0 を返す（大聖堂に限らず）ので、未建設のときは
+    // balance 側の基準値を出す。大聖堂だけ基準値が 0（自分の他の物件 1 件に
+    // つき +N で決まるため）なので、決まり方が分かる形に変える。
+    if (slot.buildingId === 'cathedral') return `+${balance.cathedralVpPerBuilding}/件`;
+    return `${balance.buildings[slot.buildingId].vp} VP`;
   }
   return `${vpOfSlot(state, slot, balance)} VP`;
 }
