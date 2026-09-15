@@ -29,27 +29,10 @@
   font-family: inherit;
 }
 
-/* 2 行目は中身が変わっても高さが変わってはいけない。折り返しを禁じ、
-   狭い画面では字と間隔を詰めて収める。幅で変えるのは状態ではないので、
-   プレイ中に動くことはない。 */
-.app-play .status-bar {
-  flex-wrap: nowrap;
-  white-space: nowrap;
-}
-
-/* 320・360px では既定の余白のまま四つ並べると、二桁が重なったときに
-   実測で最大 23px 右へはみ出す（375px 以上は実測で崩れない）。
-   文言は変えず、字と間隔だけを詰めて収める。 */
-@media (max-width: 380px) {
-  .app-play .status-bar {
-    gap: 3px 4px;
-  }
-
-  .app-play .status-bar .stat {
-    padding: 3px 6px;
-    font-size: 12px;
-  }
-}
+/* 要望 5・6: このゲームだけ、共通ルール（.status-bar は空でも高さを取る／
+   1 行目にはタイトルを含む 4 種だけ）から意図的に外れる。作者の明示指示による。
+   .status-bar 自体をプレイ画面に描画しないので、shared-ui 側は何も触らない。
+   VP は各プレイヤーの帯（.opponent / .coinbar）へ移した。 */
 
 /* プレイ画面だけ、画面の高さちょうどに固定する。
    shared-ui の .app は min-height: 100dvh で上限が無いため、背の低い画面では
@@ -58,6 +41,38 @@
 .app.app-play {
   height: 100dvh;
   overflow: hidden;
+  position: relative;
+  /* 盤面の地を画面全体の背景にする（要望 4）。background-image は Game.tsx から
+     インラインで渡す。読み込みまでの一瞬は下の background-color を見せる
+     （field の平均色、実測 #b8a8a1）。 */
+  background-color: #b8a8a1;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* 背景の上に文字とカードが乗るので、暗いオーバーレイを重ねて読みやすさを底上げする。
+   上下（ヘッダー・手札のあたり）を少し濃く、まん中（盤面のあたり）は素材を見せる。
+   ヘッダー・コインバー・手札は自前の不透明な地を持つので、実際に透けるのは
+   盤面まわりの隙間だけ。装飾のみで、クリックは常に下の要素に通す。 */
+.app.app-play::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 0.4) 0%,
+    rgb(0 0 0 / 0.12) 22%,
+    rgb(0 0 0 / 0.12) 78%,
+    rgb(0 0 0 / 0.4) 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app.app-play > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* shared-ui の .play は全要素をひと塊にして縦中央へ寄せる。
@@ -85,54 +100,98 @@
   container-type: size;
 }
 
+/* 相手（CPU）の帯。上段が色の印・名前・コイン・VP、下段が行動ログ（要望 3・6）。
+   2 段とも高さを固定し、ログが空でも領域が潰れないようにする。 */
 .opponent {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 44px;
-  padding: 0 var(--pad);
+  flex-direction: column;
   background: var(--chrome);
 }
 
-.opponent-badge {
-  width: 26px;
-  height: 26px;
+.opponent-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 var(--pad);
+}
+
+/* 所有者の色の印。区画の枠・建物の影・VP バッジの地と同じ色を、
+   帯の側にも小さく置く（自分側は CoinBar 側に同じクラスで置く）。 */
+.owner-mark {
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
+  flex: none;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.35);
+}
+
+.owner-mark-you {
+  background: var(--owner-you);
+}
+
+.owner-mark-cpu {
   background: var(--owner-cpu);
-  color: var(--owner-cpu-ink);
-  display: grid;
-  place-items: center;
-  font-size: 10px;
+}
+
+.opponent-name {
+  font-size: 12px;
   font-weight: 700;
+  color: var(--chrome-ink-dim);
 }
 
 .opponent-coins {
   font-size: 16px;
   font-weight: 700;
   color: var(--coin);
+  font-variant-numeric: tabular-nums;
 }
 
-.opponent-stats {
+.opponent-vp {
   margin-left: auto;
-  font-size: 12px;
+  min-width: 44px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--chrome-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* CPU の行動ログ。中身が無くても常にこの高さを取る（要望 3）。
+   overflow: hidden で、増えた行は上から静かにあふれさせる（スクロールは出さない）。 */
+.cpu-log {
+  height: 44px;
+  padding: 3px var(--pad) 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 1px;
+  overflow: hidden;
+  background: var(--chrome-2);
+}
+
+.cpu-log-line {
+  font-size: 11px;
+  line-height: 1.4;
   color: var(--chrome-ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 盤面。幅を起点にして、高さは 3:4 から決める。
    器より高くなる場合は max-height が高さを抑え、幅もそれに追従する。
    height を指定すると aspect-ratio が高さ起点になり max-height が効かなくなるので、
-   height は書かない。 */
+   height は書かない。
+   地の画像は画面全体の背景に移した（要望 4）ので、ここ自身は枠も背景も持たない
+   透明な領域にする。区画だけが背景の上に浮いて見える。 */
 .board {
   position: relative;
   width: 100%;
   width: min(100%, 75cqh);
   aspect-ratio: 3 / 4;
   max-height: 100%;
-  border-radius: var(--card-radius);
   overflow: hidden;
-  /* 素材が届くまでの一瞬、区画がクリーム地に浮かないようにする。
-     field の平均色（実測 #b8a8a1）に合わせた。 */
-  background: #b8a8a1;
 }
 
 /* cqh を解決できないブラウザ（iOS 16 未満の Safari など）では
@@ -142,16 +201,6 @@
     width: auto;
     height: 100%;
   }
-}
-
-.board-field {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  user-select: none;
-  -webkit-user-drag: none;
 }
 
 /* 区画。中心を座標に合わせる。高さは幅と同じで、建物はここから上へ伸びる。 */
@@ -172,8 +221,11 @@
   opacity: 0.4;
 }
 
-/* 所有者の土台。建物そのものには色を被せない(素材が濁るため)。 */
-.plot-base {
+/* 区画の外周の枠。所有者を示す 3 つの合図の 1 つ（要望 1）。以前は建物の土台
+   （塗りつぶした楕円）だったが、絵と VP バッジに挟まれてほとんど見えなかった
+   ので、輪郭の枠に変えた。未建設でも同じ太さの透明な枠を常に置き、
+   建っても矩形が 1px も動かないようにする（太さは状態で変えない。色だけ変える）。 */
+.plot-ring {
   position: absolute;
   left: 50%;
   bottom: 6%;
@@ -181,18 +233,21 @@
   width: 78%;
   height: 26%;
   border-radius: 50%;
-  border: 3px solid rgb(0 0 0 / 0.55);
+  border: 3px solid transparent;
+  background: none;
+  transition: border-color 0.25s var(--ease, ease);
 }
 
-.plot-base.owner-you {
-  background: var(--owner-you);
+.plot-ring.owner-you {
+  border-color: var(--owner-you);
 }
 
-.plot-base.owner-cpu {
-  background: var(--owner-cpu);
+.plot-ring.owner-cpu {
+  border-color: var(--owner-cpu);
 }
 
-/* 建物の素材。足元を基準に置き、上へ伸びる。 */
+/* 建物の素材。足元を基準に置き、上へ伸びる。所有者を示す 3 つの合図の 1 つ。
+   絵そのものは染めず、影の色だけで示す（要望 1）。 */
 .plot-art {
   position: absolute;
   left: 50%;
@@ -201,6 +256,15 @@
   pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
+  transition: filter 0.25s var(--ease, ease);
+}
+
+.plot-art.owner-you {
+  filter: drop-shadow(0 0 5px var(--owner-you)) drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
+}
+
+.plot-art.owner-cpu {
+  filter: drop-shadow(0 0 5px var(--owner-cpu)) drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
 }
 
 /* 空き地。まだ建っていない区画 */
@@ -233,7 +297,8 @@
   font-weight: 600;
 }
 
-/* VP。建った区画で、建設費と同じ場所に出る */
+/* VP。建った区画で、建設費と同じ場所に出る。地を所有者の色にする
+   （要望 1 の 3 つの合図のうちの 1 つ）。 */
 .plot-vp {
   position: absolute;
   left: 50%;
@@ -247,6 +312,15 @@
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
+  transition: background-color 0.25s var(--ease, ease);
+}
+
+.plot-vp.owner-you {
+  background: var(--owner-you);
+}
+
+.plot-vp.owner-cpu {
+  background: var(--owner-cpu);
 }
 
 /* コインバー。手札のすぐ上に全幅で置く。
@@ -277,6 +351,17 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 自分の VP。桁が増えても他の数字の位置が動かないよう、等幅にして最小幅を取る（要望 6）。 */
+.coinbar-vp {
+  min-width: 44px;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--chrome-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .coinbar-btn {
@@ -452,4 +537,45 @@
 .coinbar-amount {
   -webkit-text-stroke: 3px rgb(0 0 0 / 0.3);
   paint-order: stroke fill;
+}
+
+/* 残りターン。ヘッダー中央（要望 7）。タイトルを消したこの列に代わりに置く。
+   数字は最大 2 桁（maxTurnsPerPlayer * 2）なので、その幅を確保して 1 桁になっても
+   前後の文字の位置が動かないようにする。 */
+.turn-clock {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--title);
+  white-space: nowrap;
+}
+
+.turn-clock svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.turn-clock-text {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.turn-clock-num {
+  display: inline-block;
+  min-width: 1.5em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* カード選択シートの「山の底へ送る」（街道・要望 2）。「使う」の直上に置く。
+   shared-ui の .sheet-row をそのまま使い、右側に残り回数だけ添える。 */
+.road-btn {
+  margin-top: -4px;
+}
+
+.road-btn-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
 }

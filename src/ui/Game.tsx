@@ -1,17 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { type Difficulty, playTurn } from '@/ai/choose';
+import type { Difficulty } from '@/ai/choose';
 import { BUILDING_NAMES, BUILDING_TEXTS, CARD_NAMES, CARD_TEXTS, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { buildCostFor, canBuild, canUseCard, canUseRoad, reduce } from '@/game/reducer';
 import { createRng, type Rng } from '@/game/rng';
-import { handOf, hasBuilding, scoreOf, winnerOf } from '@/game/selectors';
+import { handOf, roadUsesRemaining, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 import { loadProgress, saveProgress } from '@/storage/storage';
 
+import { FIELD_URL } from './art';
 import { Board } from './Board';
 import { CoinBar } from './CoinBar';
+import { type CpuStep, playTurnSteps } from './cpu-turn';
 import { Hand } from './Hand';
+import { TurnClockIcon } from './icons';
 import { OpponentStrip } from './OpponentStrip';
 import { Sheet } from './Sheets';
 
@@ -20,7 +23,6 @@ type Pending =
   | { kind: 'card'; card: CardId }
   | { kind: 'heraldTarget' }
   | { kind: 'blockadeTarget' }
-  | { kind: 'roadTarget' }
   | { kind: 'help' }
   | null;
 
@@ -38,34 +40,81 @@ export function Game({
   const [rng] = useState<Rng>(() => createRng(seed * 7919 + 13));
   const [state, setState] = useState<GameState>(() => {
     const g = createGame(seed, balance);
-    // プレイヤーが後手なら、先に CPU の 1 手番を消化する
-    const started = g.current === 'cpu' ? playTurn(g, difficulty, createRng(seed), balance) : g;
-    return reduce(started, { type: 'startTurn' }, balance);
+    // プレイヤーが先手なら、ここで最初のターンの開始処理をすませる。
+    // 後手（CPU が先手）なら何もせず、下の useEffect が CPU の 1 手番を
+    // ログ付きで進める（プレイヤーの最初の startTurn はその手番の終わりに続く）。
+    return g.current === 'you' ? reduce(g, { type: 'startTurn' }, balance) : g;
   });
   const [sheet, setSheet] = useState<Pending>(null);
 
+  // CPU の手番を 1 手ずつ出すための進行役。null のときは進行中ではない。
+  const [cpuTurn, setCpuTurn] = useState<{ steps: CpuStep[]; revealed: number } | null>(null);
+  // 画面に見せる実況ログ。直前の CPU の手番ぶんが、次の CPU の手番が始まるまで残る。
+  const [cpuLog, setCpuLog] = useState<string[]>([]);
+  const cpuActing = cpuTurn !== null;
+
   const finished = state.phase === 'finished';
 
+  const recordIfFinished = (result: GameState) => {
+    if (result.phase !== 'finished') return;
+    const progress = loadProgress();
+    const winner = winnerOf(result, balance);
+    saveProgress({
+      wins: progress.wins + (winner === 'you' ? 1 : 0),
+      losses: progress.losses + (winner === 'cpu' ? 1 : 0),
+      lastDifficulty: difficulty,
+    });
+  };
+
+  // CPU の 1 手番の結果を、実際の state に反映する。次のプレイヤーの手番があれば
+  // その startTurn も済ませ、ゲームが終わっていれば記録する。
+  const finishCpuTurn = (result: GameState) => {
+    const final = result.phase === 'playing' ? reduce(result, { type: 'startTurn' }, balance) : result;
+    recordIfFinished(final);
+    setState(final);
+  };
+
   const endTurn = () => {
-    let next = reduce(state, { type: 'endTurn' }, balance);
-    if (next.phase === 'playing') {
-      next = playTurn(next, difficulty, rng, balance);
-    }
-    if (next.phase === 'playing') {
-      next = reduce(next, { type: 'startTurn' }, balance);
-    }
-    // 終了判定は endTurn の中でしか起きないので、記録もここで 1 回だけ行う
-    if (next.phase === 'finished') {
-      const progress = loadProgress();
-      const winner = winnerOf(next, balance);
-      saveProgress({
-        wins: progress.wins + (winner === 'you' ? 1 : 0),
-        losses: progress.losses + (winner === 'cpu' ? 1 : 0),
-        lastDifficulty: difficulty,
-      });
-    }
+    const next = reduce(state, { type: 'endTurn' }, balance);
+    recordIfFinished(next);
     setState(next);
   };
+
+  // CPU の手番になったら、1 手ずつ出す行動列をまとめて計算しておく。
+  // src/ai は変更せず、公開されている chooseAction を使う playTurnSteps に任せる。
+  useEffect(() => {
+    if (state.phase !== 'playing') return;
+    if (state.current !== 'cpu') return;
+    if (cpuTurn !== null) return;
+    // ゲーム開始時、後手（CPU が先手）の最初の 1 手番だけは seed 直結の乱数を使う
+    // （それ以外の CPU の手番は、ずっと使い続けている共有の rng を使う）。
+    // これは元の実装（seed だけから作る乱数で先手番を進める）をそのまま踏襲している。
+    const stepRng = state.turn === 1 ? createRng(seed) : rng;
+    setCpuLog([]);
+    setCpuTurn({ steps: playTurnSteps(state, difficulty, stepRng, balance), revealed: 0 });
+  }, [state]);
+
+  // 1 手ずつ間を空けて出す。手数に応じて間隔を決め、合計がだいたい 2 秒に収まるようにする。
+  useEffect(() => {
+    if (!cpuTurn) return;
+    const { steps, revealed } = cpuTurn;
+    const step = steps[revealed];
+    if (!step) return;
+    const isLast = revealed === steps.length - 1;
+    const delayMs = Math.max(220, Math.min(650, 2000 / steps.length));
+    const timer = window.setTimeout(() => {
+      setCpuLog((prev) => [...prev, step.log]);
+      if (isLast) {
+        finishCpuTurn(step.state);
+        setCpuTurn(null);
+      } else {
+        setState(step.state);
+        setCpuTurn((prev) => (prev ? { ...prev, revealed: prev.revealed + 1 } : prev));
+      }
+    }, delayMs);
+    return () => window.clearTimeout(timer);
+    // eslint 的な exhaustive-deps はこのプロジェクトに無い。cpuTurn の変化だけを見る。
+  }, [cpuTurn]);
 
   const useCard = (card: CardId) => {
     if (card === 'herald') return setSheet({ kind: 'heraldTarget' });
@@ -74,13 +123,8 @@ export function Game({
     setState(next);
   };
 
-  // 街道を持っているあいだ、毎ターン 1 回だけ手札を 1 枚無料で流せる
-  const roadAvailable =
-    hasBuilding(state, 'you', 'road') &&
-    handOf(state, 'you', balance).some((c) => canUseRoad(state, c, balance));
-
   return (
-    <div className="app app-play">
+    <div className="app app-play" style={{ backgroundImage: `url(${FIELD_URL})` }}>
       <header className="header">
         <div className="header-row">
           <div className="header-left">
@@ -88,44 +132,47 @@ export function Game({
               ←
             </button>
           </div>
-          <h1 className="title">シティビルダーズ</h1>
+          <div className="turn-clock" aria-label={`残り ${turnsRemaining(state, balance)} ターン`}>
+            <TurnClockIcon />
+            <span className="turn-clock-text">
+              残り <span className="turn-clock-num">{turnsRemaining(state, balance)}</span> ターン
+            </span>
+          </div>
           <div className="header-actions">
             <button className="icon-btn" aria-label="あそびかた" onClick={() => setSheet({ kind: 'help' })}>
               ?
             </button>
           </div>
         </div>
-        <div className="status-bar">
-          <span className="stat">ターン {Math.ceil(state.turn / 2)}</span>
-          <span className="stat">あなた {scoreOf(state, 'you', balance)} VP</span>
-          <span className="stat">CPU {scoreOf(state, 'cpu', balance)} VP</span>
-          <span className="stat">残り {state.market.filter((s) => s.owner === null).length}</span>
-        </div>
       </header>
 
       <main className="play">
         <div className="board-shell">
-          <OpponentStrip state={state} balance={balance} />
+          <OpponentStrip state={state} balance={balance} log={cpuLog} />
           <div className="board-area">
             <Board
               state={state}
               balance={balance}
-              onPick={(slotId) => setSheet({ kind: 'slot', slotId })}
+              onPick={(slotId) => {
+                if (cpuActing) return;
+                setSheet({ kind: 'slot', slotId });
+              }}
             />
           </div>
           <CoinBar
             state={state}
             balance={balance}
-            onRoad={() => setSheet({ kind: 'roadTarget' })}
-            roadEnabled={roadAvailable}
             onEndTurn={endTurn}
-            endTurnEnabled={!finished}
+            endTurnEnabled={!finished && !cpuActing}
           />
           <Hand
             state={state}
             balance={balance}
-            canUse={(card) => canUseCard(state, card, balance)}
-            onPick={(card) => setSheet({ kind: 'card', card })}
+            canUse={(card) => !cpuActing && canUseCard(state, card, balance)}
+            onPick={(card) => {
+              if (cpuActing) return;
+              setSheet({ kind: 'card', card });
+            }}
           />
         </div>
       </main>
@@ -171,6 +218,21 @@ export function Game({
           onClose={() => setSheet(null)}
         >
           <p className="sheet-text">{CARD_TEXTS[sheet.card]}</p>
+          {/* 街道の効果。以前はコインバーの専用ボタンから対象を選んでいたが、
+              いまはカードを選んだこのシートの中、「使う」の上に置く（要望 2）。
+              街道を持っていない／使い切っているときも、ボタンは消さず disabled にする。 */}
+          <button
+            className="sheet-row road-btn"
+            disabled={!canUseRoad(state, sheet.card, balance)}
+            onClick={() => {
+              const card = sheet.card;
+              setSheet(null);
+              setState(reduce(state, { type: 'useRoad', target: card }, balance));
+            }}
+          >
+            <span>山の底へ送る</span>
+            <span className="road-btn-sub">街道・あと {roadUsesRemaining(state, 'you', balance)} 回</span>
+          </button>
           <button
             className="home-btn primary"
             disabled={!canUseCard(state, sheet.card, balance)}
@@ -226,29 +288,6 @@ export function Game({
                 }}
               >
                 {BUILDING_NAMES[s.buildingId]}
-              </button>
-            ))}
-        </Sheet>
-      ) : null}
-
-      {sheet?.kind === 'roadTarget' ? (
-        <Sheet
-          title="どのカードを底へ送る？"
-          subtitle="街道の効果。コストはかからない"
-          onClose={() => setSheet(null)}
-        >
-          {handOf(state, 'you', balance)
-            .filter((c) => canUseRoad(state, c, balance))
-            .map((c) => (
-              <button
-                key={c}
-                className="sheet-row"
-                onClick={() => {
-                  setState(reduce(state, { type: 'useRoad', target: c }, balance));
-                  setSheet(null);
-                }}
-              >
-                {CARD_NAMES[c]}
               </button>
             ))}
         </Sheet>

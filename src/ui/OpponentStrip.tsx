@@ -1,15 +1,43 @@
+import { motion } from 'motion/react';
+
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
-import { ownedSlots, scoreOf } from '@/game/selectors';
+import { scoreOf } from '@/game/selectors';
 import type { GameState } from '@/game/types';
 
-export function OpponentStrip({ state, balance = DEFAULT_BALANCE }: { state: GameState; balance?: Balance }) {
+/** 相手（CPU）の帯。色の印・名前・所持コイン・VP を出す（残り区画数は出さない）。
+ *  下にはこの手番で CPU が何をしたかのログを 1 行ずつ出す。ログの領域は
+ *  中身が無くても同じ高さを取り、CPU の手番でなくても盤面の縦位置が動かない。 */
+export function OpponentStrip({
+  state,
+  balance = DEFAULT_BALANCE,
+  log,
+}: {
+  state: GameState;
+  balance?: Balance;
+  /** この手番で CPU が行った行動。古い順。 */
+  log: string[];
+}) {
   return (
     <div className="opponent">
-      <span className="opponent-badge">CPU</span>
-      <span className="opponent-coins">{state.players.cpu.coins}</span>
-      <span className="opponent-stats">
-        物件 {ownedSlots(state, 'cpu').length} ・ {scoreOf(state, 'cpu', balance)} VP
-      </span>
+      <div className="opponent-row">
+        <span className="owner-mark owner-mark-cpu" aria-hidden="true" />
+        <span className="opponent-name">CPU</span>
+        <span className="opponent-coins">{state.players.cpu.coins}</span>
+        <span className="opponent-vp">{scoreOf(state, 'cpu', balance)} VP</span>
+      </div>
+      <div className="cpu-log" aria-live="polite">
+        {log.map((line, i) => (
+          <motion.span
+            key={i}
+            className="cpu-log-line"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+          >
+            {line}
+          </motion.span>
+        ))}
+      </div>
     </div>
   );
 }

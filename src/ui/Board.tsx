@@ -3,7 +3,7 @@ import { buildCostFor } from '@/game/reducer';
 import { vpOfSlot } from '@/game/selectors';
 import type { GameState } from '@/game/types';
 
-import { BUILDING_ART, FIELD_URL } from './art';
+import { BUILDING_ART } from './art';
 import { PLOTS, PLOT_WIDTH } from './board-layout';
 
 export function Board({
@@ -17,7 +17,6 @@ export function Board({
 }) {
   return (
     <div className="board">
-      <img className="board-field" src={FIELD_URL} alt="" />
       {state.market.map((slot, i) => {
         const plot = PLOTS[i];
         if (!plot) return null;
@@ -43,10 +42,12 @@ export function Board({
             aria-label={ariaLabel}
             onClick={() => onPick(slot.slotId)}
           >
-            {owned ? <span className={`plot-base owner-${slot.owner}`} /> : null}
+            {/* 区画の外周の枠。所有者を示す 3 つの合図のうちの 1 つ（要望 1）。
+                未建設でも同じ太さの透明な枠を置き、建っても矩形が動かないようにする。 */}
+            <span className={`plot-ring${owned ? ` owner-${slot.owner}` : ''}`} />
             {owned && art ? (
               <img
-                className="plot-art"
+                className={`plot-art owner-${slot.owner}`}
                 src={art.url}
                 alt=""
                 style={{ width: `${art.scale * 100}%` }}
@@ -56,7 +57,7 @@ export function Board({
                 {BUILDING_NAMES[slot.buildingId]}
               </span>
             )}
-            <span className={owned ? 'plot-vp' : 'plot-cost'}>
+            <span className={`${owned ? 'plot-vp' : 'plot-cost'}${owned ? ` owner-${slot.owner}` : ''}`}>
               {owned
                 ? `${vpOfSlot(state, slot, balance)} VP`
                 : buildCostFor(state, 'you', slot.slotId, balance)}
