@@ -11,8 +11,11 @@
  * 乱数は src/game/rng.ts の seeded PRNG のみを使う。試合ごとの seed は、
  * 性格の組み合わせ・先手/後手・何試合目かという「引数」だけから決まるので、
  * 同じコマンドを 2 回走らせれば必ず同じ結果になる。 */
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { chooseAction, type AiOptions } from '../src/ai/choose';
-import { DEFAULT_WEIGHTS, type Weights } from '../src/ai/evaluate';
+import { DEFAULT_WEIGHTS, type Profile, type Weights } from '../src/ai/evaluate';
 import { ALL_CARDS, CARD_NAMES, DEFAULT_BALANCE, type Balance } from '../src/game/balance';
 import { reduce } from '../src/game/reducer';
 import { createRng } from '../src/game/rng';
@@ -26,7 +29,13 @@ import type { CardId, GameState, PlayerId } from '../src/game/types';
 
 interface Persona {
   name: string;
-  weights: Weights;
+  profile: Profile;
+}
+
+/** 手で重み 1 つを置くだけの Persona を作る（early = late、序盤終盤の区別なし）。
+ *  scripts/searched-profiles.json が無いときの後方互換フォールバック用。 */
+function flatPersona(name: string, weights: Weights): Persona {
+  return { name, profile: { early: weights, late: weights } };
 }
 
 /** 4 つの性格は「人間が取りうる方針」の代表。DEFAULT_WEIGHTS の一部だけを上書きする。
@@ -40,46 +49,48 @@ interface Persona {
  *    すぐ使う（建てる・また稼ぐ）方向に寄せる。
  *  - 大器晩成: 旧 threat の代わりに reach と coin を強く。序盤は reach（＝買えるものの
  *    価値）とコインの蓄積を評価し、終盤の VP 重視と合わせて「溜めて一気に買う」を狙う。 */
-const PERSONAS: Persona[] = [
-  { name: '均衡', weights: DEFAULT_WEIGHTS },
-  {
-    name: '妨害',
-    weights: {
-      ...DEFAULT_WEIGHTS,
-      opponentCoin: -2.5,
-      opponentStuck: 3.5,
-      opponentReach: -3.5,
-      opponentIncome: -4.0,
-      opponentBound: 5.0,
-      reach: 4.0,
-      vp: 8,
-    },
-  },
-  {
-    name: '回転',
-    weights: {
-      ...DEFAULT_WEIGHTS,
-      pendingIncome: 2.6,
-      incomePerTurn: 5.5,
-      vp: 7,
-      coin: 0.6,
-    },
-  },
-  {
-    name: '大器晩成',
-    weights: {
-      ...DEFAULT_WEIGHTS,
-      coin: 2.6,
-      vp: 13,
-      incomePerTurn: 1.2,
-      reach: 3.0,
-      opponentReach: -0.2,
-    },
-  },
+const HAND_PLACED_PERSONAS: Persona[] = [
+  flatPersona('均衡', DEFAULT_WEIGHTS),
+  flatPersona('妨害', {
+    ...DEFAULT_WEIGHTS,
+    opponentCoin: -2.5,
+    opponentStuck: 3.5,
+    opponentReach: -3.5,
+    opponentIncome: -4.0,
+    opponentBound: 5.0,
+    reach: 4.0,
+    vp: 8,
+  }),
+  flatPersona('回転', {
+    ...DEFAULT_WEIGHTS,
+    pendingIncome: 2.6,
+    incomePerTurn: 5.5,
+    vp: 7,
+    coin: 0.6,
+  }),
+  flatPersona('大器晩成', {
+    ...DEFAULT_WEIGHTS,
+    coin: 2.6,
+    vp: 13,
+    incomePerTurn: 1.2,
+    reach: 3.0,
+    opponentReach: -0.2,
+  }),
 ];
 
+/** scripts/weight-search.ts（npm run search）が書き出した収束後の重み。
+ *  ファイルが無ければ（＝探索をまだ実行していなければ）手で置いた重みで動く。 */
+function loadSearchedPersonas(): Persona[] | null {
+  const path = fileURLToPath(new URL('./searched-profiles.json', import.meta.url));
+  if (!existsSync(path)) return null;
+  const raw = JSON.parse(readFileSync(path, 'utf-8')) as { name: string; profile: Profile }[];
+  return raw.map((r) => ({ name: r.name, profile: r.profile }));
+}
+
+const PERSONAS: Persona[] = loadSearchedPersonas() ?? HAND_PLACED_PERSONAS;
+
 function optionsForPersona(p: Persona): AiOptions {
-  return { noise: 0, harassRate: 1, lookahead: false, weights: p.weights };
+  return { noise: 0, harassRate: 1, lookahead: false, profile: p.profile };
 }
 
 // ---------------------------------------------------------------------------
@@ -98,13 +109,15 @@ interface GameStats {
   cardUsage: { A: Record<CardId, number>; B: Record<CardId, number> };
   turnsPlayed: { A: number; B: number };
   totalTurns: number;
-  bankedTurns: number;
-  stuckTurns: number;
+  bankedTurns: { A: number; B: number };
+  stuckTurns: { A: number; B: number };
+  /** 手番の開始時点（収入が入った直後）のコイン残高の合計。turnsPlayed で割れば平均になる */
+  coinsSum: { A: number; B: number };
   taxmanJustified: number;
   taxmanWasted: number;
   taxmanTotal: number;
   /** 同じカードが手札の先頭に戻るまでのターン数（そのプレイヤー自身のターン数で数える）のサンプル */
-  deckCycleSamples: number[];
+  deckCycleSamples: { A: number[]; B: number[] };
   /** 1 試合中に建てた件数 */
   buildsCount: { A: number; B: number };
   /** そのうち、試合の前半（自分のターン数の半分まで）に建てた件数 */
@@ -140,12 +153,13 @@ function runOne(
 
   const cardUsage = { A: emptyCardUsage(), B: emptyCardUsage() };
   const turnsPlayed = { A: 0, B: 0 };
-  let bankedTurns = 0;
-  let stuckTurns = 0;
+  const bankedTurns = { A: 0, B: 0 };
+  const stuckTurns = { A: 0, B: 0 };
+  const coinsSum = { A: 0, B: 0 };
   let taxmanJustified = 0;
   let taxmanWasted = 0;
   let taxmanTotal = 0;
-  const deckCycleSamples: number[] = [];
+  const deckCycleSamples: { A: number[]; B: number[] } = { A: [], B: [] };
   const buildsCount = { A: 0, B: 0 };
   // 建てたときの「自分の何ターン目か」（1 始まり）を記録し、試合が終わったあとに
   // 前半・後半を判定する（前半かどうかは自分の最終ターン数が分からないと決まらないため）
@@ -167,12 +181,13 @@ function runOne(
 
     let next = reduce(g, { type: 'startTurn' }, balance);
 
-    // 手札詰まり率: 行動フェーズに入った時点（収入が入った直後）で測る
+    // 手札詰まり率・平均コイン残高: 行動フェーズに入った時点（収入が入った直後）で測る
     const hand = handOf(next, player, balance);
     const unaffordable = hand.filter(
       (c) => next.players[player].coins < balance.cards[c].cost,
     ).length;
-    if (unaffordable >= 3) stuckTurns++;
+    if (unaffordable >= 3) stuckTurns[who]++;
+    coinsSum[who] += next.players[player].coins;
 
     let usedAnyCard = false;
     let builtAny = false;
@@ -204,7 +219,7 @@ function runOne(
 
     turnsPlayed[who]++;
     // 貯めターン: カードを 1 枚も使わず、建設もしなかったターン
-    if (!usedAnyCard && !builtAny) bankedTurns++;
+    if (!usedAnyCard && !builtAny) bankedTurns[who]++;
 
     // デッキ 1 周: 手札の先頭が「入れ替わった」ときだけ記録する。同じカードが
     // 先頭に居座り続けているターン（貯めターンなど）は変化ではないので数えない
@@ -213,7 +228,7 @@ function runOne(
     if (front && front !== prevFront[player]) {
       const lastTurn = lastFrontTurn[player][front];
       if (lastTurn !== undefined) {
-        deckCycleSamples.push(ownTurnCount[player] - lastTurn);
+        deckCycleSamples[who].push(ownTurnCount[player] - lastTurn);
       }
       lastFrontTurn[player][front] = ownTurnCount[player];
       prevFront[player] = front;
@@ -242,6 +257,7 @@ function runOne(
     totalTurns,
     bankedTurns,
     stuckTurns,
+    coinsSum,
     taxmanJustified,
     taxmanWasted,
     taxmanTotal,
@@ -273,6 +289,18 @@ const personaGames: number[] = new Array(N).fill(0) as number[];
 const personaBuilds: number[] = new Array(N).fill(0) as number[];
 const personaFirstHalfBuilds: number[] = new Array(N).fill(0) as number[];
 const personaCardUsage: Record<CardId, number>[] = PERSONAS.map(() => emptyCardUsage());
+// 表 2c: 性格ごとの内訳
+const personaBankedTurns: number[] = new Array(N).fill(0) as number[];
+const personaStuckTurns: number[] = new Array(N).fill(0) as number[];
+const personaCoinsSum: number[] = new Array(N).fill(0) as number[];
+const personaDeckCycleSamples: number[][] = Array.from({ length: N }, () => [] as number[]);
+// 表 5: 妨害・防御の札が「相手の性格」を見ているか。personaCardUsageByOpp[i][j] は
+// 性格 i が性格 j と対戦したときに使ったカードの枚数、personaTurnsByOpp[i][j] はそのときの
+// 性格 i 側のターン数
+const personaCardUsageByOpp: Record<CardId, number>[][] = Array.from({ length: N }, () =>
+  Array.from({ length: N }, () => emptyCardUsage()),
+);
+const personaTurnsByOpp: number[][] = Array.from({ length: N }, () => new Array(N).fill(0) as number[]);
 
 let totalGames = 0;
 let draws = 0;
@@ -325,12 +353,12 @@ for (let i = 0; i < N; i++) {
 
         turnsPerPlayerSum += result.turnsPerPlayer;
         globalTurns += result.totalTurns;
-        bankedTurns += result.bankedTurns;
-        stuckTurns += result.stuckTurns;
+        bankedTurns += result.bankedTurns.A + result.bankedTurns.B;
+        stuckTurns += result.stuckTurns.A + result.stuckTurns.B;
         taxmanJustified += result.taxmanJustified;
         taxmanWasted += result.taxmanWasted;
         taxmanTotal += result.taxmanTotal;
-        deckCycleSamples.push(...result.deckCycleSamples);
+        deckCycleSamples.push(...result.deckCycleSamples.A, ...result.deckCycleSamples.B);
 
         personaTurns[i]! += result.turnsPlayed.A;
         personaTurns[j]! += result.turnsPlayed.B;
@@ -340,11 +368,25 @@ for (let i = 0; i < N; i++) {
         personaBuilds[j]! += result.buildsCount.B;
         personaFirstHalfBuilds[i]! += result.firstHalfBuilds.A;
         personaFirstHalfBuilds[j]! += result.firstHalfBuilds.B;
+        personaBankedTurns[i]! += result.bankedTurns.A;
+        personaBankedTurns[j]! += result.bankedTurns.B;
+        personaStuckTurns[i]! += result.stuckTurns.A;
+        personaStuckTurns[j]! += result.stuckTurns.B;
+        personaCoinsSum[i]! += result.coinsSum.A;
+        personaCoinsSum[j]! += result.coinsSum.B;
+        personaDeckCycleSamples[i]!.push(...result.deckCycleSamples.A);
+        personaDeckCycleSamples[j]!.push(...result.deckCycleSamples.B);
         for (const c of ALL_CARDS) {
           personaCardUsage[i]![c] += result.cardUsage.A[c];
           personaCardUsage[j]![c] += result.cardUsage.B[c];
           globalCardUsage[c] += result.cardUsage.A[c] + result.cardUsage.B[c];
+          // 性格 i は相手 j に対して、性格 j は相手 i に対して、というように
+          // 双方向で「使った側」と「相手の性格」を記録する
+          personaCardUsageByOpp[i]![j]![c] += result.cardUsage.A[c];
+          personaCardUsageByOpp[j]![i]![c] += result.cardUsage.B[c];
         }
+        personaTurnsByOpp[i]![j]! += result.turnsPlayed.A;
+        personaTurnsByOpp[j]![i]! += result.turnsPlayed.B;
       }
     }
   }
@@ -429,6 +471,32 @@ const HARASS_CARDS: CardId[] = ['taxman', 'blockader', 'spy'];
 }
 console.log('');
 
+console.log('## 表 2c: 性格ごとの内訳');
+console.log('');
+console.log(`| 項目 | ${PERSONAS.map((p) => p.name).join(' | ')} |`);
+console.log(`|---|${PERSONAS.map(() => '---').join('|')}|`);
+{
+  const rates = PERSONAS.map((_, i) => personaBankedTurns[i]! / personaTurns[i]!);
+  console.log(`| 貯めターン率 | ${rates.map((v) => pct(v)).join(' | ')} |`);
+}
+{
+  const rates = PERSONAS.map((_, i) => personaStuckTurns[i]! / personaTurns[i]!);
+  console.log(`| 手札詰まり率 | ${rates.map((v) => pct(v)).join(' | ')} |`);
+}
+{
+  const avgCoins = PERSONAS.map((_, i) => personaCoinsSum[i]! / personaTurns[i]!);
+  console.log(`| 平均コイン残高 | ${avgCoins.map((v) => v.toFixed(1)).join(' | ')} |`);
+}
+{
+  const cycles = PERSONAS.map((_, i) =>
+    personaDeckCycleSamples[i]!.length > 0 ? avg(personaDeckCycleSamples[i]!) : NaN,
+  );
+  console.log(
+    `| デッキ 1 周のターン数 | ${cycles.map((v) => (Number.isFinite(v) ? v.toFixed(2) : '(サンプル無し)')).join(' | ')} |`,
+  );
+}
+console.log('');
+
 const firstMoverRate = firstMoverScore / totalGames;
 const drawRate = draws / totalGames;
 const avgTurnsPerPlayer = turnsPerPlayerSum / totalGames;
@@ -459,6 +527,35 @@ console.log(
   `| そのうち相手のコインが 5 以上だった割合 | ${taxmanTotal > 0 ? pct(taxmanJustified / taxmanTotal) : '(使用無し)'} |`,
 );
 console.log(`| 相手のコインが 5 未満なのに使った回数 | ${taxmanWasted} |`);
+console.log('');
+
+console.log('## 表 5: 妨害・防御の札が状況を見ているか（相手の性格ごとの使用率）');
+console.log('');
+console.log(
+  '衛兵の使用率が相手の性格によって変わらなければ、CPU は「とりあえず張っておけば評価が上がる」',
+);
+console.log('札として濫用しているだけで、実際の価値を見て使っているわけではない。');
+console.log('');
+const GUARD_CARDS: CardId[] = ['guard', 'taxman', 'blockader', 'spy'];
+console.log(`| カード | ${PERSONAS.map((p) => `相手が${p.name}`).join(' | ')} | ばらつき（最大÷最小） |`);
+console.log(`|---|${PERSONAS.map(() => '---').join('|')}|---|`);
+for (const card of GUARD_CARDS) {
+  const rates = PERSONAS.map((_, j) => {
+    let used = 0;
+    let turns = 0;
+    for (let i = 0; i < N; i++) {
+      if (i === j) continue;
+      used += personaCardUsageByOpp[i]![j]![card];
+      turns += personaTurnsByOpp[i]![j]!;
+    }
+    return turns > 0 ? used / turns : NaN;
+  });
+  const finite = rates.filter((v) => Number.isFinite(v));
+  const spread = finite.length > 0 ? Math.max(...finite) / Math.max(Math.min(...finite), 1e-9) : NaN;
+  console.log(
+    `| ${CARD_NAMES[card]} | ${rates.map((v) => (Number.isFinite(v) ? pct(v) : '(対戦無し)')).join(' | ')} | ${Number.isFinite(spread) ? spread.toFixed(2) : '―'} |`,
+  );
+}
 console.log('');
 
 console.log('## 合格条件（今の姿を記録する基準線。いまは全部 ❌ でも構わない）');
