@@ -33,9 +33,24 @@ const ENTER = [
   { hidden: { opacity: 0, y: 12 }, delay: 0.16 },
 ] as const;
 
+/** 登場アニメーションを再生してよいか。
+ *
+ *  アニメーションは opacity 0 から始まるので、これが最後まで進まないと
+ *  ホームがタイトルだけの画面になる。requestAnimationFrame は隠れたタブでは
+ *  止まるため、「見えるようにする唯一の手段」をアニメーションに任せてはいけない。
+ *  読み込み時点で隠れていたら、動かさず最初から最終形で描く。
+ *  「動きを減らす」設定の人にも同じ扱いにする。 */
+function shouldAnimateEntrance(): boolean {
+  if (typeof document === 'undefined') return false;
+  if (document.hidden) return false;
+  return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 export function Home({ onStart }: { onStart: (d: Difficulty) => void }) {
   const progress = loadProgress();
   const [dev, setDev] = useState(false);
+  // 初回に一度だけ決める。以後の再描画で値が変わって動きがちらつかないようにする。
+  const [animateEntrance] = useState(shouldAnimateEntrance);
   const [balance, setBalance] = useState<Balance>(() => loadBalance());
 
   const put = (next: Balance) => {
@@ -49,7 +64,7 @@ export function Home({ onStart }: { onStart: (d: Difficulty) => void }) {
     <div className="app app-home" style={{ backgroundImage: `url(${FIELD_URL})` }}>
       <div className="home">
         <motion.div
-          initial={ENTER[0].hidden}
+          initial={animateEntrance ? ENTER[0].hidden : false}
           animate={{ opacity: 1, y: 0, transition: { ...SPRING, delay: ENTER[0].delay } }}
         >
           <h1 className="home-title">シティビルダーズ</h1>
@@ -58,7 +73,7 @@ export function Home({ onStart }: { onStart: (d: Difficulty) => void }) {
 
         <motion.div
           className="home-buttons"
-          initial={ENTER[1].hidden}
+          initial={animateEntrance ? ENTER[1].hidden : false}
           animate={{ opacity: 1, y: 0, transition: { ...SPRING, delay: ENTER[1].delay } }}
         >
           {(['easy', 'normal', 'hard'] as const).map((d) => (
@@ -82,7 +97,7 @@ export function Home({ onStart }: { onStart: (d: Difficulty) => void }) {
 
         <motion.p
           className="home-progress"
-          initial={ENTER[2].hidden}
+          initial={animateEntrance ? ENTER[2].hidden : false}
           animate={{ opacity: 1, y: 0, transition: { ...SPRING, delay: ENTER[2].delay } }}
         >
           {hasPlayed ? (
