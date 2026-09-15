@@ -70,7 +70,13 @@
   z-index: 0;
 }
 
-.app.app-play > * {
+/* ヘッダーと盤面側を、上の疑似要素より確実に上に描く。
+   .app.app-play > * のような全称セレクタは使わない。シート（.overlay）も
+   このルート直下の子で、position: fixed を own で持っているので、
+   ここで position を上書きすると画面全体を覆えなくなり、盤面が潰れて見える
+   （実際にそのバグを作ってしまい、ブラウザで確認して直した）。 */
+.app.app-play > .header,
+.app.app-play > .play {
   position: relative;
   z-index: 1;
 }
@@ -572,6 +578,14 @@
    shared-ui の .sheet-row をそのまま使い、右側に残り回数だけ添える。 */
 .road-btn {
   margin-top: -4px;
+}
+
+/* shared-ui の .sheet-row は一覧の行として使われる想定で :disabled の見た目を
+   持たないので、ここだけローカルに足す（disabled でも常に描画する方針のため、
+   押せないことが見た目で分かる必要がある）。 */
+.road-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .road-btn-sub {
