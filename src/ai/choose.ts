@@ -1,9 +1,9 @@
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { legalActions, reduce } from '@/game/reducer';
 import type { Rng } from '@/game/rng';
-import type { Action, GameState } from '@/game/types';
+import type { Action, GameState, PlayerId } from '@/game/types';
 
-import { DEFAULT_PROFILE, evaluateState, weightsAt, type Profile } from './evaluate';
+import { DEFAULT_PROFILE, evaluateState, weightsAt, type Profile, type Weights } from './evaluate';
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
@@ -44,6 +44,46 @@ function isHarass(action: Action): boolean {
   );
 }
 
+/** つよいの1手先読み。after（自分の行動を打った直後の局面）から、
+ *  必要なら endTurn を通して手番を相手に渡し、相手がその局面で最善と判断する
+ *  1手を選んだと仮定して、その結果を自分（player）視点で評価する。
+ *
+ *  相手の「最善」は、こちらと同じ重み（weights）で測る。実際の相手の重みは
+ *  分からない（人間かもしれないし、性格の違う CPU かもしれない）ので、
+ *  「相手も自分と同じ物差しで最善を選ぶ」という前提を置く、想定応手の近似。
+ *
+ *  すでに手番が相手に渡っている（action が endTurn だった）場合はそのまま使う。
+ *  手番が渡らない・試合が終わる場合は、渡せた局面をそのまま評価して返す
+ *  （相手の応手は存在しないので、読むものが無い）。 */
+export function lookaheadScore(
+  after: GameState,
+  player: PlayerId,
+  weights: Weights,
+  balance: Balance,
+): number {
+  const handedOver =
+    after.phase === 'playing' && after.current === player
+      ? reduce(after, { type: 'endTurn' }, balance)
+      : after;
+
+  if (handedOver.phase !== 'playing' || handedOver.current === player) {
+    return evaluateState(handedOver, player, balance, weights);
+  }
+
+  const foe = handedOver.current;
+  let bestFoeState = handedOver;
+  let bestFoeScore = -Infinity;
+  for (const foeAction of legalActions(handedOver, balance)) {
+    const afterFoe = reduce(handedOver, foeAction, balance);
+    const foeScore = evaluateState(afterFoe, foe, balance, weights);
+    if (foeScore > bestFoeScore) {
+      bestFoeScore = foeScore;
+      bestFoeState = afterFoe;
+    }
+  }
+  return evaluateState(bestFoeState, player, balance, weights);
+}
+
 export function chooseAction(
   state: GameState,
   difficulty: Difficulty | AiOptions,
@@ -68,12 +108,12 @@ export function chooseAction(
     // endTurn の評価は「このターンをここで終える価値」なので、
     // 手番が移った後の局面をそのまま自分視点で測る
     let score = evaluateState(after, player, balance, weights);
-    if (options.lookahead && action.type !== 'endTurn') {
-      // 1 手だけ先を読む。自分の最善応手ぶんを少し上乗せする
-      const follow = legalActions(after, balance)
-        .map((a) => evaluateState(reduce(after, a, balance), player, balance, weights))
-        .reduce((m, v) => Math.max(m, v), -Infinity);
-      if (follow > -Infinity) score = score * 0.6 + follow * 0.4;
+    if (options.lookahead) {
+      // 相手の想定応手を1つ読む（ミニマックス1段）。自分の手だけを読んでいた
+      // 旧実装と違い、ここで実際に手番を相手へ渡した局面から相手の最善手を
+      // 展開する。詳細は lookaheadScore を参照。
+      const follow = lookaheadScore(after, player, weights, balance);
+      score = score * 0.6 + follow * 0.4;
     }
     score += (rng.next() - 0.5) * options.noise;
     if (score > bestScore) {
