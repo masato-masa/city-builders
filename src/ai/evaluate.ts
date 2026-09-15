@@ -67,7 +67,11 @@ function lateness(state: GameState, balance: Balance): number {
  *  buildCostFor と同じ規則で織り込む。払えない区画があっても止めず、次の（もっと安い
  *  かもしれない）区画を試す。買えるものが 1 つも無ければ 0。
  *  structuredClone は使わず、コインと建設件数を数値のコピーとして持つだけで済ませる。 */
-function reachOf(state: GameState, player: PlayerId, balance: Balance): number {
+export function reachOf(
+  state: GameState,
+  player: PlayerId,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
   const p = state.players[player];
   const hasQuarry = activeOwnedSlots(state, player).some((s) => s.buildingId === 'quarry');
 
