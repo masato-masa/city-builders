@@ -51,11 +51,13 @@ export function Game({
   difficulty,
   balance = DEFAULT_BALANCE,
   onExit,
+  onRestart,
 }: {
   seed: number;
   difficulty: Difficulty;
   balance?: Balance;
   onExit: () => void;
+  onRestart: () => void;
 }) {
   const [rng] = useState<Rng>(() => createRng(seed * 7919 + 13));
   const [state, setState] = useState<GameState>(() => {
@@ -460,7 +462,10 @@ export function Game({
             subtitle={`${scoreOf(state, 'you', balance)} VP 対 ${scoreOf(state, 'cpu', balance)} VP`}
             onClose={onExit}
           >
-            <button className="home-btn primary" onClick={onExit}>
+            <button className="home-btn primary" onClick={onRestart}>
+              もう一度
+            </button>
+            <button className="home-btn" onClick={onExit}>
               ホームへ
             </button>
           </Sheet>

@@ -12,15 +12,21 @@ import './ui/styles.css';
 export function App() {
   const [session, setSession] = useState<{ seed: number; difficulty: Difficulty } | null>(null);
 
+  const newSeed = () => Date.now() % 100000;
+
   if (session === null) {
-    return <Home onStart={(difficulty) => setSession({ seed: Date.now() % 100000, difficulty })} />;
+    return <Home onStart={(difficulty) => setSession({ seed: newSeed(), difficulty })} />;
   }
+  // seed を key にして、もう一度のときに Game を作り直す。
+  // 同じ要素のまま props だけ替えると、盤面や手札の状態が残る。
   return (
     <Game
+      key={session.seed}
       seed={session.seed}
       difficulty={session.difficulty}
       balance={loadBalance()}
       onExit={() => setSession(null)}
+      onRestart={() => setSession({ seed: newSeed(), difficulty: session.difficulty })}
     />
   );
 }

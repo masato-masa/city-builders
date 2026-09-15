@@ -408,7 +408,11 @@
   align-items: flex-end;
   gap: 6px;
   height: 112px;
-  padding: 0 var(--pad) 14px;
+  /* .app の左右余白を打ち消して画面の端まで使う。
+     内側にも同じ余白を重ねると、393 幅で使える幅が 329px まで縮み、
+     狭い画面ではカードが実測値の 68px を下回っていた（参考画面は 383/393）。 */
+  margin-inline: calc(var(--pad) * -1);
+  padding: 0 8px 14px;
   background: var(--chrome-2);
 }
 
@@ -464,7 +468,11 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* 参考画面から実測したカード 1 枚の幅は 68px。幅に余裕があっても
+     それを超えて伸ばさない（実測値をそのまま使うのが本プロジェクトの原則）。
+     狭い画面でだけ 1fr が効いて縮む。余った幅は中央寄せで分ける。 */
+  grid-template-columns: repeat(4, minmax(0, 68px));
+  justify-content: center;
   gap: 5px;
 }
 
