@@ -35,21 +35,21 @@ export function MenuIcon() {
   );
 }
 
-/** 封鎖者に効果を止められている物件に重ねる、禁止マーク（要望 G2）。
- *  空き地の封鎖（is-blocked）は沈めるだけで表せたが、既存物件の効果停止は
- *  沈めるだけだと「建っていない」と誤読されるので、印を足して区別する。 */
-export function DisabledIcon() {
+/** 封鎖者に押さえられている区画・買収者に縛られた手札カードに重ねる、
+ *  鎖のマーク。「効果が止められている」ことを禁止マークより直感的に伝える。 */
+export function ChainIcon() {
   return (
     <svg
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2.4"
+      strokeWidth="2.3"
       strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden="true"
     >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M6.2 6.2 L17.8 17.8" />
+      <path d="M9.5 14.5 a3.6 3.6 0 0 1 0-5.1l2.2-2.2a3.6 3.6 0 0 1 5.1 5.1l-1.1 1.1" />
+      <path d="M14.5 9.5 a3.6 3.6 0 0 1 0 5.1l-2.2 2.2a3.6 3.6 0 0 1-5.1-5.1l1.1-1.1" />
     </svg>
   );
 }

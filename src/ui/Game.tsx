@@ -5,7 +5,7 @@ import type { Difficulty } from '@/ai/choose';
 import { BUILDING_NAMES, BUILDING_TEXTS, CARD_NAMES, CARD_TEXTS, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { buildCostFor, canBuild, canUseCard, canUseRoad, reduce } from '@/game/reducer';
 import { createRng, type Rng } from '@/game/rng';
-import { handOf, roadUsesRemaining, scoreOf, winnerOf } from '@/game/selectors';
+import { roadUsesRemaining, scoreOf, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 import { loadProgress, saveProgress } from '@/storage/storage';
@@ -250,11 +250,22 @@ export function Game({
               }}
             />
             <TurnBadge state={state} balance={balance} />
-            {/* 封鎖者の対象選択中の案内はここ（盤面コンテナ）基準で上端中央に置く。
-                相手の情報ボードより下に来るので重ならない（要望 G3）。 */}
+            {/* 対象選択中の案内はここ（盤面コンテナ）基準で上端中央に置く。相手の
+                情報ボードより下に来るので重ならない（要望 G3）。封鎖者は盤面、
+                伝令は手札が対象だが、案内自体はどちらもここにまとめる。手札の
+                すぐ上に出すと自分のコインバーと重なってしまうため。実際にどこを
+                タップするかは、対象になる側（盤面の区画／手札のカード）が
+                光って示す。 */}
             <AnimatePresence>
               {sheet?.kind === 'blockadeTarget' ? (
-                <TargetBanner onCancel={() => setSheet(null)} />
+                <TargetBanner key="blockadeTarget" onCancel={() => setSheet(null)} />
+              ) : null}
+              {sheet?.kind === 'heraldTarget' ? (
+                <TargetBanner
+                  key="heraldTarget"
+                  label="伝令モード中・山の底へ送るカードを手札からタップ"
+                  onCancel={() => setSheet(null)}
+                />
               ) : null}
             </AnimatePresence>
           </div>
@@ -268,8 +279,26 @@ export function Game({
             state={state}
             balance={balance}
             canUse={(card) => !cpuActing && canUseCard(state, card, balance)}
+            targeting={sheet?.kind === 'heraldTarget'}
             onPick={(card) => {
               if (cpuActing) return;
+              // 伝令の対象選択モード中は、通常のカード詳細シートを開かず、
+              // タップした手札カードをそのまま対象にして確定する（封鎖者の
+              // 盤面タップと同じ考え方）。伝令自身は対象にできない。
+              if (sheet?.kind === 'heraldTarget') {
+                if (card === 'herald') {
+                  playReject();
+                  hapticReject();
+                  return;
+                }
+                playUseCard('herald');
+                hapticUseCard();
+                setState(
+                  reduce(state, { type: 'useCard', card: 'herald', heraldTarget: card }, balance),
+                );
+                setSheet(null);
+                return;
+              }
               if (canUseCard(state, card, balance)) {
                 playSelect();
               } else {
@@ -369,31 +398,6 @@ export function Game({
             >
               使う
             </button>
-          </Sheet>
-        ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {sheet?.kind === 'heraldTarget' ? (
-          <Sheet key="heraldTarget" title="どのカードを底へ送る？" onClose={() => setSheet(null)}>
-            {handOf(state, 'you', balance)
-              .filter((c) => c !== 'herald')
-              .map((c) => (
-                <button
-                  key={c}
-                  className="sheet-row"
-                  onClick={() => {
-                    playUseCard('herald');
-                    hapticUseCard();
-                    setState(
-                      reduce(state, { type: 'useCard', card: 'herald', heraldTarget: c }, balance),
-                    );
-                    setSheet(null);
-                  }}
-                >
-                  {CARD_NAMES[c]}
-                </button>
-              ))}
           </Sheet>
         ) : null}
       </AnimatePresence>

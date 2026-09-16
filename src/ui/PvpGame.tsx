@@ -3,13 +3,13 @@ import { useEffect, useState } from 'react';
 
 import { BUILDING_NAMES, BUILDING_TEXTS, CARD_NAMES, CARD_TEXTS, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { buildCostFor, canBuild, canUseCard, canUseRoad, reduce } from '@/game/reducer';
-import { handOf, opponentOf, roadUsesRemaining, scoreOf, winnerOf } from '@/game/selectors';
+import { opponentOf, roadUsesRemaining, scoreOf, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
-import type { CardId, GameState, PlayerId } from '@/game/types';
+import type { CardId, GameState } from '@/game/types';
 
 import { CARD_ART, FIELD_URL } from './art';
 import { Board } from './Board';
-import { CoinBar } from './CoinBar';
+import { CoinBar, forecast } from './CoinBar';
 import { hapticBuild, hapticReject, hapticUseCard, hapticWin } from './haptics';
 import { Hand } from './Hand';
 import { InfoBoard } from './InfoBoard';
@@ -44,10 +44,6 @@ type Pending =
   | { kind: 'settings' }
   | null;
 
-// 対 CPU モードの表示色（--owner-you=青系, --owner-cpu=赤/橙系）に合わせた
-// PvP の呼び方。内部 ID（'you'/'cpu'）は変えず、表示ラベルだけこれを使う。
-const PLAYER_LABEL: Record<PlayerId, string> = { you: 'あお', cpu: 'あか' };
-
 // 手番交代のスライドが終わるまでの時間。この間は操作を無効化する。
 const SWAP_DURATION_MS = 380;
 const SWAP_DURATION_S = SWAP_DURATION_MS / 1000;
@@ -77,6 +73,7 @@ export function PvpGame({
   const finished = state.phase === 'finished';
   const active = state.current;
   const waiting = opponentOf(active);
+  const waitingIncome = forecast(state, waiting, balance);
 
   useEffect(() => {
     if (!swapping) return;
@@ -145,9 +142,13 @@ export function PvpGame({
               >
                 <InfoBoard
                   owner={waiting}
-                  name={PLAYER_LABEL[waiting]}
                   coins={state.players[waiting].coins}
                   vp={scoreOf(state, waiting, balance)}
+                  right={
+                    <span className="opp-forecast">
+                      次ターン収入 {waitingIncome >= 0 ? `+${waitingIncome}` : waitingIncome}
+                    </span>
+                  }
                   sub={null}
                 />
               </motion.div>
@@ -189,11 +190,20 @@ export function PvpGame({
               }}
             />
             <TurnBadge state={state} balance={balance} />
-            {/* 封鎖者の対象選択中の案内はここ（盤面コンテナ）基準で上端中央に置く。
-                相手の情報ボードより下に来るので重ならない（要望 G3）。 */}
+            {/* 対象選択中の案内はここ（盤面コンテナ）基準で上端中央に置く（要望
+                G3）。伝令は手札が対象だが、案内を手札のすぐ上に出すと自分の
+                コインバーと重なるため、封鎖者と同じ場所にまとめる。実際にどこを
+                タップするかは対象側（盤面の区画／手札のカード）が光って示す。 */}
             <AnimatePresence>
               {sheet?.kind === 'blockadeTarget' ? (
-                <TargetBanner onCancel={() => setSheet(null)} />
+                <TargetBanner key="blockadeTarget" onCancel={() => setSheet(null)} />
+              ) : null}
+              {sheet?.kind === 'heraldTarget' ? (
+                <TargetBanner
+                  key="heraldTarget"
+                  label="伝令モード中・山の底へ送るカードを手札からタップ"
+                  onCancel={() => setSheet(null)}
+                />
               ) : null}
             </AnimatePresence>
           </div>
@@ -210,7 +220,6 @@ export function PvpGame({
                   state={state}
                   balance={balance}
                   viewer={active}
-                  name={PLAYER_LABEL[active]}
                   onEndTurn={endTurn}
                   endTurnEnabled={!finished && !swapping}
                 />
@@ -219,8 +228,23 @@ export function PvpGame({
                   balance={balance}
                   viewer={active}
                   canUse={(card) => !swapping && canUseCard(state, card, balance)}
+                  targeting={sheet?.kind === 'heraldTarget'}
                   onPick={(card) => {
                     if (swapping) return;
+                    if (sheet?.kind === 'heraldTarget') {
+                      if (card === 'herald') {
+                        playReject();
+                        hapticReject();
+                        return;
+                      }
+                      playUseCard('herald');
+                      hapticUseCard();
+                      setState(
+                        reduce(state, { type: 'useCard', card: 'herald', heraldTarget: card }, balance),
+                      );
+                      setSheet(null);
+                      return;
+                    }
                     if (canUseCard(state, card, balance)) {
                       playSelect();
                     } else {
@@ -323,31 +347,6 @@ export function PvpGame({
             >
               使う
             </button>
-          </Sheet>
-        ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {sheet?.kind === 'heraldTarget' ? (
-          <Sheet key="heraldTarget" title="どのカードを底へ送る？" onClose={() => setSheet(null)}>
-            {handOf(state, active, balance)
-              .filter((c) => c !== 'herald')
-              .map((c) => (
-                <button
-                  key={c}
-                  className="sheet-row"
-                  onClick={() => {
-                    playUseCard('herald');
-                    hapticUseCard();
-                    setState(
-                      reduce(state, { type: 'useCard', card: 'herald', heraldTarget: c }, balance),
-                    );
-                    setSheet(null);
-                  }}
-                >
-                  {CARD_NAMES[c]}
-                </button>
-              ))}
           </Sheet>
         ) : null}
       </AnimatePresence>

@@ -157,12 +157,6 @@
   padding: 0 var(--pad);
 }
 
-.info-board-name {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--chrome-ink-dim);
-}
-
 /* コインを金貨のバッジで囲む（要望 B）。数字だけが浮いているより、
    何のバッジか一目で分かる。 */
 .info-board-coin-badge {
@@ -357,14 +351,16 @@
   opacity: 0.4;
 }
 
-/* 封鎖者に効果を止められている既存物件（要望 G2）。空き地の封鎖
-   （.is-blocked）と違って建物の絵はそのまま見えるので、沈めるだけでなく
-   禁止マーク（.plot-disabled-badge）も重ねて誤読を防ぐ。 */
+/* 封鎖者に効果を止められている既存物件。空き地の封鎖（.is-blocked）と
+   違って建物の絵はそのまま見えるので、沈めるだけでなく鎖マーク
+   （.plot-chain-badge）も重ねて誤読を防ぐ。 */
 .plot.is-disabled .plot-art {
   filter: grayscale(0.55) brightness(0.75);
 }
 
-.plot-disabled-badge {
+/* 封鎖者に押さえられた区画に重ねる鎖マーク。空き地（is-blocked）・
+   既存物件（is-disabled）どちらにも同じアイコンで出す。 */
+.plot-chain-badge {
   position: absolute;
   inset: 0;
   display: grid;
@@ -373,15 +369,16 @@
   pointer-events: none;
 }
 
-.plot-disabled-badge svg {
+.plot-chain-badge svg {
   width: 28px;
   height: 28px;
   filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.75));
 }
 
-/* 封鎖者の対象選択モード中（要望 G3）。選べる区画は光らせて誘導し、
-   選べない自分の区画は沈めてタップ対象でないことを伝える。 */
-.plot.is-targetable {
+/* 対象選択モード中（封鎖者＝盤面、伝令＝手札）。選べる対象は光らせて誘導し、
+   選べないもの（自分の区画、伝令自身）は沈めてタップ対象でないことを伝える。
+   .plot にも .card にも同じ 2 クラスで効かせる。 */
+.is-targetable {
   animation: plot-target-pulse 1.1s ease-in-out infinite;
 }
 
@@ -395,7 +392,7 @@
   }
 }
 
-.plot.is-target-invalid {
+.is-target-invalid {
   opacity: 0.35;
 }
 
@@ -523,6 +520,16 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 相手側の情報ボード、1 段目の右端に出す次ターン収入。自分側の
+   .coinbar-forecast と違い 2 段目は行動ログに使っているので、ここは
+   1 段目の info-board-right に収める分、控えめな小さい文字にする。 */
+.opp-forecast {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--chrome-ink-dim);
+  white-space: nowrap;
 }
 
 .coinbar-btn {
@@ -685,6 +692,28 @@
 .card.is-dim {
   opacity: 0.45;
   filter: saturate(0.35);
+}
+
+/* 買収者に縛られて今ターン使えないカード。「使えない」全般（is-dim）と
+   区別できるよう、絵をグレースケールにした上で鎖マークを重ねる。 */
+.card.is-bound .card-art {
+  filter: grayscale(0.6) brightness(0.7);
+}
+
+.card-chain-badge {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.card-chain-badge svg {
+  width: 22px;
+  height: 22px;
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.75));
 }
 
 /* 絵と名前を収める内側の層。コストバッジ（.card-cost、下端で少しはみ出す）は

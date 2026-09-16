@@ -3,20 +3,19 @@ import type { ReactNode } from 'react';
 import { RollingNumber } from './RollingNumber';
 
 /** 自分・相手で共通の情報ボードの骨格（要望 3・4）。
- *  印・名前・コイン・VP は 2 人とも同じ並びで出し、右側と 2 段目だけを
+ *  コイン・VP は 2 人とも同じ並びで出し、右側と 2 段目だけを
  *  差し替える（相手なら残りターンと行動ログ、自分なら見込みと終了ボタン）。
+ *  背景色（青/茶）だけで自他を区別し、名前は出さない。
  *  クラッシュ・ロワイヤルの「相手が上・自分が下」に合わせ、絵は真似ず
  *  この骨格だけを両者で揃える。 */
 export function InfoBoard({
   owner,
-  name,
   coins,
   vp,
   right,
   sub,
 }: {
   owner: 'you' | 'cpu';
-  name: string;
   coins: number;
   vp: number;
   /** 行の右端。自分なら終了ボタン。相手側は残りターン表示を盤面右上へ
@@ -28,7 +27,6 @@ export function InfoBoard({
   return (
     <div className={`info-board info-board-${owner}`}>
       <div className="info-board-row">
-        <span className="info-board-name">{name}</span>
         {/* コインをコイン型のバッジで囲む（要望 B）。 */}
         <span className="info-board-coin-badge">
           <RollingNumber className="info-board-coins" value={coins} />

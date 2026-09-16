@@ -7,7 +7,7 @@ import type { GameState, PlayerId } from '@/game/types';
 
 import { BUILDING_ART } from './art';
 import { PLOTS, PLOT_WIDTH } from './board-layout';
-import { DisabledIcon } from './icons';
+import { ChainIcon } from './icons';
 
 /** 大聖堂だけ VP が「自分の他の物件 1 件につき +N」で決まるため、未所有だと
  *  vpOfSlot が 0 を返す。未建設のときだけ、その決まり方が分かる表示に変える
@@ -52,8 +52,14 @@ export function Board({
         const plot = PLOTS[i];
         if (!plot) return null;
         const owned = slot.owner !== null;
-        // 封鎖中は建てられないので、押せない理由が見えるように沈める
-        const blocked = !owned && state.players[viewer].blockedSlot === slot.slotId;
+        // 封鎖中の空き地。blockedSlot は「押せない」判定のためプレイヤーごとに
+        // 持つ値だが、盤面はどちらの操作でも同じ 1 枚を共有しているので、
+        // 自分が押さえた／相手に押さえられたのどちらでも見えるよう、両者を見る
+        // （disabled と同じ考え方。viewer 側だけ見ると、自分が封鎖者を使って
+        // 相手を止めたときに何も見えなくなってしまう）。
+        const blocked =
+          !owned &&
+          (state.players.you.blockedSlot === slot.slotId || state.players.cpu.blockedSlot === slot.slotId);
         // 封鎖者に効果を止められている自分の物件（要望 G2）。所有者本人の
         // disabledSlot で判定する（viewer とは無関係。盤面はどちらの操作でも
         // 同じ 1 枚を共有しているため）。
@@ -64,7 +70,7 @@ export function Board({
         const art = BUILDING_ART[slot.buildingId];
         // 建った区画は plot-art の alt="" で物件名が読み上げに出ないので、
         // ボタン自体に物件名と VP を含む aria-label を付ける。
-        const ariaLabel = `${BUILDING_NAMES[slot.buildingId]} ${vpTextFor(state, slot.slotId, balance)}${disabled ? ' 効果停止中' : ''}`;
+        const ariaLabel = `${BUILDING_NAMES[slot.buildingId]} ${vpTextFor(state, slot.slotId, balance)}${disabled ? ' 効果停止中' : ''}${blocked ? ' 封鎖中' : ''}`;
         const className = [
           'plot',
           blocked ? 'is-blocked' : null,
@@ -112,11 +118,12 @@ export function Board({
                 transition={{ duration: 0.9, ease: 'easeOut' }}
               />
             ) : null}
-            {/* 効果停止中のマーク（要望 G2）。空き地の封鎖は沈めるだけで伝わるが、
-                既存物件は建っている絵がそのまま見えるので、印を重ねて区別する。 */}
-            {disabled ? (
-              <span className="plot-disabled-badge" aria-hidden="true">
-                <DisabledIcon />
+            {/* 封鎖者に押さえられている区画のマーク。空き地（blocked）も
+                既存物件（disabled）も同じ鎖アイコンで統一し、「封鎖者に
+                止められている」ことをひと目で伝える。 */}
+            {blocked || disabled ? (
+              <span className="plot-chain-badge" aria-hidden="true">
+                <ChainIcon />
               </span>
             ) : null}
             {/* コストと VP。常に両方出す（要望 5）。 */}

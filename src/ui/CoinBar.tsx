@@ -7,7 +7,7 @@ import { InfoBoard } from './InfoBoard';
 /** 次のターン開始時に入る見込み額。遅延収入のゲームなので、これが無いと判断できない。
  *  高利貸の借り（pendingDebt）は次の開始フェーズで必ず引かれるので、ここでも
  *  差し引く。借りが収入を上回ればマイナスになる（要望 C）。 */
-function forecast(state: GameState, viewer: PlayerId, balance: Balance): number {
+export function forecast(state: GameState, viewer: PlayerId, balance: Balance): number {
   const p = state.players[viewer];
   const bonus = hasBuilding(state, viewer, 'exchange') ? balance.exchangeBonus : 0;
   let total =
@@ -29,7 +29,6 @@ export function CoinBar({
   state,
   balance = DEFAULT_BALANCE,
   viewer = 'you',
-  name = 'あなた',
   onEndTurn,
   endTurnEnabled,
 }: {
@@ -37,8 +36,6 @@ export function CoinBar({
   balance?: Balance;
   /** この帯が表す側。既定は 'you'（対 CPU モード）。PvP では手番側を渡す。 */
   viewer?: PlayerId;
-  /** 帯に出す名前。対 CPU モードは常に「あなた」。 */
-  name?: string;
   onEndTurn: () => void;
   endTurnEnabled: boolean;
 }) {
@@ -48,7 +45,6 @@ export function CoinBar({
   return (
     <InfoBoard
       owner={viewer}
-      name={name}
       coins={state.players[viewer].coins}
       vp={scoreOf(state, viewer, balance)}
       right={

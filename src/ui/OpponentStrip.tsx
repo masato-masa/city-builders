@@ -5,6 +5,7 @@ import { scoreOf } from '@/game/selectors';
 import type { CardId, GameState } from '@/game/types';
 
 import { CARD_ART } from './art';
+import { forecast } from './CoinBar';
 import { InfoBoard } from './InfoBoard';
 
 /** 相手（CPU）の情報ボード。画面の最上段（要望 3）。自分の帯と同じ骨格
@@ -26,13 +27,14 @@ export function OpponentStrip({
 }) {
   const latest = log.length > 0 ? log[log.length - 1] : null;
   const rest = log.length > 1 ? log.slice(0, -1) : [];
+  const income = forecast(state, 'cpu', balance);
   return (
     <div className="opponent-wrap">
       <InfoBoard
         owner="cpu"
-        name="CPU"
         coins={state.players.cpu.coins}
         vp={scoreOf(state, 'cpu', balance)}
+        right={<span className="opp-forecast">次ターン収入 {income >= 0 ? `+${income}` : income}</span>}
         sub={
           <div className="cpu-log" aria-live="polite">
             {rest.length > 0 ? (

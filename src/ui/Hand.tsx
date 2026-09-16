@@ -6,7 +6,7 @@ import { handSlotsOf, nextCardOf } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
 import { CARD_ART } from './art';
-import { MenuIcon } from './icons';
+import { ChainIcon, MenuIcon } from './icons';
 
 /** 手札 4 枚の枠番号。PlayerState.hand は常に長さ 4 の固定スロット配列で、
  *  添字がそのまま画面上の枠に対応する（要望 6）。 */
@@ -17,6 +17,7 @@ export function Hand({
   balance = DEFAULT_BALANCE,
   viewer = 'you',
   canUse,
+  targeting = false,
   onPick,
   onMenu,
 }: {
@@ -25,6 +26,10 @@ export function Hand({
   /** 手札を出す側。既定は 'you'（対 CPU モード）。PvP では手番側を渡す。 */
   viewer?: PlayerId;
   canUse: (card: CardId) => boolean;
+  /** 伝令の対象選択モード中かどうか。true の間は使用可否に関係なく、
+   *  伝令自身以外のカードがすべて対象としてタップできる。呼び出し側の
+   *  onPick が実際の確定／拒否を決める（盤面の封鎖者対象選択と同じ形）。 */
+  targeting?: boolean;
   onPick: (card: CardId) => void;
   /** 「次」の真上の横長メニューボタン（要望 2）。 */
   onMenu: () => void;
@@ -32,6 +37,7 @@ export function Hand({
   const hand = handSlotsOf(state, viewer);
   const next = nextCardOf(state, viewer, balance);
   const nextArt = next ? CARD_ART[next] : undefined;
+  const bound = state.players[viewer].boundCard;
   return (
     <div className="hand-row">
       <div className="next-col">
@@ -65,6 +71,8 @@ export function Hand({
                     balance={balance}
                     viewer={viewer}
                     usable={canUse(card)}
+                    bound={card === bound}
+                    targeting={targeting}
                     onPick={onPick}
                   />
                 ) : null}
@@ -83,6 +91,8 @@ function CardButton({
   balance,
   viewer,
   usable,
+  bound,
+  targeting,
   onPick,
 }: {
   card: CardId;
@@ -90,10 +100,27 @@ function CardButton({
   balance: Balance;
   viewer: PlayerId;
   usable: boolean;
+  /** 買収者に縛られて今ターン使えないカードか。使えない理由が「買収者」だと
+   *  ひと目で分かるよう、コスト不足の is-dim とは別に鎖マークを出す。 */
+  bound: boolean;
+  targeting: boolean;
   onPick: (card: CardId) => void;
 }) {
   const art = CARD_ART[card];
-  const className = ['card', art ? 'has-art' : null, usable ? null : 'is-dim'].filter(Boolean).join(' ');
+  // 対象選択モード中（伝令）は、使用可否と無関係に「伝令自身か・そうでないか」
+  // だけで見た目を決める。盤面の封鎖者対象選択と同じ考え方（要望参照）。
+  const targetable = targeting && card !== 'herald';
+  const targetInvalid = targeting && card === 'herald';
+  const className = [
+    'card',
+    art ? 'has-art' : null,
+    !targeting && !usable ? 'is-dim' : null,
+    !targeting && bound ? 'is-bound' : null,
+    targetable ? 'is-targetable' : null,
+    targetInvalid ? 'is-target-invalid' : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
   return (
     <motion.button
       className={className}
@@ -107,6 +134,11 @@ function CardButton({
         {art ? <img className="card-art" src={art} alt="" /> : null}
         <span className="card-name">{CARD_NAMES[card]}</span>
       </span>
+      {!targeting && bound ? (
+        <span className="card-chain-badge" aria-hidden="true">
+          <ChainIcon />
+        </span>
+      ) : null}
       <span className="card-cost">{cardCostFor(state, viewer, card, balance)}</span>
     </motion.button>
   );
