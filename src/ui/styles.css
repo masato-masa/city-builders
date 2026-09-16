@@ -234,6 +234,28 @@
   position: relative;
 }
 
+/* PvP: 帯の入れ替えアニメーション中、退場中と入場中の帯が同時に流れの中に
+   並んで高さが二重になり盤面を潰すのを防ぐ。info-board-row(38px)+
+   info-board-sub(32px)=70px、hand-row=112px という既存の固定値と一致させ、
+   子要素を絶対配置で重ねる（Hand.tsx の .card-slot/.card と同じ考え方）。 */
+.pvp-opponent {
+  position: relative;
+  height: 70px;
+}
+.pvp-opponent > * {
+  position: absolute;
+  inset: 0;
+}
+
+.pvp-self {
+  position: relative;
+  height: 182px;
+}
+.pvp-self > * {
+  position: absolute;
+  inset: 0;
+}
+
 .cpu-card-flash {
   position: absolute;
   left: 50%;

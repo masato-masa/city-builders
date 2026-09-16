@@ -132,7 +132,7 @@ export function PvpGame({
     <div className="app app-play" style={{ backgroundImage: `url(${FIELD_URL})` }}>
       <main className="play">
         <div className="board-shell">
-          <div className="opponent-wrap">
+          <div className="pvp-opponent">
             <AnimatePresence initial={false}>
               <motion.div
                 key={waiting}
@@ -175,44 +175,46 @@ export function PvpGame({
               }}
             />
           </div>
-          <AnimatePresence initial={false}>
-            <motion.div
-              key={active}
-              initial={{ opacity: 0, y: 28 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -28 }}
-              transition={{ duration: SWAP_DURATION_S, ease: 'easeInOut' }}
-            >
-              <CoinBar
-                state={state}
-                balance={balance}
-                viewer={active}
-                name={PLAYER_LABEL[active]}
-                onEndTurn={endTurn}
-                endTurnEnabled={!finished && !swapping}
-              />
-              <Hand
-                state={state}
-                balance={balance}
-                viewer={active}
-                canUse={(card) => !swapping && canUseCard(state, card, balance)}
-                onPick={(card) => {
-                  if (swapping) return;
-                  if (canUseCard(state, card, balance)) {
+          <div className="pvp-self">
+            <AnimatePresence initial={false}>
+              <motion.div
+                key={active}
+                initial={{ opacity: 0, y: 28 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -28 }}
+                transition={{ duration: SWAP_DURATION_S, ease: 'easeInOut' }}
+              >
+                <CoinBar
+                  state={state}
+                  balance={balance}
+                  viewer={active}
+                  name={PLAYER_LABEL[active]}
+                  onEndTurn={endTurn}
+                  endTurnEnabled={!finished && !swapping}
+                />
+                <Hand
+                  state={state}
+                  balance={balance}
+                  viewer={active}
+                  canUse={(card) => !swapping && canUseCard(state, card, balance)}
+                  onPick={(card) => {
+                    if (swapping) return;
+                    if (canUseCard(state, card, balance)) {
+                      playSelect();
+                    } else {
+                      playReject();
+                      hapticReject();
+                    }
+                    setSheet({ kind: 'card', card });
+                  }}
+                  onMenu={() => {
                     playSelect();
-                  } else {
-                    playReject();
-                    hapticReject();
-                  }
-                  setSheet({ kind: 'card', card });
-                }}
-                onMenu={() => {
-                  playSelect();
-                  setSheet({ kind: 'menu' });
-                }}
-              />
-            </motion.div>
-          </AnimatePresence>
+                    setSheet({ kind: 'menu' });
+                  }}
+                />
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
       </main>
 
