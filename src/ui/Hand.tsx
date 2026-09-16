@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { CARD_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { cardCostFor } from '@/game/reducer';
 import { handOf, nextCardOf } from '@/game/selectors';
-import type { CardId, GameState } from '@/game/types';
+import type { CardId, GameState, PlayerId } from '@/game/types';
 
 import { CARD_ART } from './art';
 import { MenuIcon } from './icons';
@@ -15,19 +15,22 @@ const SLOTS = [0, 1, 2, 3] as const;
 export function Hand({
   state,
   balance = DEFAULT_BALANCE,
+  viewer = 'you',
   canUse,
   onPick,
   onMenu,
 }: {
   state: GameState;
   balance?: Balance;
+  /** 手札を出す側。既定は 'you'（対 CPU モード）。PvP では手番側を渡す。 */
+  viewer?: PlayerId;
   canUse: (card: CardId) => boolean;
   onPick: (card: CardId) => void;
   /** 「次」の真上の横長メニューボタン（要望 2）。 */
   onMenu: () => void;
 }) {
-  const hand = handOf(state, 'you', balance);
-  const next = nextCardOf(state, 'you', balance);
+  const hand = handOf(state, viewer, balance);
+  const next = nextCardOf(state, viewer, balance);
   const nextArt = next ? CARD_ART[next] : undefined;
   return (
     <div className="hand-row">
@@ -60,6 +63,7 @@ export function Hand({
                     card={card}
                     state={state}
                     balance={balance}
+                    viewer={viewer}
                     usable={canUse(card)}
                     onPick={onPick}
                   />
@@ -77,12 +81,14 @@ function CardButton({
   card,
   state,
   balance,
+  viewer,
   usable,
   onPick,
 }: {
   card: CardId;
   state: GameState;
   balance: Balance;
+  viewer: PlayerId;
   usable: boolean;
   onPick: (card: CardId) => void;
 }) {
@@ -101,7 +107,7 @@ function CardButton({
         {art ? <img className="card-art" src={art} alt="" /> : null}
         <span className="card-name">{CARD_NAMES[card]}</span>
       </span>
-      <span className="card-cost">{cardCostFor(state, 'you', card, balance)}</span>
+      <span className="card-cost">{cardCostFor(state, viewer, card, balance)}</span>
     </motion.button>
   );
 }
