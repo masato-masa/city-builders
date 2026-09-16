@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { BUILDING_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { buildCostFor } from '@/game/reducer';
 import { vpOfSlot } from '@/game/selectors';
-import type { GameState } from '@/game/types';
+import type { GameState, PlayerId } from '@/game/types';
 
 import { BUILDING_ART } from './art';
 import { PLOTS, PLOT_WIDTH } from './board-layout';
@@ -26,11 +26,15 @@ function vpTextFor(state: GameState, slotId: number, balance: Balance): string {
 export function Board({
   state,
   balance = DEFAULT_BALANCE,
+  viewer = 'you',
   highlightSlot,
   onPick,
 }: {
   state: GameState;
   balance?: Balance;
+  /** コスト表示・封鎖判定の基準になる「いま操作している側」。既定は 'you'
+   *  （対 CPU モード）。PvP では手番側の PlayerId を渡す。 */
+  viewer?: PlayerId;
   /** CPU がいま建てた区画。一瞬だけ光らせる（要望 7）。 */
   highlightSlot?: number | null;
   onPick: (slotId: number) => void;
@@ -42,7 +46,7 @@ export function Board({
         if (!plot) return null;
         const owned = slot.owner !== null;
         // 封鎖中は建てられないので、押せない理由が見えるように沈める
-        const blocked = !owned && state.players.you.blockedSlot === slot.slotId;
+        const blocked = !owned && state.players[viewer].blockedSlot === slot.slotId;
         const art = BUILDING_ART[slot.buildingId];
         // 建った区画は plot-art の alt="" で物件名が読み上げに出ないので、
         // ボタン自体に物件名と VP を含む aria-label を付ける。
@@ -91,7 +95,7 @@ export function Board({
                   基準費用と食い違うので、基準費用を出すと画面が嘘の数字を出す。
                   「買う前と後で情報を変えない」は出す項目の話であって、
                   値を固定しろという意味ではない。 */}
-              <span className="plot-cost">{buildCostFor(state, 'you', slot.slotId, balance)}</span>
+              <span className="plot-cost">{buildCostFor(state, viewer, slot.slotId, balance)}</span>
               <span className={`plot-vp${owned ? ` owner-${slot.owner}` : ''}`}>
                 {vpTextFor(state, slot.slotId, balance)}
               </span>
