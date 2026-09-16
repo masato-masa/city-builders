@@ -2,7 +2,14 @@ import { AnimatePresence } from 'motion/react';
 import { useEffect, useState } from 'react';
 
 import type { Difficulty } from '@/ai/choose';
-import { BUILDING_NAMES, BUILDING_TEXTS, CARD_NAMES, CARD_TEXTS, DEFAULT_BALANCE, type Balance } from '@/game/balance';
+import {
+  BUILDING_NAMES,
+  buildingTextFor,
+  CARD_NAMES,
+  cardTextFor,
+  DEFAULT_BALANCE,
+  type Balance,
+} from '@/game/balance';
 import { buildCostFor, canBuild, canUseCard, canUseRoad, reduce } from '@/game/reducer';
 import { createRng, type Rng } from '@/game/rng';
 import { roadUsesRemaining, scoreOf, winnerOf } from '@/game/selectors';
@@ -330,7 +337,7 @@ export function Game({
                   }`}
                   onClose={() => setSheet(null)}
                 >
-                  <p className="sheet-text">{BUILDING_TEXTS[slot.buildingId]}</p>
+                  <p className="sheet-text">{buildingTextFor(slot.buildingId, balance)}</p>
                   {slot.owner === null && state.players.you.blockedSlot === sheet.slotId ? (
                     <p className="sheet-text">
                       相手の封鎖者に封鎖されています。次のターンまで建てられません。
@@ -365,7 +372,7 @@ export function Game({
             {CARD_ART[sheet.card] ? (
               <img className="sheet-card-art" src={CARD_ART[sheet.card]} alt="" />
             ) : null}
-            <p className="sheet-text">{CARD_TEXTS[sheet.card]}</p>
+            <p className="sheet-text">{cardTextFor(sheet.card, balance)}</p>
             {sheet.card === 'blockader' ? (
               <p className="sheet-text">
                 このターンの間だけの効果です。相手の次のターンが始まると解除されます。

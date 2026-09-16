@@ -26,18 +26,32 @@ export const CARD_NAMES: Record<CardId, string> = {
   blockader: '封鎖者',
 };
 
-export const CARD_TEXTS: Record<CardId, string> = {
-  miner: '次のターン コイン +6',
-  banker: '次のターン コイン +11。さらに解決時の自分の物件 1 件につき +1',
-  architect: 'このターン建てる物件すべて、建設費 −6',
-  herald: '手札 1 枚を使わずに山の底へ送り、補充する',
-  festival: '次の自分のターン、自分の物件の効果がすべて 2 倍。さらにそのターンの収入 +2',
-  guard: '次の自分のターンまで、徴税官・買収者・封鎖者の効果を受けない',
-  usurer: 'このターン コイン +5。次の自分のターン開始時 コイン −7（マイナスになる）',
-  spy: '次の相手のターン、相手の手札 1 枚がランダムに使えなくなる',
-  taxman: '相手のコイン −6',
-  blockader: '市場の区画 1 つを指定する。空き地ならそこに建設させない。相手の物件ならその効果を止める',
-};
+/** カードの説明文。開発者メニューで効果値を変えたら、この文中の数字も
+ *  連動させる必要があるので、固定文字列ではなく balance から組み立てる。 */
+export function cardTextFor(card: CardId, balance: Balance): string {
+  switch (card) {
+    case 'miner':
+      return `次のターン コイン +${balance.minerIncome}`;
+    case 'banker':
+      return `次のターン コイン +${balance.bankerIncome}。さらに解決時の自分の物件 1 件につき +${balance.bankerPerBuilding}`;
+    case 'architect':
+      return `このターン建てる物件すべて、建設費 −${balance.architectDiscount}`;
+    case 'herald':
+      return '手札 1 枚を使わずに山の底へ送り、補充する';
+    case 'festival':
+      return `次の自分のターン、自分の物件の効果がすべて ${balance.festivalMultiplier} 倍。さらにそのターンの収入 +${balance.festivalIncomeBonus}`;
+    case 'guard':
+      return '次の自分のターンまで、徴税官・買収者・封鎖者の効果を受けない';
+    case 'usurer':
+      return `このターン コイン +${balance.usurerGain}。次の自分のターン開始時 コイン −${balance.usurerDebt}（マイナスになる）`;
+    case 'spy':
+      return '次の相手のターン、相手の手札 1 枚がランダムに使えなくなる';
+    case 'taxman':
+      return `相手のコイン −${balance.taxmanAmount}`;
+    case 'blockader':
+      return '市場の区画 1 つを指定する。空き地ならそこに建設させない。相手の物件ならその効果を止める';
+  }
+}
 
 export const BUILDING_NAMES: Record<BuildingId, string> = {
   tradingHouse: '商館',
@@ -50,16 +64,27 @@ export const BUILDING_NAMES: Record<BuildingId, string> = {
   quarry: '石切場',
 };
 
-export const BUILDING_TEXTS: Record<BuildingId, string> = {
-  tradingHouse: '毎ターン開始時 コイン +1',
-  wall: '徴税官・封鎖者の効果を受けない',
-  factory: '毎ターン、最初に使用する人物カードのコスト −2',
-  road: '毎ターン開始時、手札 1 枚を山の底へ送って補充してよい',
-  cathedral: '自分の他の物件 1 件につき +2 VP',
-  fortress: '相手が物件を建てるたび コイン +2',
-  exchange: '人物カードの「次のターン コイン +X」がすべて +2',
-  quarry: '建築家を使ったターン、2 件目以降の建設費がさらに −4',
-};
+/** 建物の説明文。カードと同じ理由で balance から組み立てる。 */
+export function buildingTextFor(building: BuildingId, balance: Balance): string {
+  switch (building) {
+    case 'tradingHouse':
+      return `毎ターン開始時 コイン +${balance.tradingHouseIncome}`;
+    case 'wall':
+      return '徴税官・封鎖者の効果を受けない';
+    case 'factory':
+      return `毎ターン、最初に使用する人物カードのコスト −${balance.factoryDiscount}`;
+    case 'road':
+      return '毎ターン開始時、手札 1 枚を山の底へ送って補充してよい';
+    case 'cathedral':
+      return `自分の他の物件 1 件につき +${balance.cathedralVpPerBuilding} VP`;
+    case 'fortress':
+      return `相手が物件を建てるたび コイン +${balance.fortressToll}`;
+    case 'exchange':
+      return `人物カードの「次のターン コイン +X」がすべて +${balance.exchangeBonus}`;
+    case 'quarry':
+      return `建築家を使ったターン、2 件目以降の建設費がさらに −${balance.quarryExtraDiscount}`;
+  }
+}
 
 export interface Balance {
   handSize: number;
