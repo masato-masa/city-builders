@@ -24,11 +24,15 @@ function emptyPlayer(coins: number, deck: PlayerState['deck']): PlayerState {
 }
 
 /** シードからゲーム全体を決める。同じシードからは必ず同じ試合になる。 */
-export function createGame(seed: number, balance: Balance = DEFAULT_BALANCE): GameState {
+export function createGame(
+  seed: number,
+  balance: Balance = DEFAULT_BALANCE,
+  forcedFirst?: PlayerId,
+): GameState {
   const rng = createRng(seed);
   const youDeck = shuffle(ALL_CARDS, rng);
   const cpuDeck = shuffle(ALL_CARDS, rng);
-  const first: PlayerId = rng.int(2) === 0 ? 'you' : 'cpu';
+  const first: PlayerId = forcedFirst ?? (rng.int(2) === 0 ? 'you' : 'cpu');
   const second: PlayerId = first === 'you' ? 'cpu' : 'you';
 
   const market: BuildingSlot[] = balance.market.map((buildingId, slotId) => ({

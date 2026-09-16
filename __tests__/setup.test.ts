@@ -31,6 +31,15 @@ describe('初期状態', () => {
     }
   });
 
+  it('forcedFirst を渡すと必ずその側が先手になる', () => {
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const g = createGame(seed, DEFAULT_BALANCE, 'you');
+      expect(g.current).toBe('you');
+      expect(g.players.you.coins).toBe(DEFAULT_BALANCE.startingCoins.first);
+      expect(g.players.cpu.coins).toBe(DEFAULT_BALANCE.startingCoins.second);
+    }
+  });
+
   it('先手と後手の初期コインはどちらも 0', () => {
     const g = createGame(5);
     const first = g.players[g.current].coins;
