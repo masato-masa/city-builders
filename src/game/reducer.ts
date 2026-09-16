@@ -1,7 +1,7 @@
 import { DEFAULT_BALANCE, type Balance } from './balance';
 import { activeOwnedSlots, handOf, opponentOf, ownedSlots } from './selectors';
 import { createRng } from './rng';
-import type { Action, BuildingId, CardId, GameState, PlayerId } from './types';
+import type { Action, BuildingId, CardId, GameState, PlayerId, PlayerState } from './types';
 
 /** 効果が生きている自分の物件のうち、指定した種類を持っているか。
  *  封鎖者に止められている 1 件は「持っていない」扱いになる。 */
@@ -51,11 +51,15 @@ export function canUseCard(
   return p.coins >= cost;
 }
 
-/** カードをデッキの最後尾へ回す。手札は deck の先頭なので、これだけで補充される。 */
-function moveToBottom(deck: CardId[], card: CardId): CardId[] {
-  const idx = deck.indexOf(card);
-  if (idx < 0) return deck;
-  return [...deck.slice(0, idx), ...deck.slice(idx + 1), card];
+/** 手札のカードを 1 枚、使った/送った枠にそのまま補充する。
+ *  そのカードがあった枠だけを待機列の先頭で埋め、他の枠は動かさない
+ *  （手札全体がシフトして見える、を避けるための核）。カード自身は待機列の
+ *  最後尾へ回り、循環を維持する。 */
+function playCardInto(p: PlayerState, card: CardId): void {
+  const i = p.hand.indexOf(card);
+  if (i < 0) return;
+  p.hand[i] = p.queue.shift() ?? null;
+  p.queue.push(card);
 }
 
 export function reduce(
@@ -207,13 +211,15 @@ function useCard(
     }
   }
   if (action.card === 'herald') {
-    // 伝令を一旦抜き、対象を底へ送り、その下に伝令を置く
-    const withoutHerald = p.deck.filter((c) => c !== 'herald');
-    p.deck = [...moveToBottom(withoutHerald, action.heraldTarget!), 'herald'];
+    // 対象を先に処理し、伝令自身をそのあとに処理する。
+    // 対象が待機列の先に、伝令がその下（＝より後ろ）に積まれる、という
+    // 元の実装の順序をそのまま保つ。
+    playCardInto(p, action.heraldTarget!);
+    playCardInto(p, 'herald');
     return next;
   }
 
-  p.deck = moveToBottom(p.deck, action.card);
+  playCardInto(p, action.card);
   return next;
 }
 
@@ -312,7 +318,7 @@ function useRoad(
   if (!canUseRoad(state, action.target, balance)) return state;
   const next = structuredClone(state);
   const p = next.players[next.current];
-  p.deck = moveToBottom(p.deck, action.target);
+  playCardInto(p, action.target);
   p.roadUsesThisTurn += 1;
   return next;
 }

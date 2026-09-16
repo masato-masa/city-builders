@@ -11,6 +11,7 @@ import {
   vpOfSlot,
 } from '@/game/selectors';
 import { createGame } from '@/game/setup';
+import type { GameState } from '@/game/types';
 
 describe('初期状態', () => {
   it('同じシードからは同じ試合になる', () => {
@@ -18,16 +19,19 @@ describe('初期状態', () => {
   });
 
   it('違うシードでは循環順が変わる', () => {
-    const a = createGame(1).players.you.deck;
-    const b = createGame(99999).players.you.deck;
-    expect(a).not.toEqual(b);
+    const a = createGame(1).players.you;
+    const b = createGame(99999).players.you;
+    expect([...a.hand, ...a.queue]).not.toEqual([...b.hand, ...b.queue]);
   });
 
   it('両者とも 10 枚すべてを 1 枚ずつ持つ', () => {
     const g = createGame(5);
     for (const p of ['you', 'cpu'] as const) {
-      expect(g.players[p].deck).toHaveLength(10);
-      expect(new Set(g.players[p].deck).size).toBe(10);
+      const all = [...g.players[p].hand, ...g.players[p].queue];
+      expect(all).toHaveLength(10);
+      expect(new Set(all).size).toBe(10);
+      expect(g.players[p].hand).toHaveLength(4);
+      expect(g.players[p].queue).toHaveLength(6);
     }
   });
 
@@ -53,15 +57,16 @@ describe('初期状態', () => {
     // 短絡させるだけなので、山札の内容（構成要素）自体は forcedFirst の有無や
     // 値に関係なく同じでなければならない。将来 RNG 呼び出し順が入れ替わって
     // 山札より前に先手決定が来るようになれば、このテストが落ちる。
+    const deckOf = (g: GameState, p: 'you' | 'cpu') => [...g.players[p].hand, ...g.players[p].queue];
     for (const seed of [1, 2, 3, 4, 5, 42]) {
       const free = createGame(seed);
       const forcedYou = createGame(seed, DEFAULT_BALANCE, 'you');
       const forcedCpu = createGame(seed, DEFAULT_BALANCE, 'cpu');
       for (const p of ['you', 'cpu'] as const) {
-        expect(new Set(forcedYou.players[p].deck)).toEqual(new Set(free.players[p].deck));
-        expect(new Set(forcedCpu.players[p].deck)).toEqual(new Set(free.players[p].deck));
-        expect(forcedYou.players[p].deck).toEqual(free.players[p].deck);
-        expect(forcedCpu.players[p].deck).toEqual(free.players[p].deck);
+        expect(new Set(deckOf(forcedYou, p))).toEqual(new Set(deckOf(free, p)));
+        expect(new Set(deckOf(forcedCpu, p))).toEqual(new Set(deckOf(free, p)));
+        expect(deckOf(forcedYou, p)).toEqual(deckOf(free, p));
+        expect(deckOf(forcedCpu, p)).toEqual(deckOf(free, p));
       }
     }
   });
@@ -91,10 +96,10 @@ describe('初期状態', () => {
     expect(g.market.map((s) => s.slotId)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 
-  it('手札はデッキの先頭 4 枚、next はその次の 1 枚', () => {
+  it('手札は固定 4 枠、next は待機列の先頭 1 枚', () => {
     const g = createGame(5);
-    expect(handOf(g, 'you')).toEqual(g.players.you.deck.slice(0, 4));
-    expect(nextCardOf(g, 'you')).toBe(g.players.you.deck[4]);
+    expect(handOf(g, 'you')).toEqual(g.players.you.hand);
+    expect(nextCardOf(g, 'you')).toBe(g.players.you.queue[0]);
   });
 });
 

@@ -7,6 +7,7 @@ import type { GameState, PlayerId } from '@/game/types';
 
 import { BUILDING_ART } from './art';
 import { PLOTS, PLOT_WIDTH } from './board-layout';
+import { DisabledIcon } from './icons';
 
 /** 大聖堂だけ VP が「自分の他の物件 1 件につき +N」で決まるため、未所有だと
  *  vpOfSlot が 0 を返す。未建設のときだけ、その決まり方が分かる表示に変える
@@ -28,6 +29,7 @@ export function Board({
   balance = DEFAULT_BALANCE,
   viewer = 'you',
   highlightSlot,
+  targeting = false,
   onPick,
 }: {
   state: GameState;
@@ -37,6 +39,11 @@ export function Board({
   viewer?: PlayerId;
   /** CPU がいま建てた区画。一瞬だけ光らせる（要望 7）。 */
   highlightSlot?: number | null;
+  /** 封鎖者の対象選択モード中かどうか（要望 G3）。true の間は、自分の区画
+   *  以外をタップ可能な対象として光らせ、自分の区画は選べないことが見えるよう
+   *  沈める。実際にどう振る舞うか（対象を決定する／リジェクト音を出す）は
+   *  呼び出し側の onPick が決める。 */
+  targeting?: boolean;
   onPick: (slotId: number) => void;
 }) {
   return (
@@ -47,14 +54,30 @@ export function Board({
         const owned = slot.owner !== null;
         // 封鎖中は建てられないので、押せない理由が見えるように沈める
         const blocked = !owned && state.players[viewer].blockedSlot === slot.slotId;
+        // 封鎖者に効果を止められている自分の物件（要望 G2）。所有者本人の
+        // disabledSlot で判定する（viewer とは無関係。盤面はどちらの操作でも
+        // 同じ 1 枚を共有しているため）。
+        const disabled = owned && slot.owner !== null && state.players[slot.owner].disabledSlot === slot.slotId;
+        // 封鎖者の対象選択中は、自分の区画以外がタップできる対象になる。
+        const targetable = targeting && slot.owner !== viewer;
+        const targetInvalid = targeting && slot.owner === viewer;
         const art = BUILDING_ART[slot.buildingId];
         // 建った区画は plot-art の alt="" で物件名が読み上げに出ないので、
         // ボタン自体に物件名と VP を含む aria-label を付ける。
-        const ariaLabel = `${BUILDING_NAMES[slot.buildingId]} ${vpTextFor(state, slot.slotId, balance)}`;
+        const ariaLabel = `${BUILDING_NAMES[slot.buildingId]} ${vpTextFor(state, slot.slotId, balance)}${disabled ? ' 効果停止中' : ''}`;
+        const className = [
+          'plot',
+          blocked ? 'is-blocked' : null,
+          disabled ? 'is-disabled' : null,
+          targetable ? 'is-targetable' : null,
+          targetInvalid ? 'is-target-invalid' : null,
+        ]
+          .filter(Boolean)
+          .join(' ');
         return (
           <button
             key={slot.slotId}
-            className={`plot${blocked ? ' is-blocked' : ''}`}
+            className={className}
             style={{
               left: `${plot.x * 100}%`,
               top: `${plot.y * 100}%`,
@@ -88,6 +111,13 @@ export function Board({
                 animate={{ opacity: 0 }}
                 transition={{ duration: 0.9, ease: 'easeOut' }}
               />
+            ) : null}
+            {/* 効果停止中のマーク（要望 G2）。空き地の封鎖は沈めるだけで伝わるが、
+                既存物件は建っている絵がそのまま見えるので、印を重ねて区別する。 */}
+            {disabled ? (
+              <span className="plot-disabled-badge" aria-hidden="true">
+                <DisabledIcon />
+              </span>
             ) : null}
             {/* コストと VP。常に両方出す（要望 5）。 */}
             <span className="plot-badges">

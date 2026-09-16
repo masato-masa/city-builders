@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { BUILDING_NAMES, BUILDING_TEXTS, CARD_NAMES, CARD_TEXTS, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { buildCostFor, canBuild, canUseCard, canUseRoad, reduce } from '@/game/reducer';
-import { handOf, opponentOf, roadUsesRemaining, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
+import { handOf, opponentOf, roadUsesRemaining, scoreOf, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
@@ -12,9 +12,10 @@ import { Board } from './Board';
 import { CoinBar } from './CoinBar';
 import { hapticBuild, hapticReject, hapticUseCard, hapticWin } from './haptics';
 import { Hand } from './Hand';
-import { TurnClockIcon } from './icons';
 import { InfoBoard } from './InfoBoard';
 import { Sheet } from './Sheets';
+import { TargetBanner } from './TargetBanner';
+import { TurnBadge } from './TurnBadge';
 import {
   isHapticsEnabled,
   isSoundEnabled,
@@ -147,12 +148,6 @@ export function PvpGame({
                   name={PLAYER_LABEL[waiting]}
                   coins={state.players[waiting].coins}
                   vp={scoreOf(state, waiting, balance)}
-                  right={
-                    <span className="turn-clock" aria-label={`残り ${turnsRemaining(state, balance)} ターン`}>
-                      <TurnClockIcon />
-                      <span className="turn-clock-num">{turnsRemaining(state, balance)}</span>
-                    </span>
-                  }
                   sub={null}
                 />
               </motion.div>
@@ -163,8 +158,26 @@ export function PvpGame({
               state={state}
               balance={balance}
               viewer={active}
+              targeting={sheet?.kind === 'blockadeTarget'}
               onPick={(slotId) => {
                 if (swapping) return;
+                // 封鎖者の対象選択モード中は、通常の区画詳細シートを開かず、
+                // タップした区画をそのまま対象にして確定する（要望 G3）。
+                if (sheet?.kind === 'blockadeTarget') {
+                  const slot = state.market[slotId];
+                  if (!slot || slot.owner === active) {
+                    playReject();
+                    hapticReject();
+                    return;
+                  }
+                  playUseCard('blockader');
+                  hapticUseCard();
+                  setState(
+                    reduce(state, { type: 'useCard', card: 'blockader', blockadeSlot: slotId }, balance),
+                  );
+                  setSheet(null);
+                  return;
+                }
                 const slot = state.market[slotId];
                 if (slot && slot.owner === null && !canBuild(state, slotId, balance)) {
                   playReject();
@@ -175,6 +188,14 @@ export function PvpGame({
                 setSheet({ kind: 'slot', slotId });
               }}
             />
+            <TurnBadge state={state} balance={balance} />
+            {/* 封鎖者の対象選択中の案内はここ（盤面コンテナ）基準で上端中央に置く。
+                相手の情報ボードより下に来るので重ならない（要望 G3）。 */}
+            <AnimatePresence>
+              {sheet?.kind === 'blockadeTarget' ? (
+                <TargetBanner onCancel={() => setSheet(null)} />
+              ) : null}
+            </AnimatePresence>
           </div>
           <div className="pvp-self">
             <AnimatePresence initial={false}>
@@ -273,6 +294,11 @@ export function PvpGame({
               <img className="sheet-card-art" src={CARD_ART[sheet.card]} alt="" />
             ) : null}
             <p className="sheet-text">{CARD_TEXTS[sheet.card]}</p>
+            {sheet.card === 'blockader' ? (
+              <p className="sheet-text">
+                このターンの間だけの効果です。相手の次のターンが始まると解除されます。
+              </p>
+            ) : null}
             <button
               className="sheet-row road-btn"
               disabled={!canUseRoad(state, sheet.card, balance)}
@@ -327,35 +353,6 @@ export function PvpGame({
       </AnimatePresence>
 
       <AnimatePresence>
-        {sheet?.kind === 'blockadeTarget' ? (
-          <Sheet key="blockadeTarget" title="どの区画を封鎖する？" onClose={() => setSheet(null)}>
-            {state.market
-              .filter((s) => s.owner !== active)
-              .map((s) => (
-                <button
-                  key={s.slotId}
-                  className="sheet-row"
-                  onClick={() => {
-                    playUseCard('blockader');
-                    hapticUseCard();
-                    setState(
-                      reduce(
-                        state,
-                        { type: 'useCard', card: 'blockader', blockadeSlot: s.slotId },
-                        balance,
-                      ),
-                    );
-                    setSheet(null);
-                  }}
-                >
-                  {BUILDING_NAMES[s.buildingId]}
-                </button>
-              ))}
-          </Sheet>
-        ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence>
         {sheet?.kind === 'menu' ? (
           <Sheet key="menu" title="メニュー" onClose={() => setSheet(null)}>
             <button className="sheet-row danger" onClick={() => setSheet({ kind: 'confirmExit' })}>
@@ -395,7 +392,7 @@ export function PvpGame({
             </p>
             <p className="sheet-text">
               投資カード（採掘師・銀行家）のコインが入るのは<b>次のターン</b>です。
-              だからコインの右に「次のターン +N」を出しています。今建てるか、
+              だからコインバーに「次ターン収入 +N」を出しています。今建てるか、
               次のターンに回すかを、この 2 つの数字で比べてください。
             </p>
             <p className="sheet-text">

@@ -19,19 +19,22 @@ export function InfoBoard({
   name: string;
   coins: number;
   vp: number;
-  /** 行の右端。相手なら残りターン、自分なら終了ボタン。 */
-  right: ReactNode;
+  /** 行の右端。自分なら終了ボタン。相手側は残りターン表示を盤面右上へ
+   *  移したので、いまは渡さなくてよい（要望 F）。 */
+  right?: ReactNode;
   /** 2 段目。相手なら行動ログ、自分なら次のターンの見込み。 */
   sub: ReactNode;
 }) {
   return (
     <div className={`info-board info-board-${owner}`}>
       <div className="info-board-row">
-        <span className={`owner-mark owner-mark-${owner}`} aria-hidden="true" />
         <span className="info-board-name">{name}</span>
-        <RollingNumber className="info-board-coins" value={coins} />
+        {/* コインをコイン型のバッジで囲む（要望 B）。 */}
+        <span className="info-board-coin-badge">
+          <RollingNumber className="info-board-coins" value={coins} />
+        </span>
         <span className="info-board-vp">{vp} VP</span>
-        <span className="info-board-right">{right}</span>
+        {right ? <span className="info-board-right">{right}</span> : null}
       </div>
       <div className="info-board-sub">{sub}</div>
     </div>

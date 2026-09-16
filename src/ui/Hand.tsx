@@ -2,14 +2,14 @@ import { AnimatePresence, motion } from 'motion/react';
 
 import { CARD_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { cardCostFor } from '@/game/reducer';
-import { handOf, nextCardOf } from '@/game/selectors';
+import { handSlotsOf, nextCardOf } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
 import { CARD_ART } from './art';
 import { MenuIcon } from './icons';
 
-/** 手札 4 枚の枠番号。handOf は常に balance.handSize（4）枚を返すので、
- *  添字 0〜3 をそのまま枠として使う（要望 6）。 */
+/** 手札 4 枚の枠番号。PlayerState.hand は常に長さ 4 の固定スロット配列で、
+ *  添字がそのまま画面上の枠に対応する（要望 6）。 */
 const SLOTS = [0, 1, 2, 3] as const;
 
 export function Hand({
@@ -29,7 +29,7 @@ export function Hand({
   /** 「次」の真上の横長メニューボタン（要望 2）。 */
   onMenu: () => void;
 }) {
-  const hand = handOf(state, viewer, balance);
+  const hand = handSlotsOf(state, viewer);
   const next = nextCardOf(state, viewer, balance);
   const nextArt = next ? CARD_ART[next] : undefined;
   return (

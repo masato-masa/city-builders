@@ -32,8 +32,12 @@ export interface BuildingSlot {
 
 export interface PlayerState {
   coins: number;
-  /** 先頭 handSize 枚が手札。使ったカードは末尾へ回る */
-  deck: CardId[];
+  /** 手札の固定スロット。長さは常に handSize。使ったスロットだけ待機列の先頭で
+   *  補充され、他のスロットは動かない（表示上、手札全体がシフトしない）。 */
+  hand: (CardId | null)[];
+  /** 手札の後ろに続く待機列。先頭から順に手札の空きスロットへ入り、
+   *  使ったカードは末尾へ回る（循環を維持）。 */
+  queue: CardId[];
   /** このターン使用済みのカード */
   usedThisTurn: CardId[];
   /** 次のターン開始時に解決する投資カード */

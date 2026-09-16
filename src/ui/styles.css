@@ -110,8 +110,11 @@
   gap: 0;
 }
 
-/* 盤面は余った縦を全部もらう。中で縦横比を保って収まる。 */
+/* 盤面は余った縦を全部もらう。中で縦横比を保って収まる。
+   position: relative は、右上の残りターンバッジ（.board-turn-badge、
+   要望 F）をこの器基準で絶対配置するために持たせている。 */
 .board-area {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: grid;
@@ -126,13 +129,24 @@
    色と中身の差し替えだけで区別する。相手は画面の最上段、自分は手札の上に置く。
    2 段とも高さを固定し、2 段目が空でも領域が潰れないようにする（縦位置が動かない）。 */
 .info-board {
+  position: relative;
   display: flex;
   flex-direction: column;
-  /* 全面背景を活かすため、不透明な板ではなく透かした暗幕にする。
-     文字の読みやすさは audit-contrast で確認すること。 */
-  background: rgba(22, 32, 41, 0.82);
   backdrop-filter: blur(2px);
   border-radius: var(--card-radius);
+}
+
+/* 背景をプレイヤーカラーそのものにする（要望 A）。丸マーク（旧 .owner-mark）を
+   なくし、帯の地の色だけでどちらの情報か分かるようにする。
+   --owner-you/--owner-cpu を --chrome-2 系の暗い地と混ぜて、白文字が
+   はっきり読める明度まで沈めた値（実測・固定値。変数の値を変えたら
+   ここも作り直すこと）。 */
+.info-board-you {
+  background: rgba(32, 73, 114, 0.9);
+}
+
+.info-board-cpu {
+  background: rgba(95, 50, 34, 0.9);
 }
 
 .info-board-row {
@@ -143,52 +157,71 @@
   padding: 0 var(--pad);
 }
 
-/* 所有者の色の印。区画の枠・建物の光・VP バッジの地と同じ色を、
-   帯の側にも小さく置く（要望 4：両者で同じ場所・同じ大きさ）。 */
-.owner-mark {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  flex: none;
-  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.35);
-}
-
-.owner-mark-you {
-  background: var(--owner-you);
-}
-
-.owner-mark-cpu {
-  background: var(--owner-cpu);
-}
-
 .info-board-name {
   font-size: 12px;
   font-weight: 700;
   color: var(--chrome-ink-dim);
 }
 
-.info-board-coins {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--coin);
-  font-variant-numeric: tabular-nums;
-  /* 1桁→3桁に増えても隣の VP が動かないよう、最小幅を確保する。 */
-  min-width: 30px;
+/* コインを金貨のバッジで囲む（要望 B）。数字だけが浮いているより、
+   何のバッジか一目で分かる。 */
+.info-board-coin-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 32% 28%, #ffe9a8, var(--coin) 72%);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 0.55),
+    inset 0 -1px 1px rgb(0 0 0 / 0.2),
+    0 1px 2px rgb(0 0 0 / 0.35);
+  flex: none;
 }
 
-.info-board-vp {
-  min-width: 44px;
-  text-align: right;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--chrome-ink);
+.info-board-coins {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--coin-ink);
   font-variant-numeric: tabular-nums;
+  /* 1桁→3桁に増えてもバッジの外形が動かないよう、最小幅を確保する。 */
+  min-width: 16px;
+  text-align: center;
+}
+
+/* コインより一段大きく目立たせる（要望 D）。得点そのものはこのゲームの
+   勝敗を決める値なので、コインより優先して視線を集めてよい。 */
+.info-board-vp {
+  min-width: 48px;
+  text-align: right;
+  font-size: 21px;
+  font-weight: 800;
+  color: #ffe9a8;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
 }
 
 .info-board-right {
   margin-left: auto;
   display: flex;
   align-items: center;
+}
+
+/* 終了ボタンをボード全体（1 段目 + 2 段目 = --info-board-h）の縦中央に
+   見せる（要望 E）。2 段レイアウト自体は維持しつつ、ボタンだけを絶対配置で
+   浮かせる。基準は position: relative を持つ .info-board（70px 分の高さ）。
+   横位置は元のまま右寄せ（.info-board-row と同じ右パディング分）。 */
+.info-board-right .coinbar-btn {
+  position: absolute;
+  top: 50%;
+  right: var(--pad);
+  transform: translateY(-50%);
+}
+
+.info-board-right .coinbar-btn:active:not(:disabled) {
+  transform: translateY(calc(-50% + 1px));
 }
 
 /* 2 段目。相手なら行動ログ、自分なら次のターンの見込み。
@@ -322,6 +355,48 @@
 
 .plot.is-blocked {
   opacity: 0.4;
+}
+
+/* 封鎖者に効果を止められている既存物件（要望 G2）。空き地の封鎖
+   （.is-blocked）と違って建物の絵はそのまま見えるので、沈めるだけでなく
+   禁止マーク（.plot-disabled-badge）も重ねて誤読を防ぐ。 */
+.plot.is-disabled .plot-art {
+  filter: grayscale(0.55) brightness(0.75);
+}
+
+.plot-disabled-badge {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  pointer-events: none;
+}
+
+.plot-disabled-badge svg {
+  width: 28px;
+  height: 28px;
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.75));
+}
+
+/* 封鎖者の対象選択モード中（要望 G3）。選べる区画は光らせて誘導し、
+   選べない自分の区画は沈めてタップ対象でないことを伝える。 */
+.plot.is-targetable {
+  animation: plot-target-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes plot-target-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgb(255 200 61 / 0));
+  }
+  50% {
+    filter: drop-shadow(0 0 10px rgb(255 200 61 / 0.9));
+  }
+}
+
+.plot.is-target-invalid {
+  opacity: 0.35;
 }
 
 /* 名前。常に出す（要望 5）。位置・大きさは状態で変えず、色だけ変える。
@@ -698,6 +773,17 @@
   margin-bottom: 12px;
 }
 
+.dev-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.dev-section-title:first-child {
+  margin-top: 0;
+}
+
 .dev-grid label {
   display: flex;
   align-items: center;
@@ -746,13 +832,8 @@
   paint-order: stroke fill;
 }
 
-.info-board-coins {
-  -webkit-text-stroke: 3px rgb(0 0 0 / 0.3);
-  paint-order: stroke fill;
-}
-
-/* 残りターン。相手の情報ボードの右端、時計の印を添えて出す（要望 3・4）。
-   地が情報ボードの暗幕なので、明るい文字で読ませる。
+/* 残りターン。盤面コンテナ右上に浮かせて出す（要望 F）。地が石畳の背景に
+   直接乗るので、自前の暗幕チップを持たせて明るい文字で読ませる。
    数字は最大 2 桁（maxTurnsPerPlayer * 2）なので、その幅を確保して 1 桁になっても
    前後の文字の位置が動かないようにする。 */
 .turn-clock {
@@ -776,6 +857,55 @@
   font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+/* 盤面コンテナ（.board-area、position: relative は上の定義側に持たせてある）
+   の右上に絶対配置する（要望 F）。 */
+.board-turn-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(22, 32, 41, 0.82);
+  backdrop-filter: blur(2px);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
+}
+
+/* 封鎖者の対象選択モード中に出す案内（要望 G3）。.board-area（盤面コンテナ、
+   TurnBadge と同じ基準）の上端中央に浮かせる。相手の情報ボードより下に来るので
+   重ならない。全画面を覆う overlay は持たないので、盤面のタップはそのまま通る。 */
+.target-banner {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 16px);
+  padding: 8px 10px 8px 14px;
+  border-radius: 999px;
+  background: rgba(22, 32, 41, 0.92);
+  backdrop-filter: blur(2px);
+  color: var(--chrome-ink);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.4);
+}
+
+.target-banner-cancel {
+  flex: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: var(--chrome-2);
+  color: var(--chrome-ink);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 /* カード選択シートの「山の底へ送る」（街道・要望 2）。「使う」の直上に置く。

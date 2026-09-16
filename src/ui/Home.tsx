@@ -136,6 +136,7 @@ export function Home({
       {dev ? (
         <Sheet title="テスト用" subtitle="数値はすぐ反映される" onClose={() => setDev(false)}>
           <div className="dev-grid">
+            <div className="dev-section-title">基本</div>
             <label>
               基本収入
               <input
@@ -144,6 +145,60 @@ export function Home({
                 onChange={(e) => put({ ...balance, baseIncome: Number(e.target.value) })}
               />
             </label>
+            <label>
+              手札枚数
+              <input
+                type="number"
+                value={balance.handSize}
+                onChange={(e) => put({ ...balance, handSize: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              先手の初期コイン
+              <input
+                type="number"
+                value={balance.startingCoins.first}
+                onChange={(e) =>
+                  put({
+                    ...balance,
+                    startingCoins: { ...balance.startingCoins, first: Number(e.target.value) },
+                  })
+                }
+              />
+            </label>
+            <label>
+              後手の初期コイン
+              <input
+                type="number"
+                value={balance.startingCoins.second}
+                onChange={(e) =>
+                  put({
+                    ...balance,
+                    startingCoins: { ...balance.startingCoins, second: Number(e.target.value) },
+                  })
+                }
+              />
+            </label>
+            <label>
+              後手1ターン目のボーナス
+              <input
+                type="number"
+                value={balance.secondPlayerFirstTurnBonus}
+                onChange={(e) =>
+                  put({ ...balance, secondPlayerFirstTurnBonus: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label>
+              最大ターン数
+              <input
+                type="number"
+                value={balance.maxTurnsPerPlayer}
+                onChange={(e) => put({ ...balance, maxTurnsPerPlayer: Number(e.target.value) })}
+              />
+            </label>
+
+            <div className="dev-section-title">カード: コスト</div>
             {ALL_CARDS.map((id) => (
               <label key={id}>
                 {CARD_NAMES[id]} コスト
@@ -159,6 +214,84 @@ export function Home({
                 />
               </label>
             ))}
+
+            <div className="dev-section-title">カード: 効果</div>
+            <label>
+              {CARD_NAMES.miner}: 収入
+              <input
+                type="number"
+                value={balance.minerIncome}
+                onChange={(e) => put({ ...balance, minerIncome: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              {CARD_NAMES.banker}: 収入
+              <input
+                type="number"
+                value={balance.bankerIncome}
+                onChange={(e) => put({ ...balance, bankerIncome: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              {CARD_NAMES.banker}: 物件ごとの加算
+              <input
+                type="number"
+                value={balance.bankerPerBuilding}
+                onChange={(e) => put({ ...balance, bankerPerBuilding: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              {CARD_NAMES.architect}: 建設費の割引
+              <input
+                type="number"
+                value={balance.architectDiscount}
+                onChange={(e) => put({ ...balance, architectDiscount: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              {CARD_NAMES.festival}: 効果の倍率
+              <input
+                type="number"
+                value={balance.festivalMultiplier}
+                onChange={(e) => put({ ...balance, festivalMultiplier: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              {CARD_NAMES.festival}: 追加収入
+              <input
+                type="number"
+                value={balance.festivalIncomeBonus}
+                onChange={(e) =>
+                  put({ ...balance, festivalIncomeBonus: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label>
+              {CARD_NAMES.usurer}: 受け取る額
+              <input
+                type="number"
+                value={balance.usurerGain}
+                onChange={(e) => put({ ...balance, usurerGain: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              {CARD_NAMES.usurer}: 次ターンに引かれる額
+              <input
+                type="number"
+                value={balance.usurerDebt}
+                onChange={(e) => put({ ...balance, usurerDebt: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              {CARD_NAMES.taxman}: 効果額
+              <input
+                type="number"
+                value={balance.taxmanAmount}
+                onChange={(e) => put({ ...balance, taxmanAmount: Number(e.target.value) })}
+              />
+            </label>
+
+            <div className="dev-section-title">建物: コスト</div>
             {(Object.keys(balance.buildings) as (keyof typeof balance.buildings)[]).map((id) => (
               <label key={id}>
                 {BUILDING_NAMES[id]} コスト
@@ -177,6 +310,78 @@ export function Home({
                 />
               </label>
             ))}
+
+            <div className="dev-section-title">建物: VP</div>
+            {(Object.keys(balance.buildings) as (keyof typeof balance.buildings)[]).map((id) => (
+              <label key={`${id}-vp`}>
+                {BUILDING_NAMES[id]} VP
+                <input
+                  type="number"
+                  value={balance.buildings[id].vp}
+                  onChange={(e) =>
+                    put({
+                      ...balance,
+                      buildings: {
+                        ...balance.buildings,
+                        [id]: { ...balance.buildings[id], vp: Number(e.target.value) },
+                      },
+                    })
+                  }
+                />
+              </label>
+            ))}
+
+            <div className="dev-section-title">建物: 効果</div>
+            <label>
+              {BUILDING_NAMES.tradingHouse}: 収入
+              <input
+                type="number"
+                value={balance.tradingHouseIncome}
+                onChange={(e) => put({ ...balance, tradingHouseIncome: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              {BUILDING_NAMES.factory}: コスト割引
+              <input
+                type="number"
+                value={balance.factoryDiscount}
+                onChange={(e) => put({ ...balance, factoryDiscount: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              {BUILDING_NAMES.cathedral}: 建物ごとのVP加算
+              <input
+                type="number"
+                value={balance.cathedralVpPerBuilding}
+                onChange={(e) =>
+                  put({ ...balance, cathedralVpPerBuilding: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label>
+              {BUILDING_NAMES.fortress}: 通行料
+              <input
+                type="number"
+                value={balance.fortressToll}
+                onChange={(e) => put({ ...balance, fortressToll: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              {BUILDING_NAMES.exchange}: ボーナス
+              <input
+                type="number"
+                value={balance.exchangeBonus}
+                onChange={(e) => put({ ...balance, exchangeBonus: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              {BUILDING_NAMES.quarry}: 追加割引
+              <input
+                type="number"
+                value={balance.quarryExtraDiscount}
+                onChange={(e) => put({ ...balance, quarryExtraDiscount: Number(e.target.value) })}
+              />
+            </label>
           </div>
           <button
             className="sheet-row"

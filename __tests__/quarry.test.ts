@@ -21,7 +21,8 @@ const ORDER: CardId[] = [
 function fixture(coins: number): GameState {
   const g = createGame(1);
   g.current = 'you';
-  g.players.you.deck = [...ORDER];
+  g.players.you.hand = ORDER.slice(0, 4);
+  g.players.you.queue = ORDER.slice(4);
   g.players.you.coins = coins;
   return g;
 }

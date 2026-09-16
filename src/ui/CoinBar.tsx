@@ -4,7 +4,9 @@ import type { GameState, PlayerId } from '@/game/types';
 
 import { InfoBoard } from './InfoBoard';
 
-/** 次のターン開始時に入る見込み額。遅延収入のゲームなので、これが無いと判断できない。 */
+/** 次のターン開始時に入る見込み額。遅延収入のゲームなので、これが無いと判断できない。
+ *  高利貸の借り（pendingDebt）は次の開始フェーズで必ず引かれるので、ここでも
+ *  差し引く。借りが収入を上回ればマイナスになる（要望 C）。 */
 function forecast(state: GameState, viewer: PlayerId, balance: Balance): number {
   const p = state.players[viewer];
   const bonus = hasBuilding(state, viewer, 'exchange') ? balance.exchangeBonus : 0;
@@ -16,6 +18,7 @@ function forecast(state: GameState, viewer: PlayerId, balance: Balance): number 
       total += balance.bankerIncome + ownedSlots(state, viewer).length * balance.bankerPerBuilding + bonus;
     }
   }
+  total -= p.pendingDebt;
   return total;
 }
 
@@ -39,6 +42,9 @@ export function CoinBar({
   onEndTurn: () => void;
   endTurnEnabled: boolean;
 }) {
+  // マイナスのときは数値自身の '-' がそのまま出るので、プラスのときだけ '+' を足す。
+  // 固定で '+' を付けると高利貸の借りが上回ったときに符号が嘘をつく（要望 C）。
+  const income = forecast(state, viewer, balance);
   return (
     <InfoBoard
       owner={viewer}
@@ -50,7 +56,11 @@ export function CoinBar({
           終了
         </button>
       }
-      sub={<span className="coinbar-forecast">次のターン +{forecast(state, viewer, balance)}</span>}
+      sub={
+        <span className="coinbar-forecast">
+          次ターン収入 {income >= 0 ? `+${income}` : income}
+        </span>
+      }
     />
   );
 }

@@ -2,10 +2,15 @@ import { ALL_CARDS, DEFAULT_BALANCE, type Balance } from './balance';
 import { createRng, shuffle } from './rng';
 import type { BuildingSlot, GameState, PlayerId, PlayerState } from './types';
 
-function emptyPlayer(coins: number, deck: PlayerState['deck']): PlayerState {
+function emptyPlayer(
+  coins: number,
+  hand: PlayerState['hand'],
+  queue: PlayerState['queue'],
+): PlayerState {
   return {
     coins,
-    deck,
+    hand,
+    queue,
     usedThisTurn: [],
     pendingIncome: [],
     buildDiscount: 0,
@@ -42,8 +47,8 @@ export function createGame(
   }));
 
   const players = {
-    you: emptyPlayer(0, youDeck),
-    cpu: emptyPlayer(0, cpuDeck),
+    you: emptyPlayer(0, youDeck.slice(0, balance.handSize), youDeck.slice(balance.handSize)),
+    cpu: emptyPlayer(0, cpuDeck.slice(0, balance.handSize), cpuDeck.slice(balance.handSize)),
   } as Record<PlayerId, PlayerState>;
   players[first].coins = balance.startingCoins.first;
   players[second].coins = balance.startingCoins.second;

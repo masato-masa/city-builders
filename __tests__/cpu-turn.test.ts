@@ -36,18 +36,8 @@ describe('playTurnSteps', () => {
     base.current = 'cpu';
     base.turn = 3;
     base.players.cpu.coins = 0;
-    base.players.cpu.deck = [
-      'banker',
-      'architect',
-      'festival',
-      'spy',
-      'usurer',
-      'herald',
-      'miner',
-      'guard',
-      'taxman',
-      'blockader',
-    ];
+    base.players.cpu.hand = ['banker', 'architect', 'festival', 'spy'];
+    base.players.cpu.queue = ['usurer', 'herald', 'miner', 'guard', 'taxman', 'blockader'];
     const steps = playTurnSteps(base, 'normal', createRng(9), DEFAULT_BALANCE);
     expect(steps).toHaveLength(1);
     expect(steps[0]!.log).toBe('ターンを終えた');

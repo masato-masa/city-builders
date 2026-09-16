@@ -18,6 +18,8 @@ import { hapticBuild, hapticLose, hapticReject, hapticUseCard, hapticWin } from 
 import { Hand } from './Hand';
 import { OpponentStrip } from './OpponentStrip';
 import { Sheet } from './Sheets';
+import { TargetBanner } from './TargetBanner';
+import { TurnBadge } from './TurnBadge';
 import {
   isHapticsEnabled,
   isSoundEnabled,
@@ -217,8 +219,26 @@ export function Game({
               state={state}
               balance={balance}
               highlightSlot={cpuHighlightSlot}
+              targeting={sheet?.kind === 'blockadeTarget'}
               onPick={(slotId) => {
                 if (cpuActing) return;
+                // 封鎖者の対象選択モード中は、通常の区画詳細シートを開かず、
+                // タップした区画をそのまま対象にして確定する（要望 G3）。
+                if (sheet?.kind === 'blockadeTarget') {
+                  const slot = state.market[slotId];
+                  if (!slot || slot.owner === 'you') {
+                    playReject();
+                    hapticReject();
+                    return;
+                  }
+                  playUseCard('blockader');
+                  hapticUseCard();
+                  setState(
+                    reduce(state, { type: 'useCard', card: 'blockader', blockadeSlot: slotId }, balance),
+                  );
+                  setSheet(null);
+                  return;
+                }
                 const slot = state.market[slotId];
                 if (slot && slot.owner === null && !canBuild(state, slotId, balance)) {
                   playReject();
@@ -229,6 +249,14 @@ export function Game({
                 setSheet({ kind: 'slot', slotId });
               }}
             />
+            <TurnBadge state={state} balance={balance} />
+            {/* 封鎖者の対象選択中の案内はここ（盤面コンテナ）基準で上端中央に置く。
+                相手の情報ボードより下に来るので重ならない（要望 G3）。 */}
+            <AnimatePresence>
+              {sheet?.kind === 'blockadeTarget' ? (
+                <TargetBanner onCancel={() => setSheet(null)} />
+              ) : null}
+            </AnimatePresence>
           </div>
           <CoinBar
             state={state}
@@ -309,6 +337,11 @@ export function Game({
               <img className="sheet-card-art" src={CARD_ART[sheet.card]} alt="" />
             ) : null}
             <p className="sheet-text">{CARD_TEXTS[sheet.card]}</p>
+            {sheet.card === 'blockader' ? (
+              <p className="sheet-text">
+                このターンの間だけの効果です。相手の次のターンが始まると解除されます。
+              </p>
+            ) : null}
             {/* 街道の効果。以前はコインバーの専用ボタンから対象を選んでいたが、
                 いまはカードを選んだこのシートの中、「使う」の上に置く（要望 2）。
                 街道を持っていない／使い切っているときも、ボタンは消さず disabled にする。 */}
@@ -365,35 +398,6 @@ export function Game({
         ) : null}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {sheet?.kind === 'blockadeTarget' ? (
-          <Sheet key="blockadeTarget" title="どの区画を封鎖する？" onClose={() => setSheet(null)}>
-            {state.market
-              .filter((s) => s.owner !== 'you')
-              .map((s) => (
-                <button
-                  key={s.slotId}
-                  className="sheet-row"
-                  onClick={() => {
-                    playUseCard('blockader');
-                    hapticUseCard();
-                    setState(
-                      reduce(
-                        state,
-                        { type: 'useCard', card: 'blockader', blockadeSlot: s.slotId },
-                        balance,
-                      ),
-                    );
-                    setSheet(null);
-                  }}
-                >
-                  {BUILDING_NAMES[s.buildingId]}
-                </button>
-              ))}
-          </Sheet>
-        ) : null}
-      </AnimatePresence>
-
       {/* 新しいメニュー。あきらめる／あそびかた／設定の 3 つだけ（要望 2）。
           「戻る」ではなく「あきらめる」。いきなり戻さず、確認を挟む。 */}
       <AnimatePresence>
@@ -436,7 +440,7 @@ export function Game({
             </p>
             <p className="sheet-text">
               投資カード（採掘師・銀行家）のコインが入るのは<b>次のターン</b>です。
-              だからコインの右に「次のターン +N」を出しています。今建てるか、
+              だからコインバーに「次ターン収入 +N」を出しています。今建てるか、
               次のターンに回すかを、この 2 つの数字で比べてください。
             </p>
             <p className="sheet-text">

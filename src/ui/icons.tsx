@@ -35,6 +35,25 @@ export function MenuIcon() {
   );
 }
 
+/** 封鎖者に効果を止められている物件に重ねる、禁止マーク（要望 G2）。
+ *  空き地の封鎖（is-blocked）は沈めるだけで表せたが、既存物件の効果停止は
+ *  沈めるだけだと「建っていない」と誤読されるので、印を足して区別する。 */
+export function DisabledIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M6.2 6.2 L17.8 17.8" />
+    </svg>
+  );
+}
+
 /** 設定ボタン（? の隣）に置く歯車。 */
 export function SettingsIcon() {
   return (

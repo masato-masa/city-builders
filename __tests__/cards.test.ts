@@ -8,7 +8,8 @@ import type { CardId, GameState } from '@/game/types';
 function fixture(deck: CardId[], coins: number): GameState {
   const g = createGame(1);
   g.current = 'you';
-  g.players.you.deck = [...deck];
+  g.players.you.hand = deck.slice(0, 4);
+  g.players.you.queue = deck.slice(4);
   g.players.you.coins = coins;
   g.players.cpu.coins = 20;
   return g;
@@ -33,16 +34,10 @@ describe('伝令', () => {
       { type: 'useCard', card: 'herald', heraldTarget: 'banker' },
       DEFAULT_BALANCE,
     );
-    expect(after.players.you.deck).toEqual([
-      'miner',
-      'guard',
-      'architect',
-      'spy',
-      'taxman',
-      'blockader',
-      'banker',
-      'herald',
-    ]);
+    // banker（枠 1）は待機列の先頭に、herald（枠 0）はその次に置き換わる。他の枠は動かない。
+    expect(after.players.you.hand).toEqual(['spy', 'architect', 'miner', 'guard']);
+    // 対象（banker）が先に待機列の底へ、伝令がその下（さらに奥）に積まれる
+    expect(after.players.you.queue.slice(-2)).toEqual(['banker', 'herald']);
   });
 
   it('送ったカードのコストは払わない', () => {

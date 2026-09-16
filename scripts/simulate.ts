@@ -8,7 +8,7 @@ import { playTurn, type Difficulty } from '../src/ai/choose';
 import { DEFAULT_BALANCE } from '../src/game/balance';
 import { reduce } from '../src/game/reducer';
 import { createRng } from '../src/game/rng';
-import { winnerOf } from '../src/game/selectors';
+import { handOf, winnerOf } from '../src/game/selectors';
 import { createGame } from '../src/game/setup';
 import type { GameState, PlayerId } from '../src/game/types';
 
@@ -39,7 +39,7 @@ function runOne(seed: number, difficulty: Difficulty): Result {
     g = playTurn(g, difficulty, rng, DEFAULT_BALANCE);
     totalTurns++;
     const p = atAction.players[atAction.current];
-    const hand = p.deck.slice(0, DEFAULT_BALANCE.handSize);
+    const hand = handOf(atAction, atAction.current, DEFAULT_BALANCE);
     const unaffordable = hand.filter((c) => p.coins < DEFAULT_BALANCE.cards[c].cost).length;
     if (unaffordable >= 3) stuckTurns++;
     const used = g.players[before.current].usedThisTurn;

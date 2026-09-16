@@ -20,7 +20,8 @@ const ORDER: CardId[] = [
 function fixture(): GameState {
   const g = createGame(1);
   g.current = 'you';
-  g.players.you.deck = [...ORDER];
+  g.players.you.hand = ORDER.slice(0, 4);
+  g.players.you.queue = ORDER.slice(4);
   g.players.you.coins = 50;
   return g;
 }
@@ -59,16 +60,9 @@ describe('街道', () => {
     g.market.find((s) => s.buildingId === 'road')!.owner = 'you';
     const before = g.players.you.coins;
     const after = reduce(g, { type: 'useRoad', target: 'banker' }, DEFAULT_BALANCE);
-    expect(after.players.you.deck).toEqual([
-      'miner',
-      'usurer',
-      'architect',
-      'spy',
-      'herald',
-      'taxman',
-      'blockader',
-      'banker',
-    ]);
+    // banker は枠 2 にあった。枠 2 だけ待機列の先頭（spy）に置き換わり、他は不動
+    expect(after.players.you.hand).toEqual(['miner', 'usurer', 'spy', 'architect']);
+    expect(after.players.you.queue).toEqual(['herald', 'taxman', 'blockader', 'banker']);
     expect(after.players.you.coins).toBe(before);
     expect(after.players.you.roadUsesThisTurn).toBe(1);
   });

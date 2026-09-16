@@ -1,16 +1,16 @@
 import { AnimatePresence, motion } from 'motion/react';
 
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
-import { scoreOf, turnsRemaining } from '@/game/selectors';
+import { scoreOf } from '@/game/selectors';
 import type { CardId, GameState } from '@/game/types';
 
 import { CARD_ART } from './art';
-import { TurnClockIcon } from './icons';
 import { InfoBoard } from './InfoBoard';
 
 /** 相手（CPU）の情報ボード。画面の最上段（要望 3）。自分の帯と同じ骨格
- *  （要望 4）の右側に残りターン、2 段目に CPU の行動ログを出す。
- *  最新の 1 手だけ大きく、それより前は小さく残す（要望 7）。 */
+ *  （要望 4）の 2 段目に CPU の行動ログを出す。残りターンは盤面右上の
+ *  TurnBadge へ移した（要望 F）。最新の 1 手だけ大きく、それより前は
+ *  小さく残す（要望 7）。 */
 export function OpponentStrip({
   state,
   balance = DEFAULT_BALANCE,
@@ -33,12 +33,6 @@ export function OpponentStrip({
         name="CPU"
         coins={state.players.cpu.coins}
         vp={scoreOf(state, 'cpu', balance)}
-        right={
-          <span className="turn-clock" aria-label={`残り ${turnsRemaining(state, balance)} ターン`}>
-            <TurnClockIcon />
-            <span className="turn-clock-num">{turnsRemaining(state, balance)}</span>
-          </span>
-        }
         sub={
           <div className="cpu-log" aria-live="polite">
             {rest.length > 0 ? (

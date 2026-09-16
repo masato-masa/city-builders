@@ -25,7 +25,13 @@ export function handOf(
   player: PlayerId,
   balance: Balance = DEFAULT_BALANCE,
 ): CardId[] {
-  return state.players[player].deck.slice(0, balance.handSize);
+  return state.players[player].hand.filter((c): c is CardId => c !== null);
+}
+
+/** 手札の固定スロットをそのまま返す（表示用）。空きスロットは null のまま返す
+ *  （循環デッキが正常なら通常は起こらない）。添字がそのまま枠の位置になる。 */
+export function handSlotsOf(state: GameState, player: PlayerId): (CardId | null)[] {
+  return state.players[player].hand;
 }
 
 /** 手札の次に来る 1 枚。クラロワの next と同じ。 */
@@ -34,7 +40,7 @@ export function nextCardOf(
   player: PlayerId,
   balance: Balance = DEFAULT_BALANCE,
 ): CardId | null {
-  return state.players[player].deck[balance.handSize] ?? null;
+  return state.players[player].queue[0] ?? null;
 }
 
 export function ownedSlots(state: GameState, player: PlayerId): BuildingSlot[] {

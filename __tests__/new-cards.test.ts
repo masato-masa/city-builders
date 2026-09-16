@@ -9,7 +9,8 @@ import type { CardId, GameState } from '@/game/types';
 function fixture(deck: CardId[], coins: number): GameState {
   const g = createGame(1);
   g.current = 'you';
-  g.players.you.deck = [...deck];
+  g.players.you.hand = deck.slice(0, 4);
+  g.players.you.queue = deck.slice(4);
   g.players.you.coins = coins;
   return g;
 }
@@ -127,18 +128,8 @@ describe('衛兵', () => {
 
     // cpu の番にして、衛兵を張った you に妨害を撃たせる
     g.current = 'cpu';
-    g.players.cpu.deck = [
-      'taxman',
-      'spy',
-      'blockader',
-      'miner',
-      'banker',
-      'architect',
-      'herald',
-      'festival',
-      'usurer',
-      'guard',
-    ];
+    g.players.cpu.hand = ['taxman', 'spy', 'blockader', 'miner'];
+    g.players.cpu.queue = ['banker', 'architect', 'herald', 'festival', 'usurer', 'guard'];
     g.players.cpu.coins = 20;
     const youCoinsBefore = g.players.you.coins;
 
@@ -174,18 +165,8 @@ describe('買収者', () => {
       expect(g.players.cpu.bindPending).toBe(true);
 
       g.current = 'cpu';
-      g.players.cpu.deck = [
-        'miner',
-        'banker',
-        'architect',
-        'herald',
-        'festival',
-        'guard',
-        'usurer',
-        'taxman',
-        'blockader',
-        'spy',
-      ];
+      g.players.cpu.hand = ['miner', 'banker', 'architect', 'herald'];
+      g.players.cpu.queue = ['festival', 'guard', 'usurer', 'taxman', 'blockader', 'spy'];
       g.players.cpu.coins = 10;
       return reduce(g, { type: 'startTurn' }, DEFAULT_BALANCE);
     }

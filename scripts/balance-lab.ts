@@ -224,7 +224,7 @@ function runOne(
     // デッキ 1 周: 手札の先頭が「入れ替わった」ときだけ記録する。同じカードが
     // 先頭に居座り続けているターン（貯めターンなど）は変化ではないので数えない
     ownTurnCount[player]++;
-    const front = next.players[player].deck[0];
+    const front = next.players[player].hand[0];
     if (front && front !== prevFront[player]) {
       const lastTurn = lastFrontTurn[player][front];
       if (lastTurn !== undefined) {

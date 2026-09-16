@@ -8,11 +8,14 @@ import { createRng } from '@/game/rng';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState, PlayerState } from '@/game/types';
 
-/** テスト用の最小プレイヤー状態。setup.ts の emptyPlayer と同じ形を手で作る。 */
-function player(coins: number, deck: CardId[]): PlayerState {
+/** テスト用の最小プレイヤー状態。setup.ts の emptyPlayer と同じ形を手で作る。
+ *  ここでは手札 4 枚だけを持たせ、待機列は空にする（このテストは手札の中身の
+ *  比較だけが目的で、循環までは検証しない）。 */
+function player(coins: number, hand: CardId[]): PlayerState {
   return {
     coins,
-    deck,
+    hand: [...hand],
+    queue: [],
     usedThisTurn: [],
     pendingIncome: [],
     buildDiscount: 0,
@@ -204,9 +207,11 @@ describe('easy / normal の振る舞いは変えていない', () => {
     }
   });
 
-  // 実際に確認した最終局面のコイン残高（変更前の実装と一致することを
-  // 手動で突き合わせ済み）。以後の変更でここが動いたら、easy / normal の
-  // 挙動が変わったということなので、意図的な変更でない限り疑うこと。
+  // 実際に確認した最終局面のコイン残高。手札を「使った枠にだけ補充する」方式
+  // （moveToBottom による全体シフトをやめた変更）で、AI の指し手の並び方自体は
+  // 変えていないが、同じ手を選んでも手札に積まれるカードの並びが変わるため、
+  // 決定的な対局の軌跡がここで一度更新されている。以後の変更でここが動いたら、
+  // easy / normal の挙動が変わったということなので、意図的な変更でない限り疑うこと。
   it('seed 0 / 5 の最終コイン残高が既知の値と一致する（回帰検知用）', () => {
     const finish = (difficulty: 'easy' | 'normal', seed: number) => {
       let g = createGame(seed);
@@ -220,19 +225,19 @@ describe('easy / normal の振る舞いは変えていない', () => {
     };
 
     const easy0 = finish('easy', 0);
-    expect(easy0.players.you.coins).toBe(-3);
-    expect(easy0.players.cpu.coins).toBe(0);
+    expect(easy0.players.you.coins).toBe(0);
+    expect(easy0.players.cpu.coins).toBe(2);
 
     const easy5 = finish('easy', 5);
-    expect(easy5.players.you.coins).toBe(6);
+    expect(easy5.players.you.coins).toBe(2);
     expect(easy5.players.cpu.coins).toBe(0);
 
     const normal0 = finish('normal', 0);
-    expect(normal0.players.you.coins).toBe(0);
-    expect(normal0.players.cpu.coins).toBe(8);
+    expect(normal0.players.you.coins).toBe(3);
+    expect(normal0.players.cpu.coins).toBe(0);
 
     const normal5 = finish('normal', 5);
-    expect(normal5.players.you.coins).toBe(11);
-    expect(normal5.players.cpu.coins).toBe(5);
+    expect(normal5.players.you.coins).toBe(4);
+    expect(normal5.players.cpu.coins).toBe(13);
   });
 });

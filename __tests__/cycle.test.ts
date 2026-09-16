@@ -6,11 +6,13 @@ import { handOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 
-/** テスト用に、手番プレイヤーのデッキ順とコインを固定する。 */
+/** テスト用に、手番プレイヤーの手札・待機列とコインを固定する。
+ *  先頭 4 枚が手札の枠 0〜3、残りが待機列になる。 */
 function fixture(deck: CardId[], coins: number): GameState {
   const g = createGame(1);
   g.current = 'you';
-  g.players.you.deck = [...deck];
+  g.players.you.hand = deck.slice(0, 4);
+  g.players.you.queue = deck.slice(4);
   g.players.you.coins = coins;
   return g;
 }
@@ -27,26 +29,23 @@ const ORDER: CardId[] = [
 ];
 
 describe('循環', () => {
-  it('使ったカードは最後尾へ回り、手札は 4 枚のまま', () => {
+  it('使ったカードがあった枠にだけ待機列の先頭が補充され、他の枠は動かない', () => {
     const g = fixture(ORDER, 20);
     const after = reduce(g, { type: 'useCard', card: 'miner' }, DEFAULT_BALANCE);
-    expect(after.players.you.deck).toEqual([
-      'usurer',
-      'banker',
-      'architect',
-      'spy',
-      'herald',
-      'taxman',
-      'blockader',
-      'miner',
-    ]);
+    // miner は枠 0 にあった。枠 0 だけ待機列の先頭（spy）に置き換わる
+    expect(after.players.you.hand[0]).toBe('spy');
+    // 他の枠は 1px も動かない
+    expect(after.players.you.hand.slice(1)).toEqual(g.players.you.hand.slice(1));
+    // 使ったカードは待機列の最後尾へ
+    expect(after.players.you.queue.at(-1)).toBe('miner');
     expect(handOf(after, 'you')).toHaveLength(4);
   });
 
-  it('手札の 3 枚目を使っても、他の 3 枚は手札に残る', () => {
+  it('手札の 3 枚目を使っても、他の 3 枚はそれぞれ元の枠に残る', () => {
     const g = fixture(ORDER, 20);
     const after = reduce(g, { type: 'useCard', card: 'banker' }, DEFAULT_BALANCE);
-    expect(handOf(after, 'you')).toEqual(['miner', 'usurer', 'architect', 'spy']);
+    // banker は枠 2 にあった。枠 2 だけ待機列の先頭（spy）に置き換わり、他は不動
+    expect(after.players.you.hand).toEqual(['miner', 'usurer', 'spy', 'architect']);
   });
 
   it('8 枚すべて使うと、伝令のぶん 1 つずれて一周する', () => {
@@ -116,22 +115,32 @@ describe('10 枚デッキでの循環', () => {
   function fixtureAllCards(): GameState {
     const g = createGame(1);
     g.current = 'you';
-    g.players.you.deck = [...ALL_CARDS];
+    g.players.you.hand = ALL_CARDS.slice(0, 4);
+    g.players.you.queue = [...ALL_CARDS.slice(4)];
     g.players.you.coins = 999;
     return g;
   }
 
-  it('使った 1 枚は山の底へ回り、デッキは 10 枚のまま', () => {
+  it('使った 1 枚は待機列の最後尾へ回り、手札 4 枚・待機列 6 枚は変わらない', () => {
     const g = fixtureAllCards();
     const after = reduce(g, { type: 'useCard', card: 'miner' }, DEFAULT_BALANCE);
-    expect(after.players.you.deck).toEqual([...ALL_CARDS.slice(1), 'miner']);
-    expect(after.players.you.deck).toHaveLength(10);
+    expect(after.players.you.hand).toHaveLength(4);
+    expect(after.players.you.queue).toHaveLength(6);
+    const all = [...handOf(after, 'you'), ...after.players.you.queue];
+    expect(all).toHaveLength(10);
+    expect(new Set(all)).toEqual(new Set(ALL_CARDS));
+    expect(after.players.you.queue.at(-1)).toBe('miner');
     expect(handOf(after, 'you')).toHaveLength(4);
   });
 
   it('10 種類すべてを 1 回ずつ使っても、10 枚の固定循環が保たれる', () => {
     let g = fixtureAllCards();
-    for (const card of ALL_CARDS) {
+    const remaining = new Set(ALL_CARDS);
+    // 手札に実際にあるカードを、まだ使っていないものから順に選んで使う
+    // （固定シフトを前提にした決め打ちの順番には頼らない）。
+    while (remaining.size > 0) {
+      const card = handOf(g, 'you').find((c) => remaining.has(c))!;
+      remaining.delete(card);
       if (card === 'herald') {
         const target = handOf(g, 'you').find((c) => c !== 'herald')!;
         g = reduce(g, { type: 'useCard', card, heraldTarget: target }, DEFAULT_BALANCE);
@@ -142,9 +151,10 @@ describe('10 枚デッキでの循環', () => {
         g = reduce(g, { type: 'useCard', card }, DEFAULT_BALANCE);
       }
     }
-    // 使ったカードは必ず山の底へ回るだけで、増えたり消えたりしない
-    expect(g.players.you.deck).toHaveLength(10);
-    expect(new Set(g.players.you.deck)).toEqual(new Set(ALL_CARDS));
+    // 使ったカードは必ず待機列の底へ回るだけで、増えたり消えたりしない
+    const all = [...handOf(g, 'you'), ...g.players.you.queue];
+    expect(all).toHaveLength(10);
+    expect(new Set(all)).toEqual(new Set(ALL_CARDS));
     expect(handOf(g, 'you')).toHaveLength(4);
   });
 });
