@@ -26,6 +26,12 @@
   /* rgb() の中で使うための 3 つ組。--chrome-2 に透明度を付けるときに使う
      （プレイ画面の背景オーバーレイと同じ地の色をホームでも使うため）。 */
   --chrome-2-rgb: 22 32 42;
+
+  /* PvP の帯入れ替え（.pvp-opponent/.pvp-self）が拠り所にする高さ。
+     --info-board-h は .info-board-row(38px) + .info-board-sub(32px) の合計。
+     値を変えたらここも直す。--hand-row-h は .hand-row 自身が持つ値。 */
+  --info-board-h: 70px;
+  --hand-row-h: 112px;
 }
 
 /* ボタンと入力要素は既定の書体を持つので、明示的に継がせる。
@@ -240,7 +246,7 @@
    子要素を絶対配置で重ねる（Hand.tsx の .card-slot/.card と同じ考え方）。 */
 .pvp-opponent {
   position: relative;
-  height: 70px;
+  height: var(--info-board-h);
 }
 .pvp-opponent > * {
   position: absolute;
@@ -249,7 +255,7 @@
 
 .pvp-self {
   position: relative;
-  height: 182px;
+  height: calc(var(--info-board-h) + var(--hand-row-h));
 }
 .pvp-self > * {
   position: absolute;
@@ -469,7 +475,7 @@
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  height: 112px;
+  height: var(--hand-row-h);
   /* .app の左右余白を打ち消して画面の端まで使う。
      内側にも同じ余白を重ねると、393 幅で使える幅が 329px まで縮み、
      狭い画面ではカードが実測値の 68px を下回っていた（参考画面は 383/393）。 */

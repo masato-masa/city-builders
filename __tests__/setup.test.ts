@@ -38,6 +38,40 @@ describe('初期状態', () => {
       expect(g.players.you.coins).toBe(DEFAULT_BALANCE.startingCoins.first);
       expect(g.players.cpu.coins).toBe(DEFAULT_BALANCE.startingCoins.second);
     }
+    // 対称ケース: 'cpu' を強制しても必ず cpu が先手になる。
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const g = createGame(seed, DEFAULT_BALANCE, 'cpu');
+      expect(g.current).toBe('cpu');
+      expect(g.players.cpu.coins).toBe(DEFAULT_BALANCE.startingCoins.first);
+      expect(g.players.you.coins).toBe(DEFAULT_BALANCE.startingCoins.second);
+    }
+  });
+
+  it('forcedFirst は山札のシャッフルに影響しない（先手決定より前に山札を作るため）', () => {
+    // createGame の実装は「両者の山札を shuffle → 先手を rng から決める」の順で
+    // RNG を消費する。forcedFirst は「先手を rng から決める」部分を ?? で
+    // 短絡させるだけなので、山札の内容（構成要素）自体は forcedFirst の有無や
+    // 値に関係なく同じでなければならない。将来 RNG 呼び出し順が入れ替わって
+    // 山札より前に先手決定が来るようになれば、このテストが落ちる。
+    for (const seed of [1, 2, 3, 4, 5, 42]) {
+      const free = createGame(seed);
+      const forcedYou = createGame(seed, DEFAULT_BALANCE, 'you');
+      const forcedCpu = createGame(seed, DEFAULT_BALANCE, 'cpu');
+      for (const p of ['you', 'cpu'] as const) {
+        expect(new Set(forcedYou.players[p].deck)).toEqual(new Set(free.players[p].deck));
+        expect(new Set(forcedCpu.players[p].deck)).toEqual(new Set(free.players[p].deck));
+        expect(forcedYou.players[p].deck).toEqual(free.players[p].deck);
+        expect(forcedCpu.players[p].deck).toEqual(free.players[p].deck);
+      }
+    }
+  });
+
+  it('forcedFirst を省略したときは、シードによって you・cpu どちらも先手になる（非強制時の非退行確認）', () => {
+    // createGame(seed) を forcedFirst なしで多数のシードに対して呼び、
+    // g.current に 'you' と 'cpu' の両方が現れることを確認する。
+    const seen = new Set(Array.from({ length: 20 }, (_, i) => createGame(i).current));
+    expect(seen).toContain('you');
+    expect(seen).toContain('cpu');
   });
 
   it('先手と後手の初期コインはどちらも 0', () => {

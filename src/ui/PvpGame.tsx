@@ -10,7 +10,7 @@ import type { CardId, GameState, PlayerId } from '@/game/types';
 import { CARD_ART, FIELD_URL } from './art';
 import { Board } from './Board';
 import { CoinBar } from './CoinBar';
-import { hapticBuild, hapticReject, hapticUseCard } from './haptics';
+import { hapticBuild, hapticReject, hapticUseCard, hapticWin } from './haptics';
 import { Hand } from './Hand';
 import { TurnClockIcon } from './icons';
 import { InfoBoard } from './InfoBoard';
@@ -88,6 +88,7 @@ export function PvpGame({
   useEffect(() => {
     if (!finished) return;
     playWin();
+    hapticWin();
   }, [finished]);
 
   const useCard = (card: CardId) => {
@@ -138,7 +139,7 @@ export function PvpGame({
                 key={waiting}
                 initial={{ opacity: 0, y: -28 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 28 }}
+                exit={{ opacity: 0, y: 28, pointerEvents: 'none' }}
                 transition={{ duration: SWAP_DURATION_S, ease: 'easeInOut' }}
               >
                 <InfoBoard
@@ -181,7 +182,7 @@ export function PvpGame({
                 key={active}
                 initial={{ opacity: 0, y: 28 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -28 }}
+                exit={{ opacity: 0, y: -28, pointerEvents: 'none' }}
                 transition={{ duration: SWAP_DURATION_S, ease: 'easeInOut' }}
               >
                 <CoinBar
@@ -208,6 +209,7 @@ export function PvpGame({
                     setSheet({ kind: 'card', card });
                   }}
                   onMenu={() => {
+                    if (swapping) return;
                     playSelect();
                     setSheet({ kind: 'menu' });
                   }}
@@ -447,7 +449,7 @@ export function PvpGame({
                   ? 'あかの勝ち'
                   : '引き分け'
             }
-            subtitle={`${scoreOf(state, 'you', balance)} VP 対 ${scoreOf(state, 'cpu', balance)} VP`}
+            subtitle={`あお ${scoreOf(state, 'you', balance)} VP 対 あか ${scoreOf(state, 'cpu', balance)} VP`}
             onClose={onExit}
           >
             <button className="home-btn primary" onClick={onRestart}>
