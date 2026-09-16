@@ -18,8 +18,12 @@
   つよい）と並べる。
 - 新規 `PvpGame.tsx` を追加。CPU の 1 手ずつの進行演出（`cpu-turn.ts` 系）
   は使わない。
-- ゲームロジック（`reducer.ts` / `types.ts` / `selectors.ts` / `setup.ts`）
-  は無改造。AI（`src/ai`）は呼ばない。
+- ゲームロジック（`reducer.ts` / `types.ts` / `selectors.ts`）は無改造。
+  `setup.ts` の `createGame` のみ、先手を強制できる第 3 引数
+  `forcedFirst?: PlayerId` を追加する（省略時は今まで通り乱数。既存の
+  呼び出し元はすべて省略するので対 CPU モードの挙動は変わらない）。
+  PvP は「先攻は常に `'you'`」という要件があるため必要。
+  AI（`src/ai`）は呼ばない。
 - 対象外: ネットワーク対戦、3 人以上、ハンドオフ確認画面、CPU 戦績への
   PvP 結果の混入。
 
