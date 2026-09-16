@@ -9,9 +9,9 @@ import { forecast } from './CoinBar';
 import { InfoBoard } from './InfoBoard';
 
 /** 相手（CPU）の情報ボード。画面の最上段（要望 3）。自分の帯と同じ骨格
- *  （要望 4）の 2 段目に CPU の行動ログを出す。残りターンは盤面右上の
- *  TurnBadge へ移した（要望 F）。最新の 1 手だけ大きく、それより前は
- *  小さく残す（要望 7）。 */
+ *  （要望 4）の 2 段目に次ターン収入、1 段目右端に CPU の行動ログを出す
+ *  （自分側と見え方を揃える）。残りターンは盤面右上の TurnBadge へ移した
+ *  （要望 F）。最新の 1 手だけ大きく、それより前は小さく残す（要望 7）。 */
 export function OpponentStrip({
   state,
   balance = DEFAULT_BALANCE,
@@ -34,9 +34,8 @@ export function OpponentStrip({
         owner="cpu"
         coins={state.players.cpu.coins}
         vp={scoreOf(state, 'cpu', balance)}
-        right={<span className="opp-forecast">次ターン収入 {income >= 0 ? `+${income}` : income}</span>}
-        sub={
-          <div className="cpu-log" aria-live="polite">
+        right={
+          <div className="cpu-log cpu-log-right" aria-live="polite">
             {rest.length > 0 ? (
               <span className="cpu-log-line cpu-log-line-old">{rest[rest.length - 1]}</span>
             ) : null}
@@ -52,6 +51,11 @@ export function OpponentStrip({
               </motion.span>
             ) : null}
           </div>
+        }
+        sub={
+          <span className="coinbar-forecast">
+            次ターン収入 {income >= 0 ? `+${income}` : income}
+          </span>
         }
       />
       {/* カードを使った瞬間、その絵をボードのすぐ下で一瞬大きく出す（要望 7）。

@@ -191,6 +191,16 @@ const JOBS = [
     quality: 85,
     alpha: true,
   },
+  // UI 素材。盤面の建物・カードと違い表示は小さい（コインバッジ 24px 角）ので、
+  // 長辺は控えめでよいが、Retina 表示ぶんの余裕は持たせる。
+  {
+    label: 'コイン (coin badge)',
+    input: 'refs/art/v2/coin.png',
+    output: 'src/assets/art/ui/coin.webp',
+    longEdge: 128,
+    quality: 88,
+    alpha: true,
+  },
 ];
 
 const fmtKB = (bytes) => `${(bytes / 1024).toFixed(1)}KB`;

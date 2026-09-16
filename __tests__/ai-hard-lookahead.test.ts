@@ -212,6 +212,8 @@ describe('easy / normal の振る舞いは変えていない', () => {
   // 変えていないが、同じ手を選んでも手札に積まれるカードの並びが変わるため、
   // 決定的な対局の軌跡がここで一度更新されている。以後の変更でここが動いたら、
   // easy / normal の挙動が変わったということなので、意図的な変更でない限り疑うこと。
+  // 封鎖者を永続効果にした変更（endTurn で blockedSlot/disabledSlot を消さない）
+  // で easy seed 0 / 5・normal seed 5 の最終局面が動いたため、ここも合わせて更新した。
   it('seed 0 / 5 の最終コイン残高が既知の値と一致する（回帰検知用）', () => {
     const finish = (difficulty: 'easy' | 'normal', seed: number) => {
       let g = createGame(seed);
@@ -225,12 +227,12 @@ describe('easy / normal の振る舞いは変えていない', () => {
     };
 
     const easy0 = finish('easy', 0);
-    expect(easy0.players.you.coins).toBe(0);
-    expect(easy0.players.cpu.coins).toBe(2);
+    expect(easy0.players.you.coins).toBe(1);
+    expect(easy0.players.cpu.coins).toBe(5);
 
     const easy5 = finish('easy', 5);
     expect(easy5.players.you.coins).toBe(2);
-    expect(easy5.players.cpu.coins).toBe(0);
+    expect(easy5.players.cpu.coins).toBe(5);
 
     const normal0 = finish('normal', 0);
     expect(normal0.players.you.coins).toBe(3);
@@ -238,6 +240,6 @@ describe('easy / normal の振る舞いは変えていない', () => {
 
     const normal5 = finish('normal', 5);
     expect(normal5.players.you.coins).toBe(4);
-    expect(normal5.players.cpu.coins).toBe(13);
+    expect(normal5.players.cpu.coins).toBe(11);
   });
 });

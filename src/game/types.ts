@@ -48,7 +48,7 @@ export interface PlayerState {
   buildsThisTurn: number;
   /** このターン 1 枚でもカードを使ったか（工場の割引判定） */
   usedAnyCardThisTurn: boolean;
-  /** 封鎖者に指定されたスロット。自分のターンに建設できない */
+  /** 封鎖者に指定されたスロット。建設できない。解除する手段が無いので永続 */
   blockedSlot: number | null;
   /** このターン、街道の循環を使った回数 */
   roadUsesThisTurn: number;
@@ -63,7 +63,7 @@ export interface PlayerState {
   bindPending: boolean;
   /** 抽選された結果。このターン使用できない */
   boundCard: CardId | null;
-  /** 封鎖者に効果を止められている自分の物件の区画 */
+  /** 封鎖者に効果を止められている自分の物件の区画。解除する手段が無いので永続 */
   disabledSlot: number | null;
 }
 

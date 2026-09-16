@@ -157,44 +157,44 @@
   padding: 0 var(--pad);
 }
 
-/* コインを金貨のバッジで囲む（要望 B）。数字だけが浮いているより、
-   何のバッジか一目で分かる。 */
+/* コイン画像 + 数字。VP と紛らわしいという指摘を受け、コインのほうを
+   一番目立つ表示にした。以前は文字を金貨色のグラデーションのピルで
+   囲んでいたが「チープ」という指摘を受け、実際のコインの絵に差し替えた
+   （要望 B）。テクスチャの上に数字を重ねると読みにくいので、絵と数字は
+   並べて置き、文字は白地の上で読ませる。 */
 .info-board-coin-badge {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: radial-gradient(circle at 32% 28%, #ffe9a8, var(--coin) 72%);
-  box-shadow:
-    inset 0 1px 1px rgb(255 255 255 / 0.55),
-    inset 0 -1px 1px rgb(0 0 0 / 0.2),
-    0 1px 2px rgb(0 0 0 / 0.35);
+  gap: 4px;
   flex: none;
 }
 
-.info-board-coins {
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--coin-ink);
-  font-variant-numeric: tabular-nums;
-  /* 1桁→3桁に増えてもバッジの外形が動かないよう、最小幅を確保する。 */
-  min-width: 16px;
-  text-align: center;
+.info-board-coin-icon {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.45));
 }
 
-/* コインより一段大きく目立たせる（要望 D）。得点そのものはこのゲームの
-   勝敗を決める値なので、コインより優先して視線を集めてよい。 */
-.info-board-vp {
-  min-width: 48px;
-  text-align: right;
-  font-size: 21px;
+.info-board-coins {
+  font-size: 17px;
   font-weight: 800;
   color: #ffe9a8;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+  /* 1桁→3桁に増えても左のコイン絵が動かないよう、最小幅を確保する。 */
+  min-width: 18px;
+}
+
+/* コインより控えめに。VP はコインほど頻繁には動かないので、
+   小さくても勝敗の判断材料として十分読める（要望「VPが目立ちすぎる」）。
+   並び順もいちばん左上に置き、コインと視覚的な主従を作る。 */
+.info-board-vp {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--chrome-ink-dim);
+  font-variant-numeric: tabular-nums;
 }
 
 .info-board-right {
@@ -522,14 +522,12 @@
   text-overflow: ellipsis;
 }
 
-/* 相手側の情報ボード、1 段目の右端に出す次ターン収入。自分側の
-   .coinbar-forecast と違い 2 段目は行動ログに使っているので、ここは
-   1 段目の info-board-right に収める分、控えめな小さい文字にする。 */
-.opp-forecast {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--chrome-ink-dim);
-  white-space: nowrap;
+/* 相手（CPU）側の情報ボード、1 段目の右端（info-board-right）に収めた
+   行動ログ。.cpu-log は元々 2 段目いっぱいの幅を想定した左詰めだったので、
+   右端に収まるよう右詰め・最大幅を付け足す。 */
+.cpu-log-right {
+  align-items: flex-end;
+  max-width: 150px;
 }
 
 .coinbar-btn {

@@ -340,7 +340,7 @@ export function Game({
                   <p className="sheet-text">{buildingTextFor(slot.buildingId, balance)}</p>
                   {slot.owner === null && state.players.you.blockedSlot === sheet.slotId ? (
                     <p className="sheet-text">
-                      相手の封鎖者に封鎖されています。次のターンまで建てられません。
+                      相手の封鎖者に封鎖されています。解除されるまで建てられません。
                     </p>
                   ) : null}
                   <button
@@ -374,9 +374,7 @@ export function Game({
             ) : null}
             <p className="sheet-text">{cardTextFor(sheet.card, balance)}</p>
             {sheet.card === 'blockader' ? (
-              <p className="sheet-text">
-                このターンの間だけの効果です。相手の次のターンが始まると解除されます。
-              </p>
+              <p className="sheet-text">永続する効果です。解除する手段はいまはありません。</p>
             ) : null}
             {/* 街道の効果。以前はコインバーの専用ボタンから対象を選んでいたが、
                 いまはカードを選んだこのシートの中、「使う」の上に置く（要望 2）。

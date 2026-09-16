@@ -328,9 +328,9 @@ function endTurn(state: GameState, balance: Balance): GameState {
   const next = structuredClone(state);
   const player = next.current;
 
-  // 自分に掛かっていた効果はこのターンの終わりで解ける
-  next.players[player].blockedSlot = null;
-  next.players[player].disabledSlot = null;
+  // 自分に掛かっていた効果はこのターンの終わりで解ける。
+  // ただし封鎖者（blockedSlot/disabledSlot）は「1 ターンで解けると効果が
+  // 意味をなさない」という指摘を受け、ひとまず永続にする（ここでは解除しない）。
   next.players[player].festivalActive = false;
   next.players[player].boundCard = null;
 

@@ -34,15 +34,17 @@ describe('ターン終了', () => {
     expect(after.turn).toBe(g.turn + 1);
   });
 
-  it('自分への封鎖・効果停止・祝祭・買収の結果がターン終了で消える', () => {
+  it('祝祭・買収の結果はターン終了で消えるが、封鎖者は永続する', () => {
+    // 封鎖者は「1 ターンで解けると効果が意味をなさない」という指摘を受け、
+    // 解除する手段を持たない永続効果にした（endTurn では消さない）。
     const g = fixture();
     g.players.you.blockedSlot = 3;
     g.players.you.disabledSlot = 5;
     g.players.you.festivalActive = true;
     g.players.you.boundCard = 'miner';
     const after = reduce(g, { type: 'endTurn' }, DEFAULT_BALANCE);
-    expect(after.players.you.blockedSlot).toBeNull();
-    expect(after.players.you.disabledSlot).toBeNull();
+    expect(after.players.you.blockedSlot).toBe(3);
+    expect(after.players.you.disabledSlot).toBe(5);
     expect(after.players.you.festivalActive).toBe(false);
     expect(after.players.you.boundCard).toBeNull();
   });

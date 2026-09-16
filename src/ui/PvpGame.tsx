@@ -151,12 +151,11 @@ export function PvpGame({
                   owner={waiting}
                   coins={state.players[waiting].coins}
                   vp={scoreOf(state, waiting, balance)}
-                  right={
-                    <span className="opp-forecast">
+                  sub={
+                    <span className="coinbar-forecast">
                       次ターン収入 {waitingIncome >= 0 ? `+${waitingIncome}` : waitingIncome}
                     </span>
                   }
-                  sub={null}
                 />
               </motion.div>
             </AnimatePresence>
@@ -292,7 +291,7 @@ export function PvpGame({
                   <p className="sheet-text">{buildingTextFor(slot.buildingId, balance)}</p>
                   {slot.owner === null && state.players[active].blockedSlot === sheet.slotId ? (
                     <p className="sheet-text">
-                      相手の封鎖者に封鎖されています。次のターンまで建てられません。
+                      相手の封鎖者に封鎖されています。解除されるまで建てられません。
                     </p>
                   ) : null}
                   <button
@@ -326,9 +325,7 @@ export function PvpGame({
             ) : null}
             <p className="sheet-text">{cardTextFor(sheet.card, balance)}</p>
             {sheet.card === 'blockader' ? (
-              <p className="sheet-text">
-                このターンの間だけの効果です。相手の次のターンが始まると解除されます。
-              </p>
+              <p className="sheet-text">永続する効果です。解除する手段はいまはありません。</p>
             ) : null}
             <button
               className="sheet-row road-btn"
