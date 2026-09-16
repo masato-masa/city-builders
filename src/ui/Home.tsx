@@ -46,7 +46,13 @@ function shouldAnimateEntrance(): boolean {
   return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-export function Home({ onStart }: { onStart: (d: Difficulty) => void }) {
+export function Home({
+  onStart,
+  onStartPvp,
+}: {
+  onStart: (d: Difficulty) => void;
+  onStartPvp: () => void;
+}) {
   const progress = loadProgress();
   const [dev, setDev] = useState(false);
   // 初回に一度だけ決める。以後の再描画で値が変わって動きがちらつかないようにする。
@@ -93,6 +99,18 @@ export function Home({ onStart }: { onStart: (d: Difficulty) => void }) {
               <span className="home-btn-desc">{DESCRIPTIONS[d]}</span>
             </button>
           ))}
+          <button
+            className="home-btn"
+            onClick={() => {
+              primeAudio();
+              playSelect();
+              hapticUseCard();
+              onStartPvp();
+            }}
+          >
+            <span className="home-btn-label">2人で対戦</span>
+            <span className="home-btn-desc">スマホを交互に渡して遊びます</span>
+          </button>
         </motion.div>
 
         <motion.p
