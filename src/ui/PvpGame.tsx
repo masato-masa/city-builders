@@ -69,10 +69,15 @@ export function PvpGame({
   onRestart: () => void;
 }) {
   // PvP は常に 'you' を先手にする（対 CPU モードの乱数先手とは別扱い）。
-  const [state, setState] = useState<GameState>(() => {
+  const [initial] = useState(() => {
     const g = createGame(seed, balance, 'you');
-    return reduce(g, { type: 'startTurn' }, balance);
+    const started = reduce(g, { type: 'startTurn' }, balance);
+    return { state: started, delta: started.players.you.coins - g.players.you.coins };
   });
+  const [state, setState] = useState<GameState>(initial.state);
+  // 手番の受け渡し中（目隠し画面を出している間）。中身は、開けた瞬間に鳴らす
+  // 次の手番側の収入の増減。開始直後も 1 人目に渡す前提で出す。
+  const [handoff, setHandoff] = useState<{ delta: number } | null>(() => ({ delta: initial.delta }));
   const [sheet, setSheet] = useState<Pending>(null);
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
   const [hapticsOn, setHapticsOn] = useState(() => isHapticsEnabled());
@@ -99,15 +104,26 @@ export function PvpGame({
     fly(document.querySelector(`.hand [data-card="${card}"]`), CARD_ART[card], boardAreaRef.current);
 
   // 手番が替わるたびに盤面を横切る帯を出す（ゲーム開始の 1 回目も）。
-  const [banner, clearBanner] = useTurnBanner(`${state.phase}:${state.current}:${state.turn}`, () =>
-    state.phase !== 'playing'
-      ? null
-      : {
-          tone: state.current,
-          label: state.current === 'you' ? 'あおのターン' : 'あかのターン',
-          sub: `のこり ${turnsRemaining(state, balance)} ターン`,
-        },
+  // 目隠しの間は出さず、「はじめる」を押した瞬間に出す。
+  const [banner, clearBanner] = useTurnBanner(
+    handoff ? 'handoff' : `${state.phase}:${state.current}:${state.turn}`,
+    () =>
+      handoff || state.phase !== 'playing'
+        ? null
+        : {
+            tone: state.current,
+            label: state.current === 'you' ? 'あおのターン' : 'あかのターン',
+            sub: `のこり ${turnsRemaining(state, balance)} ターン`,
+          },
   );
+
+  // 目隠しを開ける: 手番の帯を出し、鐘と次の手番側の収入の音をまとめて鳴らす。
+  const startHandoffTurn = () => {
+    if (!handoff) return;
+    playYourTurn(handoff.delta);
+    hapticYourTurn();
+    setHandoff(null);
+  };
 
   useEffect(() => {
     if (!swapping) return;
@@ -145,9 +161,10 @@ export function PvpGame({
     const before = afterEnd.players[afterEnd.current].coins;
     const afterStart = reduce(afterEnd, { type: 'startTurn' }, balance);
     const delta = afterStart.players[afterStart.current].coins - before;
-    // 手番交代の合図の鐘と、次の手番側の収入の音をまとめて鳴らす。
-    playYourTurn(delta);
-    hapticYourTurn();
+    // 手番交代の合図の鐘と収入の音は、目隠しを開けた瞬間（startHandoffTurn）に鳴らす。
+    clearBanner();
+    setSheet(null);
+    setHandoff({ delta });
     setSwapping(true);
     setState(afterStart);
   };
@@ -169,7 +186,7 @@ export function PvpGame({
     <div className="app app-play" style={{ backgroundImage: `url(${FIELD_URL})` }}>
       <main className="play">
         <div className="board-shell">
-          <div className="pvp-opponent">
+          <div className={`pvp-opponent${handoff ? ' is-concealed' : ''}`}>
             <AnimatePresence initial={false}>
               <motion.div
                 key={waiting}
@@ -247,7 +264,7 @@ export function PvpGame({
               ) : null}
             </AnimatePresence>
           </div>
-          <div className="pvp-self">
+          <div className={`pvp-self${handoff ? ' is-concealed' : ''}`}>
             <AnimatePresence initial={false}>
               <motion.div
                 key={active}
@@ -490,6 +507,42 @@ export function PvpGame({
               />
             </div>
           </Sheet>
+        ) : null}
+      </AnimatePresence>
+
+      {/* 手番の受け渡し。手札と相手の情報はぼかし、押すまで次の人の手札を見せない。 */}
+      <AnimatePresence>
+        {handoff && !finished ? (
+          <motion.div
+            key={`handoff-${state.turn}-${active}`}
+            className={`handoff handoff-${active}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${active === 'you' ? 'あお' : 'あか'}の番です`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, pointerEvents: 'none' }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+          >
+            <motion.div
+              className="handoff-body"
+              initial={{ y: 24, scale: 0.9 }}
+              animate={{ y: 0, scale: 1 }}
+              exit={{ y: -12, scale: 0.96 }}
+              transition={{ type: 'spring', stiffness: 460, damping: 28 }}
+            >
+              <p className="handoff-title">{active === 'you' ? 'あお' : 'あか'}の番です</p>
+              <p className="handoff-text">
+                スマホを <b>{active === 'you' ? 'あお' : 'あか'}</b> の人に渡してください
+              </p>
+              <button
+                className={`btn3d btn3d-lg handoff-btn${active === 'cpu' ? ' btn3d-red' : ''}`}
+                onClick={startHandoffTurn}
+              >
+                <span className="btn3d-label">はじめる</span>
+              </button>
+            </motion.div>
+          </motion.div>
         ) : null}
       </AnimatePresence>
 

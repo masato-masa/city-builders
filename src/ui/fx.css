@@ -782,3 +782,76 @@
     animation: none;
   }
 }
+
+/* ======================================================================
+   2 人対戦の手番の受け渡し（PvpGame.tsx の .handoff）
+   次の人に渡すまで手札を見せない目隠し。盤面はうっすら透けてよい。
+   寸法には関わらない（fixed で重ね、ぼかしは filter だけ）。
+   ====================================================================== */
+.pvp-opponent,
+.pvp-self {
+  transition: filter 0.2s var(--ease);
+}
+.pvp-opponent.is-concealed,
+.pvp-self.is-concealed {
+  filter: blur(14px) brightness(0.7);
+  pointer-events: none;
+  /* 隠すときは一瞬で（滑り込んでくる次の人の手札が、ぼけ切る前に読めないように）。
+     開けるときだけ上の transition でほどく。 */
+  transition: none;
+}
+
+.handoff {
+  --tone: var(--owner-you);
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(ellipse 85% 55% at 50% 50%, color-mix(in srgb, var(--tone) 45%, rgb(4 8 16 / 0.6)) 0%, rgb(4 8 16 / 0.86) 100%);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+.handoff-cpu {
+  --tone: var(--owner-cpu);
+}
+
+.handoff-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(320px, 100%);
+  text-align: center;
+}
+
+.handoff-title {
+  margin: 0;
+  font-size: 36px;
+  font-weight: 900;
+  line-height: 1.1;
+  color: #fff;
+  -webkit-text-stroke: 6px color-mix(in srgb, var(--tone) 40%, #000);
+  paint-order: stroke fill;
+  text-shadow: 0 3px 0 color-mix(in srgb, var(--tone) 40%, #000);
+  letter-spacing: 0.04em;
+}
+
+.handoff-text {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.5;
+  color: rgb(255 255 255 / 0.92);
+}
+.handoff-text b {
+  color: color-mix(in srgb, var(--tone) 35%, #fff);
+}
+
+.handoff-btn {
+  width: 100%;
+  min-height: 64px;
+  font-size: 24px;
+}
