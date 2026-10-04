@@ -9,6 +9,7 @@ import { PvpGame } from './ui/PvpGame';
 import './ui/shared/tokens.css';
 import './ui/shared/chrome.css';
 import './ui/styles.css';
+import './ui/fx.css';
 
 type Session =
   | { mode: 'cpu'; seed: number; difficulty: Difficulty }

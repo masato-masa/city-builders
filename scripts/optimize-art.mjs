@@ -40,7 +40,7 @@ async function withCleanEdges(input) {
 const JOBS = [
   {
     label: '盤面 (field)',
-    input: 'refs/art/field-user.png',
+    input: 'refs/art/field-deshadow.png', // scripts/deshadow-field.mjs が field-user.png から作る
     output: 'src/assets/art/field.webp',
     longEdge: 1067,
     quality: 82,

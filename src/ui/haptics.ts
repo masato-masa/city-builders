@@ -38,3 +38,13 @@ export function hapticWin(): void {
 export function hapticLose(): void {
   vibrate([70, 40, 30]);
 }
+
+/** ボタンを押した: 指に「押せた」と返すだけの、いちばん短い 1 回 */
+export function hapticTap(): void {
+  vibrate(6);
+}
+
+/** 自分の手番が回ってきた: 軽い 2 連（画面を見ていなくても気付ける） */
+export function hapticYourTurn(): void {
+  vibrate([10, 60, 14]);
+}

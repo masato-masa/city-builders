@@ -1,6 +1,8 @@
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 
+import { playUiTap } from './sound';
+
 /** 下から出て下へ帰るシート。呼び出し側で <AnimatePresence> に包み、
  *  一意な key を付けること（閉じるときの退場アニメーションのため）。
  *  閉じている最中は pointerEvents: 'none' にして、フェード中の見えない
@@ -19,7 +21,11 @@ export function Sheet({
   return (
     <motion.div
       className="overlay"
-      onClick={onClose}
+      onClick={() => {
+        // 外側をタップして閉じる
+        playUiTap();
+        onClose();
+      }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1, transition: { duration: 0.16 } }}
       // exit はバネではなく tween にする。バネは目標値に漸近するだけで、

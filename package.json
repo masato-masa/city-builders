@@ -28,6 +28,8 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "jsdom": "^25.0.0",
+    "mpg123-decoder": "^1.0.3",
+    "ogg-opus-decoder": "^1.7.5",
     "sharp": "^0.35.4",
     "tsx": "^4.19.2",
     "typescript": "^5.7.0",

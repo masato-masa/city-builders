@@ -7,9 +7,10 @@ import { clearProgress, loadProgress } from '@/storage/storage';
 
 import { FIELD_URL } from './art';
 import { loadBalance, resetBalance, saveBalance } from './balance-store';
-import { hapticUseCard } from './haptics';
+import { hapticTap } from './haptics';
+import { CityEmblem, CrownIcon, SwordIcon, VersusIcon } from './icons';
 import { Sheet } from './Sheets';
-import { playSelect, primeAudio } from './sound';
+import { playUiTap, primeAudio } from './sound';
 
 const LABELS: Record<Difficulty, string> = {
   easy: 'やさしい',
@@ -18,6 +19,9 @@ const LABELS: Record<Difficulty, string> = {
 };
 
 // CPU の強さが一言で伝わるように。文言はここだけで決めている。
+/** 難易度の剣の本数。強さを文字を読まずに比べられるように。 */
+const SWORDS: Record<Difficulty, number> = { easy: 1, normal: 2, hard: 3 };
+
 const DESCRIPTIONS: Record<Difficulty, string> = {
   easy: 'CPU は手加減します',
   normal: 'CPU がふつうに戦います',
@@ -68,13 +72,22 @@ export function Home({
 
   return (
     <div className="app app-home" style={{ backgroundImage: `url(${FIELD_URL})` }}>
+      {/* 奥行き: 石畳の上に、中央から差す光と周辺の落ち込みを重ねる（装飾のみ）。 */}
+      <div className="home-light" aria-hidden="true" />
       <div className="home">
         <motion.div
-          initial={animateEntrance ? ENTER[0].hidden : false}
-          animate={{ opacity: 1, y: 0, transition: { ...SPRING, delay: ENTER[0].delay } }}
+          className="home-logo"
+          initial={animateEntrance ? { opacity: 0, y: -24, scale: 0.86 } : false}
+          animate={{ opacity: 1, y: 0, scale: 1, transition: { ...SPRING, delay: ENTER[0].delay } }}
         >
-          <h1 className="home-title">シティビルダーズ</h1>
-          <p className="home-sub">人物を回して、都市を建てる</p>
+          <CityEmblem className="home-emblem" />
+          <h1 className="home-title" aria-label="シティビルダーズ">
+            <span className="home-title-small" data-text="シティ">シティ</span>
+            <span className="home-title-big" data-text="ビルダーズ">ビルダーズ</span>
+          </h1>
+          <p className="home-sub">
+            <span>人物を回して、都市を建てる</span>
+          </p>
         </motion.div>
 
         <motion.div
@@ -82,34 +95,50 @@ export function Home({
           initial={animateEntrance ? ENTER[1].hidden : false}
           animate={{ opacity: 1, y: 0, transition: { ...SPRING, delay: ENTER[1].delay } }}
         >
-          {(['easy', 'normal', 'hard'] as const).map((d) => (
-            <button
-              key={d}
-              className={`home-btn${d === progress.lastDifficulty ? ' primary' : ''}`}
-              onClick={() => {
-                // 最初のユーザー操作。AudioContext をここで作っておく
-                // （ページ読み込み時に作るとブラウザに止められるため）。
-                primeAudio();
-                playSelect();
-                hapticUseCard();
-                onStart(d);
-              }}
-            >
-              <span className="home-btn-label">{LABELS[d]}</span>
-              <span className="home-btn-desc">{DESCRIPTIONS[d]}</span>
-            </button>
-          ))}
+          {(['easy', 'normal', 'hard'] as const).map((d) => {
+            const primary = d === progress.lastDifficulty;
+            return (
+              <button
+                key={d}
+                className={`btn3d home-mode ${primary ? 'btn3d-yellow is-primary' : 'btn3d-blue'}`}
+                onClick={() => {
+                  // 最初のユーザー操作。AudioContext をここで作っておく
+                  // （ページ読み込み時に作るとブラウザに止められるため）。
+                  primeAudio();
+                  playUiTap();
+                  hapticTap();
+                  onStart(d);
+                }}
+              >
+                <span className="home-mode-icon" aria-hidden="true">
+                  {Array.from({ length: SWORDS[d] }, (_, k) => (
+                    <SwordIcon key={k} className="home-mode-sword" />
+                  ))}
+                </span>
+                <span className="home-mode-text">
+                  <span className="btn3d-label home-mode-label">{LABELS[d]}</span>
+                  <span className="home-mode-desc">{DESCRIPTIONS[d]}</span>
+                </span>
+                {primary ? <span className="home-mode-tag">前回</span> : null}
+              </button>
+            );
+          })}
           <button
-            className="home-btn"
+            className="btn3d btn3d-red home-mode"
             onClick={() => {
               primeAudio();
-              playSelect();
-              hapticUseCard();
+              playUiTap();
+              hapticTap();
               onStartPvp();
             }}
           >
-            <span className="home-btn-label">2人で対戦</span>
-            <span className="home-btn-desc">スマホを交互に渡して遊びます</span>
+            <span className="home-mode-icon" aria-hidden="true">
+              <VersusIcon className="home-mode-vs" />
+            </span>
+            <span className="home-mode-text">
+              <span className="btn3d-label home-mode-label">2人で対戦</span>
+              <span className="home-mode-desc">スマホを交互に渡して遊びます</span>
+            </span>
           </button>
         </motion.div>
 
@@ -120,6 +149,7 @@ export function Home({
         >
           {hasPlayed ? (
             <>
+              <CrownIcon className="home-progress-crown" />
               <span className="home-progress-num home-progress-win">{progress.wins}</span>勝
               <span className="home-progress-num home-progress-lose">{progress.losses}</span>敗
             </>
@@ -129,7 +159,7 @@ export function Home({
         </motion.p>
       </div>
 
-      <button className="dev-pill" onClick={() => setDev(true)}>
+      <button className="dev-pill" onClick={() => { primeAudio(); playUiTap(); setDev(true); }}>
         テスト用
       </button>
 

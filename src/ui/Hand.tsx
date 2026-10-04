@@ -18,6 +18,7 @@ export function Hand({
   viewer = 'you',
   canUse,
   targeting = false,
+  selected = null,
   onPick,
   onMenu,
 }: {
@@ -30,6 +31,8 @@ export function Hand({
    *  伝令自身以外のカードがすべて対象としてタップできる。呼び出し側の
    *  onPick が実際の確定／拒否を決める（盤面の封鎖者対象選択と同じ形）。 */
   targeting?: boolean;
+  /** 詳細シートを開いている札。持ち上げて金の枠で囲む。 */
+  selected?: CardId | null;
   onPick: (card: CardId) => void;
   /** 「次」の真上の横長メニューボタン（要望 2）。 */
   onMenu: () => void;
@@ -37,9 +40,9 @@ export function Hand({
   const hand = handSlotsOf(state, viewer);
   const next = nextCardOf(state, viewer, balance);
   const nextArt = next ? CARD_ART[next] : undefined;
-  const bound = state.players[viewer].boundCard;
+  const bound = state.players[viewer].boundCards;
   return (
-    <div className="hand-row">
+    <div className={`hand-row hand-row-${viewer}`}>
       <div className="next-col">
         <button className="menu-btn" aria-label="メニュー" onClick={onMenu}>
           <MenuIcon />
@@ -71,8 +74,9 @@ export function Hand({
                     balance={balance}
                     viewer={viewer}
                     usable={canUse(card)}
-                    bound={card === bound}
+                    bound={bound.includes(card)}
                     targeting={targeting}
+                    selected={selected === card}
                     onPick={onPick}
                   />
                 ) : null}
@@ -93,6 +97,7 @@ function CardButton({
   usable,
   bound,
   targeting,
+  selected,
   onPick,
 }: {
   card: CardId;
@@ -104,6 +109,7 @@ function CardButton({
    *  ひと目で分かるよう、コスト不足の is-dim とは別に鎖マークを出す。 */
   bound: boolean;
   targeting: boolean;
+  selected: boolean;
   onPick: (card: CardId) => void;
 }) {
   const art = CARD_ART[card];
@@ -118,16 +124,23 @@ function CardButton({
     !targeting && bound ? 'is-bound' : null,
     targetable ? 'is-targetable' : null,
     targetInvalid ? 'is-target-invalid' : null,
+    selected ? 'is-selected' : null,
+    !targeting && usable ? 'is-usable' : null,
   ]
     .filter(Boolean)
     .join(' ');
   return (
     <motion.button
       className={className}
+      data-card={card}
       initial={{ y: 26, opacity: 0, scale: 0.92 }}
-      animate={{ y: 0, opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.45, y: -46, transition: { duration: 0.2 } }}
-      transition={{ type: 'spring', stiffness: 520, damping: 34 }}
+      // 選んだ札は 8px 持ち上げて少し大きく（クラロワの選択中の札と同じ）。
+      // transform だけなので枠（.card-slot）は動かない。
+      animate={{ y: selected ? -8 : 0, opacity: 1, scale: selected ? 1.06 : 1 }}
+      whileTap={{ scale: selected ? 1.02 : 0.93, y: selected ? -6 : 2 }}
+      // 使った札は盤面へ飛ぶ複製（Fx.tsx の CardFlightLayer）が受け持つので、ここではすぐ消す。
+      exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.1 } }}
+      transition={{ type: 'spring', stiffness: 520, damping: 30 }}
       onClick={() => onPick(card)}
     >
       <span className="card-body">
@@ -139,7 +152,10 @@ function CardButton({
           <ChainIcon />
         </span>
       ) : null}
-      <span className="card-cost">{cardCostFor(state, viewer, card, balance)}</span>
+      {/* コストは金貨の宝石バッジ（クラロワのエリクサーの雫に当たる）。 */}
+      <span className="card-cost">
+        <span className="card-cost-num">{cardCostFor(state, viewer, card, balance)}</span>
+      </span>
     </motion.button>
   );
 }

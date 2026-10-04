@@ -15,10 +15,16 @@ export function TurnBadge({
   state: GameState;
   balance?: Balance;
 }) {
+  const left = turnsRemaining(state, balance);
+  // 残り 3 ターンからは赤く脈打たせて、終わりが近いことを知らせる（クラロワの残り時間と同じ）。
+  const urgent = state.phase === 'playing' && left <= 3;
   return (
-    <span className="board-turn-badge turn-clock" aria-label={`残り ${turnsRemaining(state, balance)} ターン`}>
+    <span
+      className={`board-turn-badge turn-clock${urgent ? ' is-urgent' : ''}`}
+      aria-label={`残り ${left} ターン`}
+    >
       <TurnClockIcon />
-      <span className="turn-clock-num">{turnsRemaining(state, balance)}</span>
+      <span className="turn-clock-num">{left}</span>
     </span>
   );
 }

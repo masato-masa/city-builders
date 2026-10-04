@@ -142,11 +142,48 @@
    はっきり読める明度まで沈めた値（実測・固定値。変数の値を変えたら
    ここも作り直すこと）。 */
 .info-board-you {
-  background: rgba(32, 73, 114, 0.9);
+  --board-glow: #6cb2f2;
+  --board-glow-rgb: 108 178 242;
+  background: linear-gradient(to bottom, rgb(40 96 156 / 0.94), rgb(24 62 108 / 0.94));
 }
 
 .info-board-cpu {
-  background: rgba(95, 50, 34, 0.9);
+  --board-glow: #ffa06e;
+  --board-glow-rgb: 255 160 110;
+  background: linear-gradient(to bottom, rgb(128 58 36 / 0.94), rgb(82 36 22 / 0.94));
+}
+
+/* 板の厚み。上端の照り返しと、下へ 3px の濃い縁（クラロワのパネルと同じ作り）。
+   box-shadow だけで描くので寸法は変わらない。 */
+.info-board {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.2),
+    inset 0 -2px 0 rgb(0 0 0 / 0.25),
+    0 3px 0 rgb(0 0 0 / 0.4),
+    0 6px 12px rgb(0 0 0 / 0.25);
+}
+
+/* 手番の側。縁を所有者色で光らせ、ゆっくり脈打たせる。 */
+.info-board.is-active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    0 0 0 2px var(--board-glow),
+    0 0 16px 2px rgb(var(--board-glow-rgb) / 0.55);
+  pointer-events: none;
+  animation: board-active 1.6s ease-in-out infinite;
+}
+
+@keyframes board-active {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
 }
 
 .info-board-row {
@@ -163,38 +200,110 @@
    （要望 B）。テクスチャの上に数字を重ねると読みにくいので、絵と数字は
    並べて置き、文字は白地の上で読ませる。 */
 .info-board-coin-badge {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
   flex: none;
 }
 
+/* 増減で弾ませる層。transform だけを動かす（InfoBoard.tsx の useAnimate）。 */
+.info-board-coin-bump {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transform-origin: 30% 50%;
+}
+
 .info-board-coin-icon {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   flex: none;
   filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.45));
 }
 
 .info-board-coins {
-  font-size: 17px;
-  font-weight: 800;
-  color: #ffe9a8;
-  text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff3c4;
+  -webkit-text-stroke: 3px rgb(40 22 0 / 0.75);
+  paint-order: stroke fill;
+  text-shadow: 0 2px 0 rgb(0 0 0 / 0.45);
   font-variant-numeric: tabular-nums;
-  /* 1桁→3桁に増えても左のコイン絵が動かないよう、最小幅を確保する。 */
-  min-width: 18px;
+  /* 1桁→2桁に増えても位置が動かないよう、2 桁ぶん（約 23px）の最小幅を確保する。 */
+  min-width: 24px;
 }
 
 /* コインより控えめに。VP はコインほど頻繁には動かないので、
    小さくても勝敗の判断材料として十分読める（要望「VPが目立ちすぎる」）。
    並び順もいちばん左上に置き、コインと視覚的な主従を作る。 */
 .info-board-vp {
-  min-width: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--chrome-ink-dim);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  /* VP が 2 桁（14px の等幅数字 2 つ = 約 17px）になってもコインの位置が動かない幅。
+     余りは右側に出るので、数字と単位の間は空かない。 */
+  min-width: 54px;
+  flex: none;
+  transform-origin: 30% 50%;
+}
+
+.info-board-vp-star {
+  width: 15px;
+  height: 15px;
+  fill: #e8eef3;
+  stroke: rgb(0 0 0 / 0.55);
+  stroke-width: 2;
+  paint-order: stroke fill;
+}
+
+.info-board-vp-num {
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  -webkit-text-stroke: 2.5px rgb(0 0 0 / 0.5);
+  paint-order: stroke fill;
   font-variant-numeric: tabular-nums;
+}
+
+.info-board-vp-unit {
+  font-size: 10px;
+  font-weight: 800;
+  color: #dfe8ef;
+}
+
+/* 増減のポップ（+N / −N）。数字の真上から浮いて消える。 */
+.delta-pops {
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.delta-pop {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  translate: -50% 0;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  -webkit-text-stroke: 3.5px rgb(30 16 0 / 0.85);
+  paint-order: stroke fill;
+}
+
+.delta-pop.is-up {
+  color: #ffe45c;
+}
+
+.delta-pop.is-down {
+  color: #ff7d6b;
 }
 
 .info-board-right {
@@ -209,13 +318,33 @@
    横位置は元のまま右寄せ（.info-board-row と同じ右パディング分）。 */
 .info-board-right .coinbar-btn {
   position: absolute;
-  top: 50%;
-  right: var(--pad);
-  transform: translateY(-50%);
+  top: calc(50% - 22px);
+  right: 12px;
+  height: 42px;
+  min-height: 0;
+  padding: 0 14px;
+  font-size: 15px;
 }
 
-.info-board-right .coinbar-btn:active:not(:disabled) {
-  transform: translateY(calc(-50% + 1px));
+/* もう打てる手が無いときに脈打つ光（次の操作はこれ、という合図）。 */
+.coinbar-btn.is-hint::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 14px;
+  box-shadow: 0 0 0 2px #fff3a0, 0 0 16px 4px rgb(255 216 74 / 0.8);
+  pointer-events: none;
+  animation: end-hint 1.1s ease-in-out infinite;
+}
+
+@keyframes end-hint {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* 2 段目。相手なら行動ログ、自分なら次のターンの見込み。
@@ -243,8 +372,8 @@
 .cpu-log-line-old {
   font-size: 10px;
   line-height: 1.3;
-  color: var(--chrome-ink-dim);
-  opacity: 0.65;
+  color: #e3cfc5;
+  opacity: 0.8;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -289,43 +418,53 @@
   inset: 0;
 }
 
-.cpu-card-flash {
-  position: absolute;
-  left: 50%;
-  top: 100%;
-  transform: translateX(-50%);
-  margin-top: 6px;
-  z-index: 2;
-  pointer-events: none;
-  filter: drop-shadow(0 4px 10px rgb(0 0 0 / 0.55));
-}
-
-.cpu-card-flash-art {
-  display: block;
-  width: 58px;
-  aspect-ratio: 68 / 84;
-  object-fit: cover;
-  border-radius: 10px;
-  border: 2px solid var(--owner-cpu);
-}
-
-/* 盤面。幅を起点にして、高さは 3:4 から決める。
-   器より高くなる場合は max-height が高さを抑え、幅もそれに追従する。
-   height を指定すると aspect-ratio が高さ起点になり max-height が効かなくなるので、
-   height は書かない。
-   地の画像は画面全体の背景に移した（要望 4）ので、ここ自身は枠も背景も持たない
-   透明な領域にする。区画だけが背景の上に浮いて見える。 */
+/* ---- 盤面 ----
+   クラロワのバトル画面と同じ作り。一枚の広場（縁つき）の上を道が通り、
+   建物は台座（石の基壇）に建つ。所有者は台座・旗・道の色で出す。
+   色の出どころ（refs/image0.png を scripts/extract-ref-colors.mjs で実測）:
+     赤陣の道 #bd6449 / 青陣の道 #616472 / 赤陣の台座 #64322e / 青陣の台座 #3a3548
+     台座の前面の厚み 約 12〜14 CSS px（画面幅 393 に対して）/ 台座の幅 画面幅の 18.7%
+   青陣の道は彩度が低すぎて「自分の色」に読めないので、--owner-you 寄りに寄せた。 */
 .board {
+  /* 中立の道は半透明で重ね、地の石目を透かす（平たい帯にしない）。
+     透明度は線ごとではなく層（.road-edge / .road-fill）に掛ける。線ごとに掛けると
+     交差点だけ二重に濃くなる。 */
+  --road-edge: #463628;
+  --road: #76624e;
+  --road-you: #5b7aa6;
+  --road-cpu: #bd6449;
+
+  --base-top-1: #8f877b;
+  --base-top-2: #766d61;
+  --base-front-1: #4f463c;
+  --base-front-2: #37302a;
+
   position: relative;
-  width: 100%;
-  width: min(100%, 75cqh);
-  aspect-ratio: 3 / 4;
+  /* 幅を起点にして、高さは 2:3 から決める（地の素材 711×1067 と同じ比）。
+     器より高くなる場合は cqh 側が効いて幅が縮む。height は書かない
+     （書くと aspect-ratio が高さ起点になり max-height が効かなくなる）。
+     縁の厚み（下へ 6px）を器の中に収めるため、少しだけ引いておく。 */
+  width: min(100% - 4px, (100cqh - 10px) * 2 / 3);
+  aspect-ratio: 2 / 3;
   max-height: 100%;
   overflow: hidden;
+  /* 区画の z-index（下の段ほど手前）を盤面の中だけで完結させる。これが無いと
+     名札の層（100）が残りターンのバッジ（2）や案内（3）より手前に出る。 */
+  isolation: isolate;
+  /* 中の寸法（文字・影）は盤面の幅に比例させる（cqw）。背の低い画面で
+     盤面が縮んでも、名札どうしがぶつからない。 */
+  container-type: inline-size;
+  border-radius: 14px;
+  background-color: #b8a8a1;
+  background-size: cover;
+  background-position: center;
+  /* 広場の縁。外側は石の縁石とその厚み（下へ 6px）、その外に地面への落ち影。 */
+  box-shadow:
+    0 0 0 2px #3a3128,
+    0 6px 0 2px #2b241d,
+    0 10px 18px rgb(0 0 0 / 0.45);
 }
 
-/* cqh を解決できないブラウザ（iOS 16 未満の Safari など）では
-   上の min() ごと無効になるので、高さ起点で縮むようにしておく。 */
 @supports not (height: 1cqh) {
   .board {
     width: auto;
@@ -333,21 +472,88 @@
   }
 }
 
-/* 区画。中心を座標に合わせる。高さは幅と同じで、建物はここから上へ伸びる。 */
+/* 地を少し明るく持ち上げ、周りへ向かって落とす。広場の中央が日なたに見える。 */
+.board::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 75% 60% at 50% 48%, rgb(255 244 226 / 0.16), rgb(40 30 20 / 0.22) 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* 縁の内側。石の縁取りと、壁が地面に落とす影。建物より手前・名札より奥。 */
+.board::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 3px #85776a,
+    inset 0 0 0 4px rgb(0 0 0 / 0.35),
+    inset 0 14px 16px -10px rgb(0 0 0 / 0.5),
+    inset 0 -6px 12px -8px rgb(0 0 0 / 0.35);
+  pointer-events: none;
+  z-index: 90;
+}
+
+/* 道。縁（暗い線）→ 路面の 2 回描き。持ち主の区間はその上に重ねる。 */
+.board-roads {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.road-edge {
+  opacity: 0.3;
+}
+
+.road-fill {
+  opacity: 0.5;
+}
+
+.road-edge line {
+  stroke: var(--road-edge);
+  stroke-width: 5;
+}
+
+.road-fill line {
+  stroke: var(--road);
+  stroke-width: 4.2;
+}
+
+.road-owner {
+  stroke-width: 4.2;
+  transition: stroke 0.3s var(--ease, ease);
+}
+
+.road-owner.owner-you {
+  stroke: var(--road-you);
+}
+
+.road-owner.owner-cpu {
+  stroke: var(--road-cpu);
+}
+
+/* 区画。left/top/width/height は Board.tsx が % で渡す（transform は使わない。
+   使うと z-index による前後が区画の中に閉じてしまう）。中の配置は箱に対する %。
+   箱の縦: 0〜40% 建物の上半分 / 40〜81% 台座（上面 73%・前面 27%）/ 82.5%〜 バッジ */
 .plot {
   position: absolute;
-  transform: translate(-50%, -50%);
-  aspect-ratio: 1 / 1;
   min-width: 0;
   min-height: 0;
   padding: 0;
   border: none;
   background: none;
-  display: grid;
-  place-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.plot.is-blocked {
+.plot.is-blocked,
+.plot-labels.is-blocked {
   opacity: 0.4;
 }
 
@@ -355,14 +561,192 @@
    違って建物の絵はそのまま見えるので、沈めるだけでなく鎖マーク
    （.plot-chain-badge）も重ねて誤読を防ぐ。 */
 .plot.is-disabled .plot-art {
-  filter: grayscale(0.55) brightness(0.75);
+  filter: grayscale(0.55) brightness(0.75) drop-shadow(-0.9cqw 0.9cqw 0.6cqw rgb(0 0 0 / 0.4));
+}
+
+/* 台座。上面と前面を 1 枚のグラデーションで描き（73% で切り替え）、
+   外へ落ち影を出す（クラロワと同じく左下へ）。 */
+.plot-base {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 40%;
+  bottom: 19%;
+  border-radius: 1.3cqw 1.3cqw 0.9cqw 0.9cqw;
+  background: linear-gradient(
+    to bottom,
+    var(--base-top-1) 0%,
+    var(--base-top-2) 73%,
+    var(--base-front-1) 73%,
+    var(--base-front-2) 100%
+  );
+  box-shadow:
+    -1.6cqw 1.9cqw 2.2cqw rgb(0 0 0 / 0.4),
+    inset 0 0.35cqw 0 rgb(255 255 255 / 0.3);
+}
+
+/* 所有者の色。上に重ねて不透明度で出すので、建った瞬間に台座が染まる。 */
+.plot-base-tint {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.4s var(--ease, ease) 0.14s;
+}
+
+.plot-base.owner-you .plot-base-tint {
+  opacity: 1;
+  background: linear-gradient(to bottom, #557599 0%, #415d7f 73%, #283a57 73%, #1b273d 100%);
+  box-shadow:
+    inset 0 0 0 0.4cqw rgb(108 178 242 / 0.4),
+    inset 0 0.35cqw 0 rgb(255 255 255 / 0.3);
+}
+
+.plot-base.owner-cpu .plot-base-tint {
+  opacity: 1;
+  background: linear-gradient(to bottom, #94503f 0%, #763e31 73%, #4c231a 73%, #351811 100%);
+  box-shadow:
+    inset 0 0 0 0.4cqw rgb(255 160 110 / 0.35),
+    inset 0 0.35cqw 0 rgb(255 255 255 / 0.3);
+}
+
+/* 石の目地。上面は敷石、前面は積み石。染めた色の上にも乗せる。 */
+.plot-base::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(rgb(255 255 255 / 0.22), rgb(255 255 255 / 0.22)) left 73% / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 0.3) 0 1px, transparent 1px 3.4cqw) left bottom / 100% 27%
+      no-repeat,
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 0.1) 0 1px, transparent 1px 5.2cqw) left top / 100% 73% no-repeat,
+    repeating-linear-gradient(0deg, rgb(0 0 0 / 0.1) 0 1px, transparent 1px 3.6cqw) left top / 100% 73% no-repeat;
+  pointer-events: none;
+}
+
+/* 建物の足元の接地影。 */
+.plot-contact {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 50%;
+  height: 22%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.5), rgb(0 0 0 / 0));
+  pointer-events: none;
+}
+
+.plot-contact.is-unbuilt {
+  opacity: 0.5;
+}
+
+/* 建物の絵。足元（箱の下から 34%）を台座の上面の手前寄りに合わせ、上へ伸ばす。
+   幅と left は Board.tsx（素材ごとの scale × 100%）。 */
+.plot-art-wrap {
+  position: absolute;
+  bottom: 34%;
+  display: block;
+  pointer-events: none;
+}
+
+.plot-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  /* 建物自身が台座に落とす影。左下へ（台座の落ち影と同じ向き）。 */
+  filter: drop-shadow(-0.9cqw 0.9cqw 0.6cqw rgb(0 0 0 / 0.4));
+}
+
+/* 未建設。まだ誰のものでもないことを、色を少し抜くだけで伝える
+   （落としすぎると何の建物か分からなくなる）。 */
+.plot-art.is-unbuilt {
+  filter: saturate(0.55) brightness(0.9) drop-shadow(-0.9cqw 0.9cqw 0.6cqw rgb(0 0 0 / 0.3));
+  opacity: 0.88;
+}
+
+/* 着地の土埃。台座の上面の中央から外へ散る。 */
+.plot-dust {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.plot-dust-puff {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(240 228 206 / 0.95) 0%, rgb(214 196 168 / 0) 72%);
+}
+
+/* 所有者の旗。台座の上面の右手前の角に立てる。 */
+.plot-flag-wrap {
+  position: absolute;
+  right: 6%;
+  bottom: 29%;
+  width: 4.4cqw;
+  height: 7cqw;
+  transform-origin: 50% 100%;
+  pointer-events: none;
+}
+
+.plot-flag {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(-0.5cqw 0.5cqw 0.3cqw rgb(0 0 0 / 0.45));
+}
+
+.plot-flag-pole {
+  fill: #3b3128;
+}
+
+.plot-flag-cloth {
+  stroke: rgb(0 0 0 / 0.35);
+  stroke-width: 0.6;
+  transform-box: fill-box;
+  transform-origin: 0 50%;
+  animation: plot-flag-wave 1.8s ease-in-out infinite;
+}
+
+.plot-flag.owner-you .plot-flag-cloth {
+  fill: var(--owner-you-glow);
+}
+
+.plot-flag.owner-cpu .plot-flag-cloth {
+  fill: var(--owner-cpu-glow);
+}
+
+@keyframes plot-flag-wave {
+  0%,
+  100% {
+    transform: scaleX(1) skewY(0deg);
+  }
+  50% {
+    transform: scaleX(0.86) skewY(-5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plot-flag-cloth {
+    animation: none;
+  }
 }
 
 /* 封鎖者に押さえられた区画に重ねる鎖マーク。空き地（is-blocked）・
-   既存物件（is-disabled）どちらにも同じアイコンで出す。 */
+   既存物件（is-disabled）どちらにも同じアイコンで出す。台座の上に置く。 */
 .plot-chain-badge {
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: 20%;
+  bottom: 20%;
   display: grid;
   place-items: center;
   color: #fff;
@@ -370,8 +754,8 @@
 }
 
 .plot-chain-badge svg {
-  width: 28px;
-  height: 28px;
+  width: 9cqw;
+  height: 9cqw;
   filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.75));
 }
 
@@ -396,110 +780,83 @@
   opacity: 0.35;
 }
 
-/* 名前。常に出す（要望 5）。位置・大きさは状態で変えず、色だけ変える。
-   未建設は中立の白、所有者が付くとその色にする。 */
-.plot-name {
-  position: absolute;
-  left: 50%;
-  top: -4%;
-  transform: translate(-50%, -50%);
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: rgb(0 0 0 / 0.55);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
-  transition: color 0.25s var(--ease, ease);
-}
-
-.plot-name.owner-you {
-  color: var(--owner-you-glow, #6cb2f2);
-}
-
-.plot-name.owner-cpu {
-  color: var(--owner-cpu-glow, #ffa06e);
-}
-
-/* 建物の素材。最初から置き、足元を基準に上へ伸びる（要望 5）。
-   未建設は少し沈め、建つと所有者の色の光で周りを囲う。矩形自体は動かさず、
-   filter と drop-shadow の色だけで示す。 */
-.plot-art {
-  position: absolute;
-  left: 50%;
-  bottom: 18%;
-  transform: translateX(-50%);
-  pointer-events: none;
-  user-select: none;
-  -webkit-user-drag: none;
-  transition: filter 0.25s var(--ease, ease);
-}
-
-/* 未建設。所有者が付いていないことを表すために沈めるが、
-   落としすぎると素材が暗い塊になって何の建物か分からなくなる。
-   「まだ誰のものでもない」と伝わる最小限に留める。 */
-.plot-art.is-unbuilt {
-  filter: brightness(0.86) saturate(0.7);
-}
-
-.plot-art.owner-you {
-  filter: drop-shadow(0 0 6px var(--owner-you)) drop-shadow(0 0 6px var(--owner-you))
-    drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
-}
-
-.plot-art.owner-cpu {
-  filter: drop-shadow(0 0 6px var(--owner-cpu)) drop-shadow(0 0 6px var(--owner-cpu))
-    drop-shadow(0 2px 3px rgb(0 0 0 / 0.5));
-}
-
-/* CPU がいま建てた区画だけ、一瞬だけ光を足す（要望 7）。透明度だけを動かすので
-   矩形は動かない。常に同じ大きさの円をここに置いておける（未使用時は描画しない）。 */
+/* CPU がいま建てた区画だけ、台座の上に光の輪を一瞬出す（要望 7）。 */
 .plot-flash {
   position: absolute;
-  left: 50%;
-  bottom: 10%;
-  transform: translateX(-50%);
-  width: 100%;
-  aspect-ratio: 1 / 1;
+  left: 0;
+  right: 0;
+  top: 28%;
+  height: 50%;
   border-radius: 50%;
-  background: radial-gradient(circle, rgb(255 200 61 / 0.85) 0%, rgb(255 200 61 / 0) 68%);
+  background: radial-gradient(closest-side, rgb(255 214 90 / 0.9) 0%, rgb(255 200 61 / 0) 100%);
   pointer-events: none;
 }
 
-/* コストと VP。常に両方出す（要望 5）。建設費は所有者が付いても同じ値のまま
-   （買う前と後で情報を変えない）。左右に並べ、建設費と同じ位置に収める。 */
+/* 名前・コスト・VP の層。区画と同じ箱に重ね、建物より必ず手前（100）に出す。 */
+.plot-labels {
+  position: absolute;
+  z-index: 100;
+  pointer-events: none;
+}
+
+/* 名前。台座の前面に刻む（常に出す・要望 5）。前面が所有者の色に染まる。 */
+.plot-name {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 69.9%;
+  height: 11.1%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: max(9px, 3cqw);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  text-shadow:
+    0 1px 0 rgb(0 0 0 / 0.7),
+    0 0 3px rgb(0 0 0 / 0.5);
+}
+
+/* コストと VP。常に両方出す（要望 5）。台座のすぐ下に吊るす。 */
 .plot-badges {
   position: absolute;
   left: 50%;
-  bottom: -4%;
+  top: 83%;
   transform: translateX(-50%);
   display: flex;
-  gap: 3px;
+  gap: 0.9cqw;
 }
 
 .plot-cost {
-  min-width: 22px;
-  padding: 2px 5px;
-  border-radius: 10px;
+  min-width: 6.6cqw;
+  padding: 0.35cqw 1.5cqw;
+  border-radius: 3cqw;
   background: var(--coin);
   color: var(--coin-ink);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: max(9.5px, 3.2cqw);
+  font-weight: 700;
+  line-height: 1.2;
   text-align: center;
+  box-shadow: 0 0.5cqw 0 rgb(0 0 0 / 0.35);
 }
 
 /* VP。地を所有者の色にする（要望 5）。大聖堂だけ未建設のとき
    「1 件につき +2」の形（+N/件）に文字が変わる例外を持つ（Board.tsx 参照）。 */
 .plot-vp {
-  min-width: 30px;
-  padding: 2px 5px;
-  border-radius: 10px;
-  background: rgb(0 0 0 / 0.6);
+  min-width: 9cqw;
+  padding: 0.35cqw 1.5cqw;
+  border-radius: 3cqw;
+  background: rgb(20 16 12 / 0.72);
   color: #ffffff;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: max(9.5px, 3.2cqw);
+  font-weight: 700;
+  line-height: 1.2;
   white-space: nowrap;
   text-align: center;
+  box-shadow: 0 0.5cqw 0 rgb(0 0 0 / 0.35);
   transition: background-color 0.25s var(--ease, ease);
 }
 
@@ -516,7 +873,8 @@
 .coinbar-forecast {
   min-width: 0;
   font-size: 12px;
-  color: var(--chrome-ink-dim);
+  font-weight: 700;
+  color: #dfe8ef;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -530,26 +888,6 @@
   max-width: 150px;
 }
 
-.coinbar-btn {
-  min-height: 34px;
-  padding: 0 12px;
-  border: none;
-  border-radius: 8px;
-  background: var(--chrome-2);
-  color: var(--chrome-ink);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.coinbar-btn.is-primary {
-  background: var(--owner-you);
-  color: var(--owner-you-ink);
-}
-
-.coinbar-btn:disabled {
-  opacity: 0.35;
-}
-
 /* 手札。画面の最下段に固定する。 */
 .hand-row {
   display: flex;
@@ -561,7 +899,18 @@
      狭い画面ではカードが実測値の 68px を下回っていた（参考画面は 383/393）。 */
   margin-inline: calc(var(--pad) * -1);
   padding: 0 8px 14px;
-  background: var(--chrome-2);
+  background: linear-gradient(to bottom, #1d5a99 0%, #123d6e 55%, #0b2a52 100%);
+  box-shadow:
+    inset 0 2px 0 rgb(120 180 255 / 0.35),
+    inset 0 3px 0 rgb(0 0 0 / 0.25);
+}
+
+/* PvP で「あか」の手番のときは、手札のパネルも赤にする（実測 #a00e47 系）。 */
+.hand-row-cpu {
+  background: linear-gradient(to bottom, #93283f 0%, #6a1730 55%, #4a0d22 100%);
+  box-shadow:
+    inset 0 2px 0 rgb(255 150 170 / 0.3),
+    inset 0 3px 0 rgb(0 0 0 / 0.25);
 }
 
 /* メニューボタンと「次」を縦に積む列。幅をそろえて、メニューボタンが
@@ -579,15 +928,18 @@
    三本線だけ（要望 2）。押すとシートが開き、あきらめる／あそびかた／設定が並ぶ。 */
 .menu-btn {
   width: 38px;
-  height: 22px;
+  height: 24px;
   flex: none;
   display: grid;
   place-items: center;
   padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: var(--chrome);
-  color: var(--chrome-ink-dim);
+  border: 1.5px solid #0a1422;
+  border-radius: 7px;
+  background: linear-gradient(to bottom, #e9f2fb 0%, #c4d4e4 100%);
+  box-shadow:
+    inset 0 -2px 0 #8fa3b8,
+    0 2px 0 rgb(0 0 0 / 0.4);
+  color: #23384e;
   cursor: pointer;
   transition: transform 0.15s var(--ease, ease), opacity 0.15s var(--ease, ease);
 }
@@ -609,8 +961,11 @@
 }
 
 .next-label {
-  font-size: 10px;
-  color: var(--chrome-ink-dim);
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  -webkit-text-stroke: 2.5px rgb(0 0 0 / 0.55);
+  paint-order: stroke fill;
 }
 
 .next-card {
@@ -619,6 +974,8 @@
   width: 38px;
   height: 47px;
   border-radius: 6px;
+  border: 1.5px solid #0a1422;
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.4);
   background: var(--chrome);
   display: grid;
   place-content: center;
@@ -677,25 +1034,59 @@
   position: absolute;
   inset: 0;
   padding: 0;
-  border: 2px solid var(--card-edge);
-  border-radius: 8px;
+  /* 枠は濃い輪郭 2px（クラロワの札と同じ）。中の明るい縁は box-shadow で描く。
+     選択中も枠の太さは変えず、色と外側の光だけを変える（寸法が動かない）。 */
+  border: 2px solid #0b1520;
+  border-radius: 9px;
   background: var(--card-face);
   color: var(--chrome-ink);
   font-size: 11px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.28),
+    0 3px 0 rgb(0 0 0 / 0.45);
+  transition:
+    border-color 0.15s var(--ease),
+    box-shadow 0.15s var(--ease),
+    filter 0.2s var(--ease);
+}
+
+/* 選んでいる札。枠の色は実測の金（#cea500）。 */
+.card.is-selected {
+  border-color: #cea500;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 240 170 / 0.6),
+    0 0 0 2px #ffd84a,
+    0 0 16px 3px rgb(255 216 74 / 0.65),
+    0 6px 10px rgb(0 0 0 / 0.45);
+  z-index: 2;
 }
 
 /* 「使えない」の表現。絵の有無にかかわらず同じ 2 段構え：
    暗くするだけでは絵のある札で差が付きにくいので、彩度も落とす。
    opacity/filter/transform だけを使い、寸法には触れない（CLAUDE.md）。 */
 .card.is-dim {
-  opacity: 0.45;
-  filter: saturate(0.35);
+  filter: grayscale(0.85) brightness(0.6);
 }
 
 /* 買収者に縛られて今ターン使えないカード。「使えない」全般（is-dim）と
    区別できるよう、絵をグレースケールにした上で鎖マークを重ねる。 */
 .card.is-bound .card-art {
   filter: grayscale(0.6) brightness(0.7);
+}
+
+/* 縛られた札には斜めの影の縞を掛けて「封じられている」ことを面で見せる。 */
+.card.is-bound .card-body::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgb(20 0 8 / 0.42) 0 6px,
+    rgb(20 0 8 / 0.12) 6px 12px
+  );
+  pointer-events: none;
 }
 
 .card-chain-badge {
@@ -709,9 +1100,14 @@
 }
 
 .card-chain-badge svg {
-  width: 22px;
-  height: 22px;
-  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.75));
+  width: 30px;
+  height: 30px;
+  padding: 5px;
+  border-radius: 50%;
+  background: #5a0f1c;
+  border: 2px solid #ff8a7a;
+  box-sizing: border-box;
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.5);
 }
 
 /* 絵と名前を収める内側の層。コストバッジ（.card-cost、下端で少しはみ出す）は
@@ -754,24 +1150,44 @@
   padding: 3px 3px 15px;
   background: linear-gradient(to top, rgb(0 0 0 / 0.82) 40%, rgb(0 0 0 / 0));
   font-size: 10px;
+  font-weight: 800;
   line-height: 1.15;
+  color: #fff;
+  -webkit-text-stroke: 2.5px rgb(0 0 0 / 0.7);
+  paint-order: stroke fill;
 }
 
-/* コストはカード下端に重なる丸バッジ。実測どおり直径 19。 */
+/* コストはカード下端に重なる金貨の宝石。参考画面のエリクサーの雫（直径 19、
+   白い数字に濃い縁取り）に合わせ、雫の代わりに金貨の宝石で描く。
+   読みやすさを優先して直径は実測より 4px 大きい 23px。 */
 .card-cost {
   position: absolute;
   left: 50%;
-  bottom: -9px;
-  transform: translateX(-50%);
-  width: 19px;
-  height: 19px;
+  bottom: -11px;
+  translate: -50% 0;
+  width: 23px;
+  height: 23px;
   border-radius: 50%;
-  background: var(--coin);
-  color: var(--coin-ink);
-  font-size: 11px;
-  font-weight: 700;
+  border: 1.5px solid #3a2200;
+  box-sizing: border-box;
+  background: radial-gradient(circle at 34% 28%, #fff8c8 0 10%, #ffd94a 32%, #f0a400 70%, #b06800 100%);
+  box-shadow:
+    inset 0 -2px 0 rgb(120 60 0 / 0.55),
+    inset 0 1px 0 rgb(255 255 255 / 0.6),
+    0 2px 0 rgb(0 0 0 / 0.5);
   display: grid;
   place-items: center;
+  z-index: 1;
+}
+
+.card-cost-num {
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  -webkit-text-stroke: 3px #3a2200;
+  paint-order: stroke fill;
+  font-variant-numeric: tabular-nums;
 }
 
 /* カード詳細シートの絵。手札のカードと同じ比率（68:84）で大きめに見せる。 */
@@ -829,32 +1245,9 @@
   font-size: 15px;
 }
 
-/* 立体感。影と縁取りだけで出す。要素の寸法は 1px も変えない。 */
-.coinbar-btn {
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.22),
-    0 2px 0 rgb(0 0 0 / 0.35);
-}
-
-.coinbar-btn:active:not(:disabled) {
-  transform: translateY(1px);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
-}
-
-.card {
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.18),
-    0 2px 0 rgb(0 0 0 / 0.3);
-}
-
-.card:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
 /* 盤面の上に乗る数字は、縁取りで読ませる。 */
 .plot-cost,
-.plot-vp,
-.card-cost {
+.plot-vp {
   -webkit-text-stroke: 2px rgb(0 0 0 / 0.45);
   paint-order: stroke fill;
 }
@@ -997,132 +1390,6 @@
 
 .app.app-home > .dev-pill {
   z-index: 1;
-}
-
-/* タイトル。素材が無いので文字組みで作る。写真の上でも必ず読めるよう、
-   濃い影を二重に落とす（縁取りだけだと明るい石の上で滲んで見えた）。 */
-.home-title {
-  margin: 0;
-  font-size: 32px;
-  font-weight: 800;
-  letter-spacing: -0.01em; /* 「字間を少し詰める」の指示どおり、既定より詰める */
-  color: #fff;
-  white-space: nowrap;
-  text-shadow:
-    0 1px 2px rgb(0 0 0 / 0.9),
-    0 4px 10px rgb(0 0 0 / 0.55);
-}
-
-.home-sub {
-  margin: 7px 0 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: rgb(232 238 243 / 0.8);
-  text-shadow: 0 1px 4px rgb(0 0 0 / 0.7);
-}
-
-.home-buttons {
-  margin-top: 30px;
-  display: grid;
-  gap: 12px;
-  width: 100%;
-}
-
-/* 難易度ボタン。ここがいちばん押される場所なので大きく、縦に並べる。
-   primary（前回遊んだ難易度）は色と影だけで強調し、border・padding は
-   状態に関わらず一切変えない（寸法が 1px も動かないようにするため）。 */
-.home-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  width: 100%;
-  border: 0;
-  border-radius: 18px;
-  padding: 14px 20px 12px;
-  font: inherit;
-  /* 明るい地の色のままだと、石畳の背景の上でもプレイ画面の色域からも浮く。
-     相手の帯と同じ「透かした暗幕」に揃える。 */
-  color: var(--chrome-ink);
-  background: rgb(22 32 41 / 0.82);
-  backdrop-filter: blur(2px);
-  box-shadow:
-    0 2px 0 rgb(0 0 0 / 0.3),
-    0 8px 18px rgb(0 0 0 / 0.35);
-  cursor: pointer;
-  transition:
-    transform 0.15s var(--ease),
-    background-color 0.15s var(--ease),
-    color 0.15s var(--ease),
-    box-shadow 0.15s var(--ease);
-}
-
-.home-btn:active {
-  transform: scale(0.97);
-}
-
-.home-btn-label {
-  font-size: 19px;
-  font-weight: 800;
-}
-
-.home-btn-desc {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--chrome-ink-dim);
-}
-
-/* 強調は色と外側の光暈（box-shadow）だけ。border-color の変化にすると
-   ボタンの矩形が動くことがある実装があるため、あえて使わない。
-   padding は base の .home-btn と同じ値をここでも明示する。
-   shared-ui 側に .home-btn.primary { padding: 14px 24px } が残っていて
-   （クラス 2 つ分、こちらの base 指定より詳細度が高い）、ここで上書きしないと
-   primary のときだけ矩形が 2px 変わってしまう。 */
-.home-btn.primary {
-  padding: 14px 20px 12px;
-  color: var(--accent-ink);
-  background: var(--accent);
-  box-shadow:
-    0 0 0 3px rgb(255 255 255 / 0.5),
-    0 2px 0 rgb(0 0 0 / 0.2),
-    0 10px 22px rgb(51 33 87 / 0.55);
-}
-
-.home-btn.primary .home-btn-desc {
-  color: rgb(255 255 255 / 0.82);
-}
-
-/* 戦績。1 試合もしていないときは別の文言（home-progress-empty）にする。
-   勝ち負けの数字は等幅にして、桁が増えても位置が動かないようにする。 */
-.home-progress {
-  margin: 22px 0 0;
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  padding: 6px 16px;
-  border-radius: 999px;
-  background: rgb(0 0 0 / 0.3);
-  font-size: 13px;
-  font-weight: 700;
-  color: rgb(232 238 243 / 0.85);
-}
-
-.home-progress-num {
-  font-variant-numeric: tabular-nums;
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.home-progress-win {
-  color: #7fe0a0;
-}
-
-.home-progress-lose {
-  color: #ff9a8c;
-}
-
-.home-progress-empty {
-  color: rgb(232 238 243 / 0.75);
 }
 
 /* ---- 開発者メニューのピル ----

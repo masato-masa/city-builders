@@ -2,6 +2,7 @@ import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { activeOwnedSlots, ownedSlots, scoreOf } from '@/game/selectors';
 import type { GameState, PlayerId } from '@/game/types';
 
+import { hapticTap } from './haptics';
 import { InfoBoard } from './InfoBoard';
 
 /** 次のターン開始時に入る見込み額。遅延収入のゲームなので、これが無いと判断できない。
@@ -47,6 +48,8 @@ export function CoinBar({
   viewer = 'you',
   onEndTurn,
   endTurnEnabled,
+  active = false,
+  endTurnHint = false,
 }: {
   state: GameState;
   balance?: Balance;
@@ -54,6 +57,10 @@ export function CoinBar({
   viewer?: PlayerId;
   onEndTurn: () => void;
   endTurnEnabled: boolean;
+  /** いまこの側の手番か（ボードの縁を光らせる）。 */
+  active?: boolean;
+  /** もう打てる手が無いとき true。終了ボタンを脈打たせて次の操作を示す。 */
+  endTurnHint?: boolean;
 }) {
   // マイナスのときは数値自身の '-' がそのまま出るので、プラスのときだけ '+' を足す。
   // 固定で '+' を付けると高利貸の借りが上回ったときに符号が嘘をつく（要望 C）。
@@ -63,9 +70,17 @@ export function CoinBar({
       owner={viewer}
       coins={state.players[viewer].coins}
       vp={scoreOf(state, viewer, balance)}
+      active={active}
       right={
-        <button className="coinbar-btn is-primary" onClick={onEndTurn} disabled={!endTurnEnabled}>
-          終了
+        <button
+          className={`coinbar-btn btn3d btn3d-yellow${endTurnHint && endTurnEnabled ? ' is-hint' : ''}`}
+          onClick={() => {
+            hapticTap();
+            onEndTurn();
+          }}
+          disabled={!endTurnEnabled}
+        >
+          <span className="btn3d-label">ターン終了</span>
         </button>
       }
       sub={

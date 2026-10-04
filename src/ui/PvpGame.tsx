@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   BUILDING_NAMES,
@@ -9,17 +9,19 @@ import {
   DEFAULT_BALANCE,
   type Balance,
 } from '@/game/balance';
-import { buildCostFor, canBuild, canUseCard, canUseRoad, reduce } from '@/game/reducer';
-import { opponentOf, roadUsesRemaining, scoreOf, winnerOf } from '@/game/selectors';
+import { buildCostFor, canBuild, canUseCard, canUseRoad, cardCostFor, reduce } from '@/game/reducer';
+import { handSlotsOf, opponentOf, ownedSlots, roadUsesRemaining, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 
 import { CARD_ART, FIELD_URL } from './art';
 import { Board } from './Board';
 import { CoinBar, forecast } from './CoinBar';
-import { hapticBuild, hapticReject, hapticUseCard, hapticWin } from './haptics';
+import { CardFlightLayer, TurnBanner, useCardFlights, useTurnBanner } from './Fx';
+import { hapticBuild, hapticReject, hapticTap, hapticUseCard, hapticWin, hapticYourTurn } from './haptics';
 import { Hand } from './Hand';
 import { InfoBoard } from './InfoBoard';
+import { ResultScreen } from './ResultScreen';
 import { Sheet } from './Sheets';
 import { TargetBanner } from './TargetBanner';
 import { TurnBadge } from './TurnBadge';
@@ -31,13 +33,13 @@ import {
 } from './settings';
 import {
   playBuild,
-  playCoinGain,
-  playDebtSink,
   playEndTurn,
   playReject,
   playSelect,
+  playUiTap,
   playUseCard,
   playWin,
+  playYourTurn,
 } from './sound';
 
 type Pending =
@@ -82,6 +84,31 @@ export function PvpGame({
   const waiting = opponentOf(active);
   const waitingIncome = forecast(state, waiting, balance);
 
+  // 結果画面は、最後の 1 手（建物の着地・数字の弾み）を見せてから出す。
+  const [resultReady, setResultReady] = useState(false);
+  useEffect(() => {
+    if (!finished) return;
+    const t = window.setTimeout(() => setResultReady(true), 900);
+    return () => window.clearTimeout(t);
+  }, [finished]);
+
+  const boardAreaRef = useRef<HTMLDivElement>(null);
+  const { flights, fly } = useCardFlights();
+  /** 手札の札の絵を盤面の中央へ飛ばす（使った手応え）。札が手札から消える前に呼ぶ。 */
+  const flyCard = (card: CardId) =>
+    fly(document.querySelector(`.hand [data-card="${card}"]`), CARD_ART[card], boardAreaRef.current);
+
+  // 手番が替わるたびに盤面を横切る帯を出す（ゲーム開始の 1 回目も）。
+  const [banner, clearBanner] = useTurnBanner(`${state.phase}:${state.current}:${state.turn}`, () =>
+    state.phase !== 'playing'
+      ? null
+      : {
+          tone: state.current,
+          label: state.current === 'you' ? 'あおのターン' : 'あかのターン',
+          sub: `のこり ${turnsRemaining(state, balance)} ターン`,
+        },
+  );
+
   useEffect(() => {
     if (!swapping) return;
     const timer = window.setTimeout(() => setSwapping(false), SWAP_DURATION_MS);
@@ -101,6 +128,7 @@ export function PvpGame({
     if (card === 'blockader') return setSheet({ kind: 'blockadeTarget' });
     playUseCard(card);
     hapticUseCard();
+    flyCard(card);
     setState(reduce(state, { type: 'useCard', card }, balance));
   };
 
@@ -117,8 +145,9 @@ export function PvpGame({
     const before = afterEnd.players[afterEnd.current].coins;
     const afterStart = reduce(afterEnd, { type: 'startTurn' }, balance);
     const delta = afterStart.players[afterStart.current].coins - before;
-    if (delta > 0) playCoinGain(delta);
-    else if (delta < 0) playDebtSink();
+    // 手番交代の合図の鐘と、次の手番側の収入の音をまとめて鳴らす。
+    playYourTurn(delta);
+    hapticYourTurn();
     setSwapping(true);
     setState(afterStart);
   };
@@ -127,11 +156,13 @@ export function PvpGame({
     const next = !soundOn;
     setSoundOn(next);
     setSoundEnabled(next);
+    playUiTap();
   };
   const toggleHaptics = () => {
     const next = !hapticsOn;
     setHapticsOn(next);
     setHapticsEnabled(next);
+    playUiTap();
   };
 
   return (
@@ -160,7 +191,7 @@ export function PvpGame({
               </motion.div>
             </AnimatePresence>
           </div>
-          <div className="board-area">
+          <div className="board-area" ref={boardAreaRef}>
             <Board
               state={state}
               balance={balance}
@@ -179,6 +210,7 @@ export function PvpGame({
                   }
                   playUseCard('blockader');
                   hapticUseCard();
+                  flyCard('blockader');
                   setState(
                     reduce(state, { type: 'useCard', card: 'blockader', blockadeSlot: slotId }, balance),
                   );
@@ -191,11 +223,13 @@ export function PvpGame({
                   hapticReject();
                 } else {
                   playSelect();
+                  hapticTap();
                 }
                 setSheet({ kind: 'slot', slotId });
               }}
             />
             <TurnBadge state={state} balance={balance} />
+            <TurnBanner banner={banner} onDone={clearBanner} />
             {/* 対象選択中の案内はここ（盤面コンテナ）基準で上端中央に置く（要望
                 G3）。伝令は手札が対象だが、案内を手札のすぐ上に出すと自分の
                 コインバーと重なるため、封鎖者と同じ場所にまとめる。実際にどこを
@@ -228,6 +262,11 @@ export function PvpGame({
                   viewer={active}
                   onEndTurn={endTurn}
                   endTurnEnabled={!finished && !swapping}
+                  active={!finished}
+                  endTurnHint={
+                    !handSlotsOf(state, active).some((c) => c !== null && canUseCard(state, c, balance)) &&
+                    !state.market.some((m) => canBuild(state, m.slotId, balance))
+                  }
                 />
                 <Hand
                   state={state}
@@ -235,6 +274,7 @@ export function PvpGame({
                   viewer={active}
                   canUse={(card) => !swapping && canUseCard(state, card, balance)}
                   targeting={sheet?.kind === 'heraldTarget'}
+                  selected={sheet?.kind === 'card' ? sheet.card : null}
                   onPick={(card) => {
                     if (swapping) return;
                     if (sheet?.kind === 'heraldTarget') {
@@ -245,6 +285,7 @@ export function PvpGame({
                       }
                       playUseCard('herald');
                       hapticUseCard();
+                      flyCard('herald');
                       setState(
                         reduce(state, { type: 'useCard', card: 'herald', heraldTarget: card }, balance),
                       );
@@ -253,6 +294,7 @@ export function PvpGame({
                     }
                     if (canUseCard(state, card, balance)) {
                       playSelect();
+                      hapticTap();
                     } else {
                       playReject();
                       hapticReject();
@@ -261,7 +303,7 @@ export function PvpGame({
                   }}
                   onMenu={() => {
                     if (swapping) return;
-                    playSelect();
+                    playUiTap();
                     setSheet({ kind: 'menu' });
                   }}
                 />
@@ -295,7 +337,7 @@ export function PvpGame({
                     </p>
                   ) : null}
                   <button
-                    className="home-btn primary"
+                    className="btn3d btn3d-yellow"
                     disabled={!canBuild(state, sheet.slotId, balance)}
                     onClick={() => {
                       playBuild();
@@ -304,7 +346,14 @@ export function PvpGame({
                       setSheet(null);
                     }}
                   >
-                    建てる
+                    {/* 押せない理由をボタンの上で言う（灰色のボタンだけでは何が足りないか分からない）。 */}
+                    {slot.owner !== null
+                      ? '建設済み'
+                      : state.players[active].blockedSlot === sheet.slotId
+                        ? '封鎖中'
+                        : canBuild(state, sheet.slotId, balance) || state.current !== active
+                          ? '建てる'
+                          : `あと ${buildCostFor(state, active, sheet.slotId, balance) - state.players[active].coins} コイン`}
                   </button>
                 </Sheet>
               );
@@ -341,7 +390,7 @@ export function PvpGame({
               <span className="road-btn-sub">街道・あと {roadUsesRemaining(state, active, balance)} 回</span>
             </button>
             <button
-              className="home-btn primary"
+              className="btn3d btn3d-yellow"
               disabled={!canUseCard(state, sheet.card, balance)}
               onClick={() => {
                 const card = sheet.card;
@@ -349,7 +398,13 @@ export function PvpGame({
                 useCard(card);
               }}
             >
-              使う
+              {!canUseCard(state, sheet.card, balance) && state.players[active].boundCards.includes(sheet.card)
+                ? '買収者に縛られている'
+                : canUseCard(state, sheet.card, balance) ||
+              state.current !== active ||
+              state.players[active].coins >= cardCostFor(state, active, sheet.card, balance)
+                ? '使う'
+                : `あと ${cardCostFor(state, active, sheet.card, balance) - state.players[active].coins} コイン`}
             </button>
           </Sheet>
         ) : null}
@@ -358,13 +413,13 @@ export function PvpGame({
       <AnimatePresence>
         {sheet?.kind === 'menu' ? (
           <Sheet key="menu" title="メニュー" onClose={() => setSheet(null)}>
-            <button className="sheet-row danger" onClick={() => setSheet({ kind: 'confirmExit' })}>
+            <button className="sheet-row danger" onClick={() => { playUiTap(); setSheet({ kind: 'confirmExit' }); }}>
               あきらめる
             </button>
-            <button className="sheet-row" onClick={() => setSheet({ kind: 'help' })}>
+            <button className="sheet-row" onClick={() => { playUiTap(); setSheet({ kind: 'help' }); }}>
               あそびかた
             </button>
-            <button className="sheet-row" onClick={() => setSheet({ kind: 'settings' })}>
+            <button className="sheet-row" onClick={() => { playUiTap(); setSheet({ kind: 'settings' }); }}>
               設定
             </button>
           </Sheet>
@@ -375,10 +430,10 @@ export function PvpGame({
         {sheet?.kind === 'confirmExit' ? (
           <Sheet key="confirmExit" title="あきらめますか？" onClose={() => setSheet({ kind: 'menu' })}>
             <p className="sheet-text">ここまでの進行はきろくに残りません。</p>
-            <button className="home-btn primary" onClick={onExit}>
+            <button className="btn3d btn3d-red" onClick={onExit}>
               あきらめる
             </button>
-            <button className="sheet-link" onClick={() => setSheet({ kind: 'menu' })}>
+            <button className="sheet-link" onClick={() => { playUiTap(); setSheet({ kind: 'menu' }); }}>
               もどる
             </button>
           </Sheet>
@@ -439,28 +494,36 @@ export function PvpGame({
       </AnimatePresence>
 
       <AnimatePresence>
-        {finished ? (
-          <Sheet
-            key="finished"
-            title={
-              winnerOf(state, balance) === 'you'
-                ? 'あおの勝ち'
-                : winnerOf(state, balance) === 'cpu'
-                  ? 'あかの勝ち'
-                  : '引き分け'
-            }
-            subtitle={`あお ${scoreOf(state, 'you', balance)} VP 対 あか ${scoreOf(state, 'cpu', balance)} VP`}
-            onClose={onExit}
-          >
-            <button className="home-btn primary" onClick={onRestart}>
-              もう一度
-            </button>
-            <button className="home-btn" onClick={onExit}>
-              ホームへ
-            </button>
-          </Sheet>
-        ) : null}
+        {finished && resultReady
+          ? (() => {
+              const w = winnerOf(state, balance);
+              return (
+                <ResultScreen
+                  key="result"
+                  title={w === 'you' ? 'あおの勝ち！' : w === 'cpu' ? 'あかの勝ち！' : '引き分け'}
+                  tone={w === null ? 'draw' : 'win'}
+                  top={{
+                    name: 'あか',
+                    tone: 'cpu',
+                    vp: scoreOf(state, 'cpu', balance),
+                    buildings: ownedSlots(state, 'cpu').length,
+                  }}
+                  bottom={{
+                    name: 'あお',
+                    tone: 'you',
+                    vp: scoreOf(state, 'you', balance),
+                    buildings: ownedSlots(state, 'you').length,
+                  }}
+                  winner={w === 'you' ? 'bottom' : w === 'cpu' ? 'top' : null}
+                  onRestart={onRestart}
+                  onExit={onExit}
+                />
+              );
+            })()
+          : null}
       </AnimatePresence>
+
+      <CardFlightLayer flights={flights} />
     </div>
   );
 }

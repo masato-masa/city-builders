@@ -21,7 +21,7 @@ import blockaderUrl from '@/assets/art/cards/blockader.webp';
 import usurerUrl from '@/assets/art/cards/usurer.webp';
 import coinUrl from '@/assets/art/ui/coin.webp';
 
-/** 盤面の地。縦横比 1:1.5 なので、3:4 の枠に object-fit: cover で収める。 */
+/** 盤面の地。縦横比 2:3（711×1067）。盤面（.board、2:3）に cover で敷くので切れない。画面全体の背景にも使う。 */
 export const FIELD_URL: string = fieldUrl;
 
 /** 情報ボードのコインバッジに敷く、コインそのものの絵（要望「コイン背景は画像で」）。 */

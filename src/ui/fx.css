@@ -1,0 +1,784 @@
+/* 立体ボタン・ホーム・手番の帯・CPU の 1 手・カードの飛翔・結果画面。
+   styles.css の後に読み込む（App.tsx）。寸法を変える指定は持たず、
+   動きは transform / opacity / box-shadow / filter だけで出す。 */
+
+/* ======================================================================
+   立体ボタン（btn3d）
+   参考画面の実測（refs/image3.png「バトル開始」・refs/image5.png「OK」）:
+     黄: 上の照り #ffe055 → 面 #ffa600 → 下半 #fda000 / 下の厚み #bb6300（約 4px）/ 輪郭 #232323
+     青: 上の照り #68bbff → 面 #4aacff → 下半 #2382fe / 下の厚み #025aad（約 2px）/ 輪郭 #222528
+   厚みは inset の影で描き、押すと transform で 2px 沈めて厚みを薄くする。
+   寸法（width/height/padding/border）は押下でも一切変えない。
+   ====================================================================== */
+.btn3d {
+  --face-hi: #68bbff;
+  --face-1: #4aacff;
+  --face-2: #2382fe;
+  --ledge: #025aad;
+  --ink-stroke: #0a2a52;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 0 18px;
+  border: 2px solid #1c1f24;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  -webkit-text-stroke: 3.5px var(--ink-stroke);
+  paint-order: stroke fill;
+  text-shadow: 0 2px 0 rgb(0 0 0 / 0.35);
+  background: linear-gradient(
+    to bottom,
+    var(--face-hi) 0%,
+    var(--face-1) 14%,
+    var(--face-1) 52%,
+    var(--face-2) 53%,
+    var(--face-2) 100%
+  );
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.5),
+    inset 0 -4px 0 var(--ledge),
+    0 3px 0 rgb(0 0 0 / 0.5),
+    0 6px 12px rgb(0 0 0 / 0.25);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition:
+    transform 0.07s var(--ease),
+    box-shadow 0.07s var(--ease),
+    filter 0.12s var(--ease);
+}
+
+.btn3d:active:not(:disabled) {
+  transform: translateY(2px);
+  filter: brightness(0.94);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.4),
+    inset 0 -2px 0 var(--ledge),
+    0 1px 0 rgb(0 0 0 / 0.5),
+    0 2px 6px rgb(0 0 0 / 0.2);
+}
+
+.btn3d:disabled {
+  --face-hi: #b9c0c8;
+  --face-1: #9aa3ad;
+  --face-2: #858e99;
+  --ledge: #5b636d;
+  --ink-stroke: #3a4048;
+  color: #e6eaee;
+  cursor: default;
+}
+
+.btn3d-yellow {
+  --face-hi: #ffe055;
+  --face-1: #ffb300;
+  --face-2: #fd9c00;
+  --ledge: #bb6300;
+  --ink-stroke: #4a2600;
+}
+
+.btn3d-red {
+  --face-hi: #ff8a9a;
+  --face-1: #f2475f;
+  --face-2: #d92a47;
+  --ledge: #8c0d33;
+  --ink-stroke: #4a0018;
+}
+
+.btn3d-lg {
+  min-height: 58px;
+  font-size: 21px;
+  border-radius: 14px;
+}
+
+/* シートの中の主ボタン（建てる・使う）は横いっぱい。 */
+.sheet .btn3d {
+  width: 100%;
+  flex: none;
+}
+
+.btn3d-label {
+  line-height: 1.1;
+}
+
+/* ======================================================================
+   ホーム
+   ====================================================================== */
+.app.app-home {
+  position: relative;
+  overflow: hidden;
+  background-color: #b8a8a1; /* field の平均色。読み込みまでの一瞬だけ見える */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* 石畳を沈める暗幕。周辺ほど濃く（周辺減光）して、中央に視線を集める。 */
+.app.app-home::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 42%, rgb(var(--chrome-2-rgb) / 0.35) 0%, rgb(var(--chrome-2-rgb) / 0.9) 100%),
+    linear-gradient(to bottom, rgb(var(--chrome-2-rgb) / 0.55), rgb(var(--chrome-2-rgb) / 0.2) 40%, rgb(var(--chrome-2-rgb) / 0.75));
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ロゴの後ろから差す光。暖色の光だまり + ゆっくり回る光条。装飾のみ。 */
+.home-light {
+  position: fixed;
+  left: 50%;
+  top: 24%;
+  width: 760px;
+  height: 760px;
+  margin: -380px 0 0 -380px;
+  background: repeating-conic-gradient(from 0deg, rgb(255 226 150 / 0.075) 0deg 9deg, rgb(255 226 150 / 0) 9deg 22deg);
+  -webkit-mask-image: radial-gradient(circle, #000 0%, rgb(0 0 0 / 0.6) 25%, transparent 62%);
+  mask-image: radial-gradient(circle, #000 0%, rgb(0 0 0 / 0.6) 25%, transparent 62%);
+  pointer-events: none;
+  z-index: 0;
+  animation: home-rays 60s linear infinite;
+}
+
+.home-light::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgb(255 214 120 / 0.3) 0%, rgb(255 214 120 / 0) 32%);
+}
+
+@keyframes home-rays {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.app.app-home > .home {
+  position: relative;
+  z-index: 1;
+}
+
+.app.app-home > .dev-pill {
+  z-index: 1;
+}
+
+.home-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.home-emblem {
+  width: 96px;
+  height: 106px;
+  filter: drop-shadow(0 6px 0 rgb(0 0 0 / 0.35)) drop-shadow(0 10px 18px rgb(0 0 0 / 0.5));
+  animation: home-float 3.2s ease-in-out infinite;
+}
+
+@keyframes home-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* タイトル。金のグラデーションの文字の後ろに、同じ文字を太い縁取り＋厚み（下へ 5px）で
+   重ねる（data-text の擬似要素）。background-clip: text と縁取りは同じ要素で両立しないため。 */
+.home-title {
+  margin: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  isolation: isolate;
+  white-space: nowrap;
+}
+
+.home-title-small,
+.home-title-big {
+  position: relative;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  background: linear-gradient(to bottom, #fffbe0 0%, #ffe066 40%, #ffb300 70%, #f08a00 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.home-title-small {
+  font-size: 22px;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;
+  background: linear-gradient(to bottom, #ffffff 0%, #dff0ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.home-title-big {
+  margin-top: 2px;
+  font-size: 46px;
+}
+
+.home-title-small::before,
+.home-title-big::before {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  color: #2a1600;
+  -webkit-text-stroke: 9px #2a1600;
+  text-shadow:
+    0 5px 0 #2a1600,
+    0 10px 18px rgb(0 0 0 / 0.6);
+}
+
+.home-title-small::before {
+  color: #0b2347;
+  -webkit-text-stroke: 7px #0b2347;
+  text-shadow: 0 3px 0 #0b2347;
+}
+
+.home-sub {
+  margin: 12px 0 0;
+  padding: 5px 16px;
+  border-radius: 999px;
+  background: rgb(8 16 28 / 0.6);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+  font-size: 13px;
+  font-weight: 700;
+  color: #e8eef3;
+  letter-spacing: 0.04em;
+}
+
+.home-buttons {
+  margin-top: 26px;
+  display: grid;
+  gap: 13px;
+  width: 100%;
+}
+
+/* モードのボタン。左に剣（強さ）、右に名前と説明。高さは全ボタン同じ。 */
+.home-mode {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  align-items: center;
+  justify-content: stretch;
+  gap: 4px;
+  min-height: 64px;
+  padding: 0 16px 2px 8px;
+  text-align: left;
+}
+
+.home-mode-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.home-mode-sword {
+  width: 22px;
+  height: 22px;
+  margin-left: -9px;
+  filter: drop-shadow(0 2px 0 rgb(0 0 0 / 0.35));
+}
+
+.home-mode-sword:first-child {
+  margin-left: 0;
+}
+
+.home-mode-vs {
+  width: 30px;
+  height: 30px;
+  filter: drop-shadow(0 2px 0 rgb(0 0 0 / 0.35));
+}
+
+.home-mode-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-right: 44px; /* 左のアイコン列と釣り合わせ、文字を中央に見せる */
+}
+
+.home-mode-label {
+  font-size: 21px;
+}
+
+.home-mode-desc {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #ffffff;
+  /* 青・赤の面（#2382fe / #d92a47）の上では白だけだと 3.3〜4.2:1 なので、細い縁取りで底上げする。 */
+  -webkit-text-stroke: 2.5px rgb(8 34 70 / 0.55);
+  paint-order: stroke fill;
+  text-shadow: none;
+  letter-spacing: 0.02em;
+}
+
+.btn3d-yellow .home-mode-desc {
+  color: #5a2e00;
+  -webkit-text-stroke: 0;
+}
+
+.btn3d-red .home-mode-desc {
+  -webkit-text-stroke-color: rgb(74 0 24 / 0.55);
+}
+
+/* 前回遊んだ難易度の札。通知バッジの赤（実測 #e8304a 系）。 */
+.home-mode-tag {
+  position: absolute;
+  top: -9px;
+  right: 10px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1.5px solid #1c1f24;
+  background: linear-gradient(to bottom, #ff6274, #e0233e);
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.4);
+  font-size: 10px;
+  font-weight: 900;
+  color: #fff;
+  -webkit-text-stroke: 2px #5a0016;
+  paint-order: stroke fill;
+  text-shadow: none;
+}
+
+/* 選び慣れた難易度は、ボタン自体もゆっくり光らせて目に入るようにする。 */
+.home-mode.is-primary::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 15px;
+  box-shadow: 0 0 18px 2px rgb(255 200 60 / 0.55);
+  pointer-events: none;
+  animation: board-active 2s ease-in-out infinite;
+}
+
+.home-progress {
+  margin: 22px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgb(8 16 28 / 0.6);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+  font-size: 13px;
+  font-weight: 700;
+  color: rgb(232 238 243 / 0.9);
+}
+
+.home-progress-crown {
+  width: 22px;
+  height: 18px;
+  margin-right: 4px;
+}
+
+.home-progress-num {
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.home-progress-win {
+  color: #7fe0a0;
+}
+
+.home-progress-lose {
+  color: #ff9a8c;
+  margin-left: 6px;
+}
+
+.home-progress-empty {
+  color: rgb(232 238 243 / 0.85);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-light,
+  .home-emblem,
+  .home-mode.is-primary::after,
+  .info-board.is-active::after,
+  .coinbar-btn.is-hint::after {
+    animation: none;
+  }
+}
+
+/* ======================================================================
+   手番のバナー（Fx.tsx の TurnBanner）
+   帯の色は refs/image2.png の実測: 青 #2764b2（下端 #133875）/ 赤 #a00e47（下端 #671530）。
+   ====================================================================== */
+.turn-banner-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.turn-banner {
+  width: 100%;
+  height: 66px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: linear-gradient(to bottom, #3f86d8 0%, #2764b2 50%, #1f569c 100%);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.3),
+    inset 0 -3px 0 #133875,
+    0 0 0 2px #0c2244,
+    0 8px 20px rgb(0 0 0 / 0.45);
+}
+
+.turn-banner-cpu {
+  background: linear-gradient(to bottom, #cf2e63 0%, #a00e47 50%, #8a0c3d 100%);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.28),
+    inset 0 -3px 0 #671530,
+    0 0 0 2px #3a0818,
+    0 8px 20px rgb(0 0 0 / 0.45);
+}
+
+.turn-banner-label {
+  font-size: 27px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  -webkit-text-stroke: 5px #0b2347;
+  paint-order: stroke fill;
+  text-shadow: 0 3px 0 #0b2347;
+  letter-spacing: 0.04em;
+}
+
+.turn-banner-cpu .turn-banner-label {
+  -webkit-text-stroke-color: #3a0818;
+  text-shadow: 0 3px 0 #3a0818;
+}
+
+.turn-banner-sub {
+  font-size: 12px;
+  font-weight: 800;
+  color: rgb(255 255 255 / 0.9);
+  -webkit-text-stroke: 2.5px rgb(0 0 0 / 0.45);
+  paint-order: stroke fill;
+}
+
+/* ======================================================================
+   CPU の 1 手（Fx.tsx の CpuCallout）
+   ====================================================================== */
+.cpu-callout-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.cpu-callout {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.5));
+}
+
+.cpu-callout-art-card {
+  width: 62px;
+  aspect-ratio: 68 / 84;
+  object-fit: cover;
+  border-radius: 9px;
+  border: 2px solid #0b1520;
+  box-shadow:
+    0 0 0 2px var(--owner-cpu-glow),
+    0 0 14px 2px rgb(255 160 110 / 0.7);
+}
+
+.cpu-callout-art-building {
+  width: 86px;
+  height: auto;
+}
+
+.cpu-callout-text {
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1.5px solid #3a0818;
+  background: linear-gradient(to bottom, #cf2e63, #8a0c3d);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3);
+  font-size: 13px;
+  font-weight: 900;
+  color: #fff;
+  white-space: nowrap;
+  -webkit-text-stroke: 3px #3a0818;
+  paint-order: stroke fill;
+}
+
+/* ======================================================================
+   カードが盤面へ飛ぶ（Fx.tsx の CardFlightLayer）
+   ====================================================================== */
+.fx-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+  overflow: hidden;
+}
+
+.fx-card {
+  position: absolute;
+  object-fit: cover;
+  border-radius: 9px;
+  border: 2px solid #fff3b0;
+  box-shadow:
+    0 0 16px 4px rgb(255 216 74 / 0.6),
+    0 10px 18px rgb(0 0 0 / 0.5);
+}
+
+.fx-burst {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  margin: -70px 0 0 -70px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 246 200 / 0.95) 0%, rgb(255 210 80 / 0.45) 35%, rgb(255 200 60 / 0) 68%);
+}
+
+/* ======================================================================
+   結果画面（ResultScreen.tsx）
+   ====================================================================== */
+.result {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 24px 0 calc(24px + env(safe-area-inset-bottom));
+  background: radial-gradient(ellipse 80% 60% at 50% 45%, rgb(24 44 74 / 0.82) 0%, rgb(4 8 16 / 0.94) 100%);
+  backdrop-filter: blur(3px);
+  overflow: hidden;
+}
+
+.result-title {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  color: #ffe45c;
+  -webkit-text-stroke: 7px #3a1e00;
+  paint-order: stroke fill;
+  text-shadow:
+    0 5px 0 #3a1e00,
+    0 0 30px rgb(255 200 60 / 0.6);
+  z-index: 1;
+}
+
+.result-lose .result-title {
+  color: #d6e4f2;
+  -webkit-text-stroke-color: #14202e;
+  text-shadow: 0 5px 0 #14202e;
+}
+
+.result-draw .result-title {
+  color: #fff;
+  -webkit-text-stroke-color: #14202e;
+  text-shadow: 0 5px 0 #14202e;
+}
+
+.result-sides {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 1;
+}
+
+/* 帯。両端を矢羽根の形に切り欠く（クラロワのリボン）。 */
+.result-ribbon {
+  position: relative;
+  width: min(100% - 24px, 380px);
+  height: 86px;
+  display: grid;
+  grid-template-columns: 70px 1fr auto;
+  grid-template-rows: 1fr 1fr;
+  column-gap: 6px;
+  align-items: center;
+  padding: 0 26px 0 14px;
+  box-sizing: border-box;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 50%, 100% 100%, 0 100%, 14px 50%);
+  background: linear-gradient(to bottom, #3f86d8 0%, #2764b2 48%, #2259a0 100%);
+  box-shadow:
+    inset 0 3px 0 rgb(255 255 255 / 0.28),
+    inset 0 -4px 0 #133875;
+}
+
+.result-ribbon-cpu {
+  background: linear-gradient(to bottom, #cf2e63 0%, #a00e47 48%, #8f0c40 100%);
+  box-shadow:
+    inset 0 3px 0 rgb(255 255 255 / 0.25),
+    inset 0 -4px 0 #671530;
+}
+
+.result-crown-slot {
+  grid-row: 1 / 3;
+  grid-column: 1;
+  display: grid;
+  place-items: center;
+  height: 100%;
+}
+
+.result-crown {
+  display: block;
+  width: 58px;
+  height: 48px;
+  filter: drop-shadow(0 3px 0 rgb(0 0 0 / 0.4));
+}
+
+.result-crown svg {
+  width: 100%;
+  height: 100%;
+}
+
+.result-name {
+  grid-row: 1;
+  grid-column: 2;
+  align-self: end;
+  font-size: 22px;
+  font-weight: 900;
+  color: #fff;
+  -webkit-text-stroke: 4px rgb(0 0 0 / 0.5);
+  paint-order: stroke fill;
+}
+
+.result-buildings {
+  grid-row: 2;
+  grid-column: 2;
+  align-self: start;
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 800;
+  color: rgb(255 255 255 / 0.88);
+}
+
+.result-vp {
+  grid-row: 1 / 3;
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.result-vp-star {
+  width: 24px;
+  height: 24px;
+  fill: #ffe45c;
+  stroke: #3a1e00;
+  stroke-width: 2;
+  paint-order: stroke fill;
+}
+
+.result-vp-num {
+  min-width: 1.3em;
+  text-align: right;
+  font-size: 36px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  -webkit-text-stroke: 5px rgb(0 0 0 / 0.55);
+  paint-order: stroke fill;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-vp-unit {
+  font-size: 13px;
+  font-weight: 900;
+  color: rgb(255 255 255 / 0.88);
+  align-self: flex-end;
+  margin-bottom: 4px;
+}
+
+.result-vs {
+  font-size: 30px;
+  font-weight: 900;
+  color: #ffe45c;
+  -webkit-text-stroke: 5px #3a1e00;
+  paint-order: stroke fill;
+  text-shadow: 0 3px 0 #3a1e00;
+}
+
+.result-actions {
+  display: grid;
+  gap: 12px;
+  width: min(100% - 64px, 300px);
+  margin-top: 6px;
+  z-index: 1;
+}
+
+.confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: 0;
+  border-radius: 1px;
+}
+
+/* 残りターンが少ないとき（TurnBadge.tsx）。 */
+.board-turn-badge.is-urgent {
+  background: linear-gradient(to bottom, #e0364f, #a3102f);
+  box-shadow:
+    0 0 0 1.5px #ffb3bd,
+    0 2px 8px rgb(0 0 0 / 0.4);
+  animation: turn-urgent 1s ease-in-out infinite;
+}
+
+@keyframes turn-urgent {
+  0%,
+  100% {
+    scale: 1;
+  }
+  50% {
+    scale: 1.08;
+  }
+}
+
+/* 区画を押したときの手応え。建物の絵だけを少し縮める（scale は transform と別の
+   プロパティなので、着地アニメーションの transform とぶつからない）。区画の箱は動かない。 */
+.plot .plot-art {
+  transition: scale 0.08s var(--ease);
+}
+
+.plot:active .plot-art {
+  scale: 0.95;
+}
+
+.plot:active .plot-base {
+  filter: brightness(1.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-turn-badge.is-urgent {
+    animation: none;
+  }
+}

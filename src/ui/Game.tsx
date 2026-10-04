@@ -1,5 +1,5 @@
 import { AnimatePresence } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { Difficulty } from '@/ai/choose';
 import {
@@ -10,20 +10,37 @@ import {
   DEFAULT_BALANCE,
   type Balance,
 } from '@/game/balance';
-import { buildCostFor, canBuild, canUseCard, canUseRoad, reduce } from '@/game/reducer';
+import { buildCostFor, canBuild, canUseCard, canUseRoad, cardCostFor, reduce } from '@/game/reducer';
 import { createRng, type Rng } from '@/game/rng';
-import { roadUsesRemaining, scoreOf, winnerOf } from '@/game/selectors';
+import { handSlotsOf, ownedSlots, roadUsesRemaining, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 import { loadProgress, saveProgress } from '@/storage/storage';
 
-import { CARD_ART, FIELD_URL } from './art';
+import { BUILDING_ART, CARD_ART, FIELD_URL } from './art';
 import { Board } from './Board';
 import { CoinBar } from './CoinBar';
 import { type CpuStep, playTurnSteps } from './cpu-turn';
-import { hapticBuild, hapticLose, hapticReject, hapticUseCard, hapticWin } from './haptics';
+import {
+  CardFlightLayer,
+  CpuCallout,
+  type CpuCalloutInfo,
+  TurnBanner,
+  useCardFlights,
+  useTurnBanner,
+} from './Fx';
+import {
+  hapticBuild,
+  hapticLose,
+  hapticReject,
+  hapticTap,
+  hapticUseCard,
+  hapticWin,
+  hapticYourTurn,
+} from './haptics';
 import { Hand } from './Hand';
 import { OpponentStrip } from './OpponentStrip';
+import { ResultScreen } from './ResultScreen';
 import { Sheet } from './Sheets';
 import { TargetBanner } from './TargetBanner';
 import { TurnBadge } from './TurnBadge';
@@ -35,14 +52,14 @@ import {
 } from './settings';
 import {
   playBuild,
-  playCoinGain,
-  playDebtSink,
   playEndTurn,
   playLose,
   playReject,
   playSelect,
+  playUiTap,
   playUseCard,
   playWin,
+  playYourTurn,
 } from './sound';
 
 type Pending =
@@ -91,11 +108,36 @@ export function Game({
   // 画面に見せる実況ログ。直前の CPU の手番ぶんが、次の CPU の手番が始まるまで残る。
   const [cpuLog, setCpuLog] = useState<string[]>([]);
   // いま出ている 1 手が何をしたか。ログの文字だけでは足りないので、盤面側にも指し示す（要望 7）。
-  const [cpuFlashCard, setCpuFlashCard] = useState<CardId | null>(null);
+  const [cpuCallout, setCpuCallout] = useState<CpuCalloutInfo | null>(null);
+  const cpuCalloutSeq = useRef(0);
   const [cpuHighlightSlot, setCpuHighlightSlot] = useState<number | null>(null);
   const cpuActing = cpuTurn !== null;
 
   const finished = state.phase === 'finished';
+  // 結果画面は、最後の 1 手（建物の着地・数字の弾み）を見せてから出す。
+  const [resultReady, setResultReady] = useState(false);
+  useEffect(() => {
+    if (!finished) return;
+    const t = window.setTimeout(() => setResultReady(true), 900);
+    return () => window.clearTimeout(t);
+  }, [finished]);
+
+  const boardAreaRef = useRef<HTMLDivElement>(null);
+  const { flights, fly } = useCardFlights();
+  /** 手札の札の絵を盤面の中央へ飛ばす（使った手応え）。札が手札から消える前に呼ぶ。 */
+  const flyCard = (card: CardId) =>
+    fly(document.querySelector(`.hand [data-card="${card}"]`), CARD_ART[card], boardAreaRef.current);
+
+  // 手番が替わるたびに盤面を横切る帯を出す（ゲーム開始の 1 回目も）。
+  const [banner, clearBanner] = useTurnBanner(`${state.phase}:${state.current}:${state.turn}`, () =>
+    state.phase !== 'playing'
+      ? null
+      : {
+          tone: state.current,
+          label: state.current === 'you' ? 'あなたのターン' : '相手のターン',
+          sub: `のこり ${turnsRemaining(state, balance)} ターン`,
+        },
+  );
 
   const recordIfFinished = (result: GameState) => {
     if (result.phase !== 'finished') return;
@@ -117,9 +159,9 @@ export function Game({
     const before = result.players.you.coins;
     const final = result.phase === 'playing' ? reduce(result, { type: 'startTurn' }, balance) : result;
     if (result.phase === 'playing') {
-      const delta = final.players.you.coins - before;
-      if (delta > 0) playCoinGain(delta);
-      else if (delta < 0) playDebtSink();
+      // 自分の手番が回ってきた合図の鐘と、手番開始の収入の音をまとめて鳴らす。
+      playYourTurn(final.players.you.coins - before);
+      hapticYourTurn();
     }
     recordIfFinished(final);
     setState(final);
@@ -143,7 +185,7 @@ export function Game({
     // これは元の実装（seed だけから作る乱数で先手番を進める）をそのまま踏襲している。
     const stepRng = state.turn === 1 ? createRng(seed) : rng;
     setCpuLog([]);
-    setCpuFlashCard(null);
+    setCpuCallout(null);
     setCpuHighlightSlot(null);
     setCpuTurn({ steps: playTurnSteps(state, difficulty, stepRng, balance), revealed: 0 });
   }, [state]);
@@ -161,7 +203,23 @@ export function Game({
     const isLast = revealed === steps.length - 1;
     const timer = window.setTimeout(() => {
       setCpuLog((prev) => [...prev, step.log]);
-      setCpuFlashCard(step.action.type === 'useCard' ? step.action.card : null);
+      // 盤面の上端に「絵 + 帯」で何をしたかを出す（ターン終了は手番の帯が受け持つ）。
+      cpuCalloutSeq.current += 1;
+      const a = step.action;
+      setCpuCallout(
+        a.type === 'useCard'
+          ? { id: cpuCalloutSeq.current, kind: 'card', art: CARD_ART[a.card], text: step.log }
+          : a.type === 'useRoad'
+            ? { id: cpuCalloutSeq.current, kind: 'card', art: CARD_ART[a.target], text: step.log }
+            : a.type === 'build'
+              ? {
+                  id: cpuCalloutSeq.current,
+                  kind: 'building',
+                  art: BUILDING_ART[state.market[a.slotId]!.buildingId]?.url,
+                  text: step.log,
+                }
+              : null,
+      );
       setCpuHighlightSlot(step.action.type === 'build' ? step.action.slotId : null);
       if (step.action.type === 'useCard') playUseCard(step.action.card);
       else if (step.action.type === 'build') playBuild();
@@ -169,7 +227,7 @@ export function Game({
       if (isLast) {
         finishCpuTurn(step.state);
         setCpuTurn(null);
-        setCpuFlashCard(null);
+        setCpuCallout(null);
         setCpuHighlightSlot(null);
       } else {
         setState(step.state);
@@ -199,6 +257,7 @@ export function Game({
     if (card === 'blockader') return setSheet({ kind: 'blockadeTarget' });
     playUseCard(card);
     hapticUseCard();
+    flyCard(card);
     const next = reduce(state, { type: 'useCard', card }, balance);
     setState(next);
   };
@@ -207,11 +266,13 @@ export function Game({
     const next = !soundOn;
     setSoundOn(next);
     setSoundEnabled(next);
+    playUiTap();
   };
   const toggleHaptics = () => {
     const next = !hapticsOn;
     setHapticsOn(next);
     setHapticsEnabled(next);
+    playUiTap();
   };
 
   return (
@@ -220,8 +281,13 @@ export function Game({
           手札の「次」の上のメニューボタン 1 つにまとめた（要望 2）。 */}
       <main className="play">
         <div className="board-shell">
-          <OpponentStrip state={state} balance={balance} log={cpuLog} flashCard={cpuFlashCard} />
-          <div className="board-area">
+          <OpponentStrip
+            state={state}
+            balance={balance}
+            log={cpuLog}
+            active={!finished && (cpuActing || state.current === 'cpu')}
+          />
+          <div className="board-area" ref={boardAreaRef}>
             <Board
               state={state}
               balance={balance}
@@ -240,6 +306,7 @@ export function Game({
                   }
                   playUseCard('blockader');
                   hapticUseCard();
+                  flyCard('blockader');
                   setState(
                     reduce(state, { type: 'useCard', card: 'blockader', blockadeSlot: slotId }, balance),
                   );
@@ -252,11 +319,14 @@ export function Game({
                   hapticReject();
                 } else {
                   playSelect();
+                  hapticTap();
                 }
                 setSheet({ kind: 'slot', slotId });
               }}
             />
             <TurnBadge state={state} balance={balance} />
+            <CpuCallout info={cpuCallout} />
+            <TurnBanner banner={banner} onDone={clearBanner} />
             {/* 対象選択中の案内はここ（盤面コンテナ）基準で上端中央に置く。相手の
                 情報ボードより下に来るので重ならない（要望 G3）。封鎖者は盤面、
                 伝令は手札が対象だが、案内自体はどちらもここにまとめる。手札の
@@ -280,13 +350,19 @@ export function Game({
             state={state}
             balance={balance}
             onEndTurn={endTurn}
-            endTurnEnabled={!finished && !cpuActing}
+            endTurnEnabled={!finished && !cpuActing && state.current === 'you'}
+            active={!finished && !cpuActing && state.current === 'you'}
+            endTurnHint={
+              !handSlotsOf(state, 'you').some((c) => c !== null && canUseCard(state, c, balance)) &&
+              !state.market.some((m) => canBuild(state, m.slotId, balance))
+            }
           />
           <Hand
             state={state}
             balance={balance}
             canUse={(card) => !cpuActing && canUseCard(state, card, balance)}
             targeting={sheet?.kind === 'heraldTarget'}
+            selected={sheet?.kind === 'card' ? sheet.card : null}
             onPick={(card) => {
               if (cpuActing) return;
               // 伝令の対象選択モード中は、通常のカード詳細シートを開かず、
@@ -300,6 +376,7 @@ export function Game({
                 }
                 playUseCard('herald');
                 hapticUseCard();
+                flyCard('herald');
                 setState(
                   reduce(state, { type: 'useCard', card: 'herald', heraldTarget: card }, balance),
                 );
@@ -308,6 +385,7 @@ export function Game({
               }
               if (canUseCard(state, card, balance)) {
                 playSelect();
+                hapticTap();
               } else {
                 playReject();
                 hapticReject();
@@ -315,7 +393,7 @@ export function Game({
               setSheet({ kind: 'card', card });
             }}
             onMenu={() => {
-              playSelect();
+              playUiTap();
               setSheet({ kind: 'menu' });
             }}
           />
@@ -344,7 +422,7 @@ export function Game({
                     </p>
                   ) : null}
                   <button
-                    className="home-btn primary"
+                    className="btn3d btn3d-yellow"
                     disabled={!canBuild(state, sheet.slotId, balance)}
                     onClick={() => {
                       playBuild();
@@ -353,7 +431,14 @@ export function Game({
                       setSheet(null);
                     }}
                   >
-                    建てる
+                    {/* 押せない理由をボタンの上で言う（灰色のボタンだけでは何が足りないか分からない）。 */}
+                    {slot.owner !== null
+                      ? '建設済み'
+                      : state.players['you'].blockedSlot === sheet.slotId
+                        ? '封鎖中'
+                        : canBuild(state, sheet.slotId, balance) || state.current !== 'you'
+                          ? '建てる'
+                          : `あと ${buildCostFor(state, 'you', sheet.slotId, balance) - state.players['you'].coins} コイン`}
                   </button>
                 </Sheet>
               );
@@ -393,7 +478,7 @@ export function Game({
               <span className="road-btn-sub">街道・あと {roadUsesRemaining(state, 'you', balance)} 回</span>
             </button>
             <button
-              className="home-btn primary"
+              className="btn3d btn3d-yellow"
               disabled={!canUseCard(state, sheet.card, balance)}
               onClick={() => {
                 const card = sheet.card;
@@ -401,7 +486,13 @@ export function Game({
                 useCard(card);
               }}
             >
-              使う
+              {!canUseCard(state, sheet.card, balance) && state.players['you'].boundCards.includes(sheet.card)
+                ? '買収者に縛られている'
+                : canUseCard(state, sheet.card, balance) ||
+              state.current !== 'you' ||
+              state.players['you'].coins >= cardCostFor(state, 'you', sheet.card, balance)
+                ? '使う'
+                : `あと ${cardCostFor(state, 'you', sheet.card, balance) - state.players['you'].coins} コイン`}
             </button>
           </Sheet>
         ) : null}
@@ -412,13 +503,13 @@ export function Game({
       <AnimatePresence>
         {sheet?.kind === 'menu' ? (
           <Sheet key="menu" title="メニュー" onClose={() => setSheet(null)}>
-            <button className="sheet-row danger" onClick={() => setSheet({ kind: 'confirmExit' })}>
+            <button className="sheet-row danger" onClick={() => { playUiTap(); setSheet({ kind: 'confirmExit' }); }}>
               あきらめる
             </button>
-            <button className="sheet-row" onClick={() => setSheet({ kind: 'help' })}>
+            <button className="sheet-row" onClick={() => { playUiTap(); setSheet({ kind: 'help' }); }}>
               あそびかた
             </button>
-            <button className="sheet-row" onClick={() => setSheet({ kind: 'settings' })}>
+            <button className="sheet-row" onClick={() => { playUiTap(); setSheet({ kind: 'settings' }); }}>
               設定
             </button>
           </Sheet>
@@ -429,10 +520,10 @@ export function Game({
         {sheet?.kind === 'confirmExit' ? (
           <Sheet key="confirmExit" title="あきらめますか？" onClose={() => setSheet({ kind: 'menu' })}>
             <p className="sheet-text">ここまでの進行はきろくに残りません。</p>
-            <button className="home-btn primary" onClick={onExit}>
+            <button className="btn3d btn3d-red" onClick={onExit}>
               あきらめる
             </button>
-            <button className="sheet-link" onClick={() => setSheet({ kind: 'menu' })}>
+            <button className="sheet-link" onClick={() => { playUiTap(); setSheet({ kind: 'menu' }); }}>
               もどる
             </button>
           </Sheet>
@@ -493,28 +584,36 @@ export function Game({
       </AnimatePresence>
 
       <AnimatePresence>
-        {finished ? (
-          <Sheet
-            key="finished"
-            title={
-              winnerOf(state, balance) === 'you'
-                ? 'あなたの勝ち'
-                : winnerOf(state, balance) === 'cpu'
-                  ? 'CPU の勝ち'
-                  : '引き分け'
-            }
-            subtitle={`${scoreOf(state, 'you', balance)} VP 対 ${scoreOf(state, 'cpu', balance)} VP`}
-            onClose={onExit}
-          >
-            <button className="home-btn primary" onClick={onRestart}>
-              もう一度
-            </button>
-            <button className="home-btn" onClick={onExit}>
-              ホームへ
-            </button>
-          </Sheet>
-        ) : null}
+        {finished && resultReady
+          ? (() => {
+              const w = winnerOf(state, balance);
+              return (
+                <ResultScreen
+                  key="result"
+                  title={w === 'you' ? 'あなたの勝ち！' : w === 'cpu' ? '負けてしまった…' : '引き分け'}
+                  tone={w === 'you' ? 'win' : w === 'cpu' ? 'lose' : 'draw'}
+                  top={{
+                    name: 'CPU',
+                    tone: 'cpu',
+                    vp: scoreOf(state, 'cpu', balance),
+                    buildings: ownedSlots(state, 'cpu').length,
+                  }}
+                  bottom={{
+                    name: 'あなた',
+                    tone: 'you',
+                    vp: scoreOf(state, 'you', balance),
+                    buildings: ownedSlots(state, 'you').length,
+                  }}
+                  winner={w === 'you' ? 'bottom' : w === 'cpu' ? 'top' : null}
+                  onRestart={onRestart}
+                  onExit={onExit}
+                />
+              );
+            })()
+          : null}
       </AnimatePresence>
+
+      <CardFlightLayer flights={flights} />
     </div>
   );
 }
