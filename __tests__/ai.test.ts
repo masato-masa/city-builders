@@ -98,7 +98,7 @@ describe('重み付き評価関数', () => {
 
   it('opponentBound: 相手が買収者を受けているほうが評価が高い', () => {
     const bound = createGame(3);
-    bound.players.cpu.boundCard = 'miner';
+    bound.players.cpu.boundCards = ['miner'];
     const notBound = createGame(3);
     expect(evaluateState(bound, 'you', DEFAULT_BALANCE)).toBeGreaterThan(
       evaluateState(notBound, 'you', DEFAULT_BALANCE),
@@ -109,7 +109,7 @@ describe('重み付き評価関数', () => {
     const g = createGame(3);
     g.players.you.coins = 100;
     const bound = structuredClone(g);
-    bound.players.you.boundCard = handOf(g, 'you', DEFAULT_BALANCE)[0]!;
+    bound.players.you.boundCards = [handOf(g, 'you', DEFAULT_BALANCE)[0]!];
     expect(evaluateState(bound, 'you', DEFAULT_BALANCE)).toBeLessThan(
       evaluateState(g, 'you', DEFAULT_BALANCE),
     );

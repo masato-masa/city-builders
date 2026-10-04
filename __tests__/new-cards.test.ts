@@ -175,11 +175,13 @@ describe('買収者', () => {
     const b = resolve();
 
     expect(a.players.cpu.bindPending).toBe(false);
-    expect(a.players.cpu.boundCard).not.toBeNull();
-    expect(handOf(a, 'cpu', DEFAULT_BALANCE)).toContain(a.players.cpu.boundCard);
-    expect(canUseCard(a, a.players.cpu.boundCard!, DEFAULT_BALANCE)).toBe(false);
+    expect(a.players.cpu.boundCards.length).toBe(DEFAULT_BALANCE.spyBindCount);
+    for (const card of a.players.cpu.boundCards) {
+      expect(handOf(a, 'cpu', DEFAULT_BALANCE)).toContain(card);
+      expect(canUseCard(a, card, DEFAULT_BALANCE)).toBe(false);
+    }
     // 同じ seed・同じターンなら、抽選結果は必ず同じになる
-    expect(a.players.cpu.boundCard).toBe(b.players.cpu.boundCard);
+    expect(a.players.cpu.boundCards).toEqual(b.players.cpu.boundCards);
   });
 });
 

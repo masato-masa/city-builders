@@ -45,7 +45,7 @@ export function cardTextFor(card: CardId, balance: Balance): string {
     case 'usurer':
       return `このターン コイン +${balance.usurerGain}。次の自分のターン開始時 コイン −${balance.usurerDebt}（マイナスになる）`;
     case 'spy':
-      return '次の相手のターン、相手の手札 1 枚がランダムに使えなくなる';
+      return `次の相手のターン、相手の手札 ${balance.spyBindCount} 枚がランダムに使えなくなる`;
     case 'taxman':
       return `相手のコイン −${balance.taxmanAmount}`;
     case 'blockader':
@@ -97,6 +97,8 @@ export interface Balance {
   bankerPerBuilding: number;
   architectDiscount: number;
   taxmanAmount: number;
+  /** 買収者: 相手の手札から使えなくする枚数 */
+  spyBindCount: number;
   buildings: Record<BuildingId, { cost: number; vp: number }>;
   tradingHouseIncome: number;
   factoryDiscount: number;
@@ -142,6 +144,7 @@ export const DEFAULT_BALANCE: Balance = {
   bankerPerBuilding: 1,
   architectDiscount: 6,
   taxmanAmount: 6,
+  spyBindCount: 2,
   buildings: {
     tradingHouse: { cost: 7, vp: 2 },
     wall: { cost: 10, vp: 2 },

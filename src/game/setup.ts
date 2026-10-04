@@ -23,7 +23,7 @@ function emptyPlayer(
     festivalActive: false,
     guarded: false,
     bindPending: false,
-    boundCard: null,
+    boundCards: [],
     disabledSlot: null,
   };
 }

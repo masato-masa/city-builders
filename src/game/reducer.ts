@@ -1,6 +1,6 @@
 import { DEFAULT_BALANCE, type Balance } from './balance';
 import { activeOwnedSlots, handOf, opponentOf, ownedSlots } from './selectors';
-import { createRng } from './rng';
+import { createRng, shuffle } from './rng';
 import type { Action, BuildingId, CardId, GameState, PlayerId, PlayerState } from './types';
 
 /** 効果が生きている自分の物件のうち、指定した種類を持っているか。
@@ -42,7 +42,7 @@ export function canUseCard(
   const p = state.players[player];
   if (!handOf(state, player, balance).includes(card)) return false;
   if (p.usedThisTurn.includes(card)) return false;
-  if (p.boundCard === card) return false;
+  if (p.boundCards.includes(card)) return false;
   const cost = cardCostFor(state, player, card, balance);
   // コスト 0 のカード（高利貸）は、コインがマイナスのときでも必ず打てる。
   // 高利貸は「使える札が 1 枚も無い」を構造的に潰すための札なので、
@@ -283,11 +283,11 @@ function startTurn(state: GameState, balance: Balance): GameState {
   p.buildsThisTurn = 0;
   p.roadUsesThisTurn = 0;
 
-  // 買収者を受けていたら、このときの手札から 1 枚を抽選して縛る
+  // 買収者を受けていたら、このときの手札から spyBindCount 枚を抽選して縛る
   if (p.bindPending) {
     const hand = handOf(next, player, balance);
     const rng = createRng(next.seed * 7919 + next.turn);
-    p.boundCard = hand[rng.int(hand.length)] ?? null;
+    p.boundCards = shuffle(hand, rng).slice(0, balance.spyBindCount);
     p.bindPending = false;
   }
 
@@ -332,7 +332,7 @@ function endTurn(state: GameState, balance: Balance): GameState {
   // ただし封鎖者（blockedSlot/disabledSlot）は「1 ターンで解けると効果が
   // 意味をなさない」という指摘を受け、ひとまず永続にする（ここでは解除しない）。
   next.players[player].festivalActive = false;
-  next.players[player].boundCard = null;
+  next.players[player].boundCards = [];
 
   const allBuilt = next.market.every((s) => s.owner !== null);
   const overTurnLimit = next.turn >= balance.maxTurnsPerPlayer * 2;

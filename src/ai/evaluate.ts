@@ -32,7 +32,7 @@ export interface Weights {
   debt: number;
   /** 衛兵が張れているか（0 か 1）。守っているものの大きさを掛けて使う */
   guarded: number;
-  /** 相手が買収者を受けているか（bindPending か boundCard が非 null なら 1） */
+  /** 相手が買収者を受けているか（bindPending か boundCards が空でなければ 1） */
   opponentBound: number;
   /** 手札のうち、いま払えない・買収者に縛られているカードの枚数 */
   stuck: number;
@@ -140,11 +140,11 @@ export function evaluateState(
   // 大きいほど「守れて良かった」の価値が上がる。相手の手札は読まない。
   const guarded = p.guarded ? p.coins + incomePerTurn * 3 : 0;
 
-  const opponentBound = foeState.bindPending || foeState.boundCard !== null ? 1 : 0;
+  const opponentBound = foeState.bindPending || foeState.boundCards.length > 0 ? 1 : 0;
 
   // 手札のうち、いま払えない・買収者に縛られていて使えないカードの枚数
   const stuck = handOf(state, player, balance).filter(
-    (c) => p.coins < balance.cards[c].cost || c === p.boundCard,
+    (c) => p.coins < balance.cards[c].cost || p.boundCards.includes(c),
   ).length;
   // 相手について同じ計算をする（払えない枚数のみ）。相手が詰まっているのは自分に有利
   const opponentStuck = handOf(state, foe, balance).filter(
