@@ -20,6 +20,7 @@ function describeAction(before: GameState, action: Action): string {
     const slot = before.market[action.slotId];
     return slot ? `${BUILDING_NAMES[slot.buildingId]}を建てた` : '物件を建てた';
   }
+  if (action.type === 'startTurn') return '収入を得た';
   if (action.type === 'useRoad') return `街道で${CARD_NAMES[action.target]}を送った`;
   return 'ターンを終えた';
 }
@@ -29,7 +30,7 @@ function describeAction(before: GameState, action: Action): string {
  *  `src/ai/choose.ts` の `playTurn` と同じ手順（startTurn → chooseAction を繰り返す →
  *  endTurn）を UI 側で 1 手ずつ回し、各手のあとの状態と実況文を順番に並べる。
  *  `src/ai` 自体は変更せず、既に公開されている `chooseAction` を呼ぶだけにしてある。
- *  最後の要素は必ず endTurn 後の状態（「ターンを終えた」を含む）。 */
+ *  先頭の要素は必ず startTurn 後の状態（収入）、最後の要素は必ず endTurn 後の状態（「ターンを終えた」を含む）。 */
 export function playTurnSteps(
   state: GameState,
   difficulty: Difficulty | AiOptions,
@@ -37,7 +38,10 @@ export function playTurnSteps(
   balance: Balance = DEFAULT_BALANCE,
 ): CpuStep[] {
   const steps: CpuStep[] = [];
-  let cur = reduce(state, { type: 'startTurn' }, balance);
+  // 収入は 1 手として独立させる（手番が替わる → 収入を得る → 行動、の順で見せるため）。
+  const startAction: Action = { type: 'startTurn' };
+  let cur = reduce(state, startAction, balance);
+  steps.push({ state: cur, log: describeAction(state, startAction), action: startAction });
   // playTurn と同じ安全網（行動の種類は有限なので、これだけ回せば必ず終わる）
   for (let i = 0; i < 40; i++) {
     const action = chooseAction(cur, difficulty, rng, balance);

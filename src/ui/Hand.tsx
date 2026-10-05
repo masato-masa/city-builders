@@ -1,4 +1,5 @@
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, type PanInfo } from 'motion/react';
+import { useRef, type RefObject } from 'react';
 
 import { CARD_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { cardCostFor } from '@/game/reducer';
@@ -21,6 +22,10 @@ export function Hand({
   selected = null,
   onPick,
   onMenu,
+  using = null,
+  dropRef,
+  onDrop,
+  onDragActive,
 }: {
   state: GameState;
   balance?: Balance;
@@ -36,6 +41,14 @@ export function Hand({
   onPick: (card: CardId) => void;
   /** 「次」の真上の横長メニューボタン（要望 2）。 */
   onMenu: () => void;
+  /** いま使用中の札。盤面へ飛ぶ複製が受け持つので、手札の側では即座に消す。 */
+  using?: CardId | null;
+  /** ドラッグで離したとき「使用」になる領域（盤面）。 */
+  dropRef?: RefObject<HTMLElement | null>;
+  /** 札を盤面の上で離した。point は離した位置（ビューポート座標）。 */
+  onDrop?: (card: CardId, point: { x: number; y: number }) => void;
+  /** ドラッグの開始・終了。盤面の「ここへ落とす」表示に使う。 */
+  onDragActive?: (card: CardId | null) => void;
 }) {
   const hand = handSlotsOf(state, viewer);
   const next = nextCardOf(state, viewer, balance);
@@ -78,6 +91,10 @@ export function Hand({
                     targeting={targeting}
                     selected={selected === card}
                     onPick={onPick}
+                    using={using === card}
+                    dropRef={dropRef}
+                    onDrop={onDrop}
+                    onDragActive={onDragActive}
                   />
                 ) : null}
               </AnimatePresence>
@@ -99,6 +116,10 @@ function CardButton({
   targeting,
   selected,
   onPick,
+  using,
+  dropRef,
+  onDrop,
+  onDragActive,
 }: {
   card: CardId;
   state: GameState;
@@ -111,8 +132,22 @@ function CardButton({
   targeting: boolean;
   selected: boolean;
   onPick: (card: CardId) => void;
+  using: boolean;
+  dropRef?: RefObject<HTMLElement | null>;
+  onDrop?: (card: CardId, point: { x: number; y: number }) => void;
+  onDragActive?: (card: CardId | null) => void;
 }) {
   const art = CARD_ART[card];
+  // ドラッグ直後に出る click を、タップ（シートを開く）と取り違えない。
+  const dragged = useRef(false);
+  // 使えない札・対象選択中・使用中は持ち上げられない（理由はタップで開くシートが言う）。
+  const draggable = !!onDrop && usable && !targeting && !using;
+  const overDrop = (info: PanInfo) => {
+    const el = dropRef?.current;
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    return info.point.x >= r.left && info.point.x <= r.right && info.point.y >= r.top && info.point.y <= r.bottom;
+  };
   // 対象選択モード中（伝令）は、使用可否と無関係に「伝令自身か・そうでないか」
   // だけで見た目を決める。盤面の封鎖者対象選択と同じ考え方（要望参照）。
   const targetable = targeting && card !== 'herald';
@@ -130,32 +165,60 @@ function CardButton({
     .filter(Boolean)
     .join(' ');
   return (
-    <motion.button
-      className={className}
-      data-card={card}
-      initial={{ y: 26, opacity: 0, scale: 0.92 }}
-      // 選んだ札は 8px 持ち上げて少し大きく（クラロワの選択中の札と同じ）。
-      // transform だけなので枠（.card-slot）は動かない。
-      animate={{ y: selected ? -8 : 0, opacity: 1, scale: selected ? 1.06 : 1 }}
-      whileTap={{ scale: selected ? 1.02 : 0.93, y: selected ? -6 : 2 }}
-      // 使った札は盤面へ飛ぶ複製（Fx.tsx の CardFlightLayer）が受け持つので、ここではすぐ消す。
+    // 外側がドラッグ、内側のボタンが選択・出現の動き（どちらも y を使うので入れ子で分ける）。
+    // 外側は枠（.card-slot）いっぱいに重なる。離すと元の位置へ戻り、使用になれば消える。
+    <motion.div
+      className="card-drag"
+      drag={draggable}
+      dragSnapToOrigin
+      dragElastic={0.18}
+      dragMomentum={false}
+      whileDrag={{ scale: 1.12, zIndex: 60, cursor: 'grabbing' }}
+      animate={{ opacity: using ? 0 : 1 }}
+      initial={{ opacity: 0 }}
       exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.1 } }}
-      transition={{ type: 'spring', stiffness: 520, damping: 30 }}
-      onClick={() => onPick(card)}
+      transition={{ opacity: { duration: using ? 0.08 : 0.2 } }}
+      onDragStart={() => {
+        dragged.current = true;
+        onDragActive?.(card);
+      }}
+      onDragEnd={(_, info) => {
+        onDragActive?.(null);
+        // click は離した直後に来るので、少し経ってから「ドラッグではない」に戻す。
+        window.setTimeout(() => {
+          dragged.current = false;
+        }, 60);
+        if (overDrop(info)) onDrop?.(card, { x: info.point.x, y: info.point.y });
+      }}
     >
-      <span className="card-body">
-        {art ? <img className="card-art" src={art} alt="" /> : null}
-        <span className="card-name">{CARD_NAMES[card]}</span>
-      </span>
-      {!targeting && bound ? (
-        <span className="card-chain-badge" aria-hidden="true">
-          <ChainIcon />
+      <motion.button
+        className={className}
+        data-card={card}
+        initial={{ y: 26, scale: 0.92 }}
+        // 選んだ札は 8px 持ち上げて少し大きく（クラロワの選択中の札と同じ）。
+        // transform だけなので枠（.card-slot）は動かない。
+        animate={{ y: selected ? -8 : 0, scale: selected ? 1.06 : 1 }}
+        whileTap={{ scale: selected ? 1.02 : 0.93, y: selected ? -6 : 2 }}
+        transition={{ type: 'spring', stiffness: 520, damping: 30 }}
+        onClick={() => {
+          if (dragged.current) return;
+          onPick(card);
+        }}
+      >
+        <span className="card-body">
+          {art ? <img className="card-art" src={art} alt="" draggable={false} /> : null}
+          <span className="card-name">{CARD_NAMES[card]}</span>
         </span>
-      ) : null}
-      {/* コストは金貨の宝石バッジ（クラロワのエリクサーの雫に当たる）。 */}
-      <span className="card-cost">
-        <span className="card-cost-num">{cardCostFor(state, viewer, card, balance)}</span>
-      </span>
-    </motion.button>
+        {!targeting && bound ? (
+          <span className="card-chain-badge" aria-hidden="true">
+            <ChainIcon />
+          </span>
+        ) : null}
+        {/* コストは金貨の宝石バッジ（クラロワのエリクサーの雫に当たる）。 */}
+        <span className="card-cost">
+          <span className="card-cost-num">{cardCostFor(state, viewer, card, balance)}</span>
+        </span>
+      </motion.button>
+    </motion.div>
   );
 }

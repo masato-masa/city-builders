@@ -440,29 +440,21 @@
   --base-front-2: #37302a;
 
   position: relative;
-  /* 幅を起点にして、高さは 2:3 から決める（地の素材 711×1067 と同じ比）。
+  /* 幅を起点にして、高さは 2:3 から決める（建物の並びの縦横比）。
      器より高くなる場合は cqh 側が効いて幅が縮む。height は書かない
-     （書くと aspect-ratio が高さ起点になり max-height が効かなくなる）。
-     縁の厚み（下へ 6px）を器の中に収めるため、少しだけ引いておく。 */
-  width: min(100% - 4px, (100cqh - 10px) * 2 / 3);
+     （書くと aspect-ratio が高さ起点になり max-height が効かなくなる）。 */
+  width: min(100%, 100cqh * 2 / 3);
   aspect-ratio: 2 / 3;
   max-height: 100%;
-  overflow: hidden;
   /* 区画の z-index（下の段ほど手前）を盤面の中だけで完結させる。これが無いと
-     名札の層（100）が残りターンのバッジ（2）や案内（3）より手前に出る。 */
+     名札の層（100）が残りターンのバッジ（2）や案内（3）より手前に出る。
+     地・枠・角丸・影は持たない。画面全体の地（.app-play の背景）がそのまま続いて見え、
+     盤面は「画面というひとつの広場の上に建物を置く領域」でしかない（クラロワと同じ）。
+     overflow も切らない（上段の建物の頭が少しはみ出てもよい）。 */
   isolation: isolate;
   /* 中の寸法（文字・影）は盤面の幅に比例させる（cqw）。背の低い画面で
      盤面が縮んでも、名札どうしがぶつからない。 */
   container-type: inline-size;
-  border-radius: 14px;
-  background-color: #b8a8a1;
-  background-size: cover;
-  background-position: center;
-  /* 広場の縁。外側は石の縁石とその厚み（下へ 6px）、その外に地面への落ち影。 */
-  box-shadow:
-    0 0 0 2px #3a3128,
-    0 6px 0 2px #2b241d,
-    0 10px 18px rgb(0 0 0 / 0.45);
 }
 
 @supports not (height: 1cqh) {
@@ -472,29 +464,21 @@
   }
 }
 
-/* 地を少し明るく持ち上げ、周りへ向かって落とす。広場の中央が日なたに見える。 */
-.board::before {
+/* 手札をドラッグしている間、画面全体の盤面を「ここへ落とすと使う」と分かる見た目にする。
+   枠を足すと寸法が動くので、明るい照り返しだけを重ねる（pointer-events なし）。 */
+.board-area::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 75% 60% at 50% 48%, rgb(255 244 226 / 0.16), rgb(40 30 20 / 0.22) 100%);
+  background: radial-gradient(ellipse 70% 60% at 50% 50%, rgb(255 236 170 / 0.28), rgb(255 236 170 / 0) 75%);
+  opacity: 0;
+  transition: opacity 0.18s var(--ease, ease);
   pointer-events: none;
-  z-index: 0;
+  z-index: 4;
 }
 
-/* 縁の内側。石の縁取りと、壁が地面に落とす影。建物より手前・名札より奥。 */
-.board::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow:
-    inset 0 0 0 3px #85776a,
-    inset 0 0 0 4px rgb(0 0 0 / 0.35),
-    inset 0 14px 16px -10px rgb(0 0 0 / 0.5),
-    inset 0 -6px 12px -8px rgb(0 0 0 / 0.35);
-  pointer-events: none;
-  z-index: 90;
+.board-area.is-drop-armed::after {
+  opacity: 1;
 }
 
 /* 道。縁（暗い線）→ 路面の 2 回描き。持ち主の区間はその上に重ねる。 */
@@ -899,18 +883,13 @@
      狭い画面ではカードが実測値の 68px を下回っていた（参考画面は 383/393）。 */
   margin-inline: calc(var(--pad) * -1);
   padding: 0 8px 14px;
-  background: linear-gradient(to bottom, #1d5a99 0%, #123d6e 55%, #0b2a52 100%);
-  box-shadow:
-    inset 0 2px 0 rgb(120 180 255 / 0.35),
-    inset 0 3px 0 rgb(0 0 0 / 0.25);
+  /* 上端は地へ溶かす（画面全体がひとつの盤面に見えるように、硬い境目を作らない）。 */
+  background: linear-gradient(to bottom, rgb(29 90 153 / 0) 0%, rgb(18 61 110 / 0.88) 38%, rgb(11 42 82 / 0.96) 100%);
 }
 
 /* PvP で「あか」の手番のときは、手札のパネルも赤にする（実測 #a00e47 系）。 */
 .hand-row-cpu {
-  background: linear-gradient(to bottom, #93283f 0%, #6a1730 55%, #4a0d22 100%);
-  box-shadow:
-    inset 0 2px 0 rgb(255 150 170 / 0.3),
-    inset 0 3px 0 rgb(0 0 0 / 0.25);
+  background: linear-gradient(to bottom, rgb(147 40 63 / 0) 0%, rgb(106 23 48 / 0.88) 38%, rgb(74 13 34 / 0.96) 100%);
 }
 
 /* メニューボタンと「次」を縦に積む列。幅をそろえて、メニューボタンが
@@ -1030,6 +1009,17 @@
 
 /* 実測した参考値のとおり縦長にする(68 x 84、比 1 : 1.235)。
    枠（.card-slot）いっぱいに重ねるので、高さは枠の aspect-ratio で決まる。 */
+.card-drag {
+  position: absolute;
+  inset: 0;
+  /* 指で持ち上げる札。縦に動かすときにページのスクロールへ取られないようにする。 */
+  touch-action: none;
+}
+
+.card.is-usable {
+  cursor: grab;
+}
+
 .card {
   position: absolute;
   inset: 0;

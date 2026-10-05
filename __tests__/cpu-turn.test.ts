@@ -29,7 +29,15 @@ describe('playTurnSteps', () => {
     expect(steps[steps.length - 1]!.log).toBe('ターンを終えた');
   });
 
-  it('何もできないターンでも、endTurn の 1 ステップだけは必ず出る', () => {
+  it('先頭は必ず収入（startTurn）の 1 手で、行動より前に出る', () => {
+    const base = reduce(createGame(7), { type: 'endTurn' }, DEFAULT_BALANCE);
+    const steps = playTurnSteps(base, 'normal', createRng(7), DEFAULT_BALANCE);
+    expect(steps[0]!.action.type).toBe('startTurn');
+    expect(steps[0]!.log).toBe('収入を得た');
+    expect(steps.slice(1).some((s) => s.action.type === 'startTurn')).toBe(false);
+  });
+
+  it('何もできないターンでも、収入と endTurn の 2 ステップは必ず出る', () => {
     // 高利貸（コスト 0）は必ず打てる札なので手札から外し、残りはコイン 2（baseIncome）
     // では届かない額にそろえる。建設費はどれも 7 以上なのでそもそも届かない。
     const base = createGame(9);
@@ -39,8 +47,9 @@ describe('playTurnSteps', () => {
     base.players.cpu.hand = ['banker', 'architect', 'festival', 'spy'];
     base.players.cpu.queue = ['usurer', 'herald', 'miner', 'guard', 'taxman', 'blockader'];
     const steps = playTurnSteps(base, 'normal', createRng(9), DEFAULT_BALANCE);
-    expect(steps).toHaveLength(1);
-    expect(steps[0]!.log).toBe('ターンを終えた');
+    expect(steps).toHaveLength(2);
+    expect(steps[0]!.log).toBe('収入を得た');
+    expect(steps[1]!.log).toBe('ターンを終えた');
   });
 
   it('各ステップの log は空文字にならない', () => {

@@ -12,7 +12,7 @@ import {
 import { buildCostFor, canBuild, canUseCard, canUseRoad, cardCostFor, reduce } from '@/game/reducer';
 import { handSlotsOf, opponentOf, ownedSlots, roadUsesRemaining, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
-import type { CardId, GameState } from '@/game/types';
+import type { Action, CardId, GameState } from '@/game/types';
 
 import { CARD_ART, FIELD_URL } from './art';
 import { Board } from './Board';
@@ -21,9 +21,16 @@ import { CardFlightLayer, TurnBanner, useCardFlights, useTurnBanner } from './Fx
 import { hapticBuild, hapticReject, hapticTap, hapticUseCard, hapticWin, hapticYourTurn } from './haptics';
 import { Hand } from './Hand';
 import { InfoBoard } from './InfoBoard';
+import { playIncome, slotAtPoint, useLater } from './play-helpers';
 import { ResultScreen } from './ResultScreen';
 import { Sheet } from './Sheets';
 import { TargetBanner } from './TargetBanner';
+import {
+  BUILD_EFFECT_DELAY_MS,
+  CARD_EFFECT_DELAY_MS,
+  RESULT_DELAY_MS,
+  TURN_INTRO_MS,
+} from './tempo';
 import { TurnBadge } from './TurnBadge';
 import {
   isHapticsEnabled,
@@ -54,7 +61,7 @@ type Pending =
   | null;
 
 // 手番交代のスライドが終わるまでの時間。この間は操作を無効化する。
-const SWAP_DURATION_MS = 380;
+const SWAP_DURATION_MS = 520;
 const SWAP_DURATION_S = SWAP_DURATION_MS / 1000;
 
 export function PvpGame({
@@ -69,15 +76,18 @@ export function PvpGame({
   onRestart: () => void;
 }) {
   // PvP は常に 'you' を先手にする（対 CPU モードの乱数先手とは別扱い）。
-  const [initial] = useState(() => {
-    const g = createGame(seed, balance, 'you');
-    const started = reduce(g, { type: 'startTurn' }, balance);
-    return { state: started, delta: started.players.you.coins - g.players.you.coins };
-  });
-  const [state, setState] = useState<GameState>(initial.state);
-  // 手番の受け渡し中（目隠し画面を出している間）。中身は、開けた瞬間に鳴らす
-  // 次の手番側の収入の増減。開始直後も 1 人目に渡す前提で出す。
-  const [handoff, setHandoff] = useState<{ delta: number } | null>(() => ({ delta: initial.delta }));
+  // 開始処理（収入）はここでは済ませない。目隠しを開けて手番の帯を見せてから反映する。
+  const [state, setState] = useState<GameState>(() => createGame(seed, balance, 'you'));
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const later = useLater();
+  // 手番の受け渡し中（目隠し画面を出している間）。開始直後も 1 人目に渡す前提で出す。
+  const [handoff, setHandoff] = useState(true);
+  // 目隠しを開けたが、まだ収入を反映していない間。この間は操作を受け付けない。
+  const [introPending, setIntroPending] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [using, setUsing] = useState<CardId | null>(null);
+  const [dragCard, setDragCard] = useState<CardId | null>(null);
   const [sheet, setSheet] = useState<Pending>(null);
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
   const [hapticsOn, setHapticsOn] = useState(() => isHapticsEnabled());
@@ -88,12 +98,13 @@ export function PvpGame({
   const active = state.current;
   const waiting = opponentOf(active);
   const waitingIncome = forecast(state, waiting, balance);
+  const locked = swapping || introPending || busy;
 
   // 結果画面は、最後の 1 手（建物の着地・数字の弾み）を見せてから出す。
   const [resultReady, setResultReady] = useState(false);
   useEffect(() => {
     if (!finished) return;
-    const t = window.setTimeout(() => setResultReady(true), 900);
+    const t = window.setTimeout(() => setResultReady(true), RESULT_DELAY_MS);
     return () => window.clearTimeout(t);
   }, [finished]);
 
@@ -117,13 +128,26 @@ export function PvpGame({
           },
   );
 
-  // 目隠しを開ける: 手番の帯を出し、鐘と次の手番側の収入の音をまとめて鳴らす。
+  // 目隠しを開ける: 手番の帯と鐘を先に出し、収入は帯のあとに反映する（手番 → 収入、の順）。
   const startHandoffTurn = () => {
     if (!handoff) return;
-    playYourTurn(handoff.delta);
+    playYourTurn(0);
     hapticYourTurn();
-    setHandoff(null);
+    setHandoff(false);
+    setIntroPending(true);
   };
+
+  useEffect(() => {
+    if (!introPending) return;
+    const timer = window.setTimeout(() => {
+      const before = stateRef.current;
+      const final = reduce(before, { type: 'startTurn' }, balance);
+      playIncome(final.players[final.current].coins - before.players[before.current].coins);
+      setState(final);
+      setIntroPending(false);
+    }, TURN_INTRO_MS);
+    return () => window.clearTimeout(timer);
+  }, [introPending]);
 
   useEffect(() => {
     if (!swapping) return;
@@ -139,18 +163,64 @@ export function PvpGame({
     hapticWin();
   }, [finished]);
 
-  const useCard = (card: CardId) => {
-    if (card === 'herald') return setSheet({ kind: 'heraldTarget' });
-    if (card === 'blockader') return setSheet({ kind: 'blockadeTarget' });
+  /** カードを使う。まず手札から盤面へ飛ぶところを見せ（音も先）、少し置いて効果を反映する。 */
+  const commitCard = (card: CardId, action: Action) => {
     playUseCard(card);
     hapticUseCard();
     flyCard(card);
-    setState(reduce(state, { type: 'useCard', card }, balance));
+    setUsing(card);
+    setBusy(true);
+    setSheet(null);
+    later(CARD_EFFECT_DELAY_MS, () => {
+      setState(reduce(stateRef.current, action, balance));
+      setUsing(null);
+      setBusy(false);
+    });
   };
 
-  // 終了ボタン: endTurn → (終わっていなければ) startTurn まで進めてから、
-  // 帯の入れ替えアニメーションを始める。コインの増減音は次の手番側の
-  // startTurn 前後の差分で判定する（Game.tsx の finishCpuTurn と同じ考え方）。
+  const useCard = (card: CardId) => {
+    if (card === 'herald') return setSheet({ kind: 'heraldTarget' });
+    if (card === 'blockader') return setSheet({ kind: 'blockadeTarget' });
+    commitCard(card, { type: 'useCard', card });
+  };
+
+  /** 物件を建てる。指示のあと少し置いて、着地とコインの減りを一緒に出す。 */
+  const commitBuild = (slotId: number) => {
+    hapticBuild();
+    setBusy(true);
+    setSheet(null);
+    later(BUILD_EFFECT_DELAY_MS, () => {
+      playBuild();
+      setState(reduce(stateRef.current, { type: 'build', slotId }, balance));
+      setBusy(false);
+    });
+  };
+
+  /** 手札を盤面へドラッグして離した。そのまま使用にする。 */
+  const dropCard = (card: CardId, point: { x: number; y: number }) => {
+    if (locked || handoff) return;
+    if (!canUseCard(state, card, balance)) {
+      playReject();
+      hapticReject();
+      return;
+    }
+    if (card === 'herald') return setSheet({ kind: 'heraldTarget' });
+    if (card === 'blockader') {
+      const slotId = slotAtPoint(point.x, point.y);
+      if (slotId === null) return setSheet({ kind: 'blockadeTarget' });
+      const slot = state.market[slotId];
+      if (!slot || slot.owner === active) {
+        playReject();
+        hapticReject();
+        return;
+      }
+      return commitCard(card, { type: 'useCard', card, blockadeSlot: slotId });
+    }
+    commitCard(card, { type: 'useCard', card });
+  };
+
+  // 終了ボタン: endTurn だけ進めて目隠しを出す。次の手番側の startTurn（収入）は、
+  // 目隠しを開けて帯を見せたあとに反映する（startHandoffTurn）。
   const endTurn = () => {
     playEndTurn();
     const afterEnd = reduce(state, { type: 'endTurn' }, balance);
@@ -158,15 +228,12 @@ export function PvpGame({
       setState(afterEnd);
       return;
     }
-    const before = afterEnd.players[afterEnd.current].coins;
-    const afterStart = reduce(afterEnd, { type: 'startTurn' }, balance);
-    const delta = afterStart.players[afterStart.current].coins - before;
-    // 手番交代の合図の鐘と収入の音は、目隠しを開けた瞬間（startHandoffTurn）に鳴らす。
+    // 手番交代の鐘は、目隠しを開けた瞬間（startHandoffTurn）に鳴らす。
     clearBanner();
     setSheet(null);
-    setHandoff({ delta });
+    setHandoff(true);
     setSwapping(true);
-    setState(afterStart);
+    setState(afterEnd);
   };
 
   const toggleSound = () => {
@@ -208,14 +275,15 @@ export function PvpGame({
               </motion.div>
             </AnimatePresence>
           </div>
-          <div className="board-area" ref={boardAreaRef}>
+          <div className={`board-area${dragCard ? ' is-drop-armed' : ''}`} ref={boardAreaRef}>
             <Board
               state={state}
               balance={balance}
               viewer={active}
               targeting={sheet?.kind === 'blockadeTarget'}
+              dropArmed={dragCard !== null}
               onPick={(slotId) => {
-                if (swapping) return;
+                if (locked) return;
                 // 封鎖者の対象選択モード中は、通常の区画詳細シートを開かず、
                 // タップした区画をそのまま対象にして確定する（要望 G3）。
                 if (sheet?.kind === 'blockadeTarget') {
@@ -225,13 +293,7 @@ export function PvpGame({
                     hapticReject();
                     return;
                   }
-                  playUseCard('blockader');
-                  hapticUseCard();
-                  flyCard('blockader');
-                  setState(
-                    reduce(state, { type: 'useCard', card: 'blockader', blockadeSlot: slotId }, balance),
-                  );
-                  setSheet(null);
+                  commitCard('blockader', { type: 'useCard', card: 'blockader', blockadeSlot: slotId });
                   return;
                 }
                 const slot = state.market[slotId];
@@ -278,7 +340,7 @@ export function PvpGame({
                   balance={balance}
                   viewer={active}
                   onEndTurn={endTurn}
-                  endTurnEnabled={!finished && !swapping}
+                  endTurnEnabled={!finished && !locked && !handoff}
                   active={!finished}
                   endTurnHint={
                     !handSlotsOf(state, active).some((c) => c !== null && canUseCard(state, c, balance)) &&
@@ -289,24 +351,22 @@ export function PvpGame({
                   state={state}
                   balance={balance}
                   viewer={active}
-                  canUse={(card) => !swapping && canUseCard(state, card, balance)}
+                  canUse={(card) => !locked && canUseCard(state, card, balance)}
+                  using={using}
+                  dropRef={boardAreaRef}
+                  onDrop={dropCard}
+                  onDragActive={setDragCard}
                   targeting={sheet?.kind === 'heraldTarget'}
                   selected={sheet?.kind === 'card' ? sheet.card : null}
                   onPick={(card) => {
-                    if (swapping) return;
+                    if (locked) return;
                     if (sheet?.kind === 'heraldTarget') {
                       if (card === 'herald') {
                         playReject();
                         hapticReject();
                         return;
                       }
-                      playUseCard('herald');
-                      hapticUseCard();
-                      flyCard('herald');
-                      setState(
-                        reduce(state, { type: 'useCard', card: 'herald', heraldTarget: card }, balance),
-                      );
-                      setSheet(null);
+                      commitCard('herald', { type: 'useCard', card: 'herald', heraldTarget: card });
                       return;
                     }
                     if (canUseCard(state, card, balance)) {
@@ -355,13 +415,8 @@ export function PvpGame({
                   ) : null}
                   <button
                     className="btn3d btn3d-yellow"
-                    disabled={!canBuild(state, sheet.slotId, balance)}
-                    onClick={() => {
-                      playBuild();
-                      hapticBuild();
-                      setState(reduce(state, { type: 'build', slotId: sheet.slotId }, balance));
-                      setSheet(null);
-                    }}
+                    disabled={locked || !canBuild(state, sheet.slotId, balance)}
+                    onClick={() => commitBuild(sheet.slotId)}
                   >
                     {/* 押せない理由をボタンの上で言う（灰色のボタンだけでは何が足りないか分からない）。 */}
                     {slot.owner !== null
@@ -395,7 +450,7 @@ export function PvpGame({
             ) : null}
             <button
               className="sheet-row road-btn"
-              disabled={!canUseRoad(state, sheet.card, balance)}
+              disabled={locked || !canUseRoad(state, sheet.card, balance)}
               onClick={() => {
                 const card = sheet.card;
                 playSelect();
@@ -408,7 +463,7 @@ export function PvpGame({
             </button>
             <button
               className="btn3d btn3d-yellow"
-              disabled={!canUseCard(state, sheet.card, balance)}
+              disabled={locked || !canUseCard(state, sheet.card, balance)}
               onClick={() => {
                 const card = sheet.card;
                 setSheet(null);

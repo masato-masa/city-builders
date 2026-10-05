@@ -4,6 +4,8 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { BANNER_MS, CARD_FLIGHT_S, DELTA_POP_MS } from './tempo';
+
 /* ---------------- 手番のバナー ---------------- */
 
 export type BannerTone = 'you' | 'cpu';
@@ -17,12 +19,12 @@ export interface TurnBannerInfo {
 }
 
 /** 手番が替わった瞬間に盤面の中央を横切る帯。
- *  入る 0.22s → 止まる 0.6s → 抜ける 0.2s の 1 秒強。操作は一切止めない
+ *  BANNER_MS（tempo.ts）の間出して抜ける。操作は一切止めない
  *  （pointer-events: none）。クラロワの帯（実測 青 #2764b2・赤 #a00e47、下端に 2px の濃い縁）に合わせた。 */
 export function TurnBanner({ banner, onDone }: { banner: TurnBannerInfo | null; onDone: () => void }) {
   useEffect(() => {
     if (!banner) return;
-    const t = window.setTimeout(onDone, 1050);
+    const t = window.setTimeout(onDone, BANNER_MS);
     return () => window.clearTimeout(t);
   }, [banner?.id]);
   return (
@@ -97,7 +99,7 @@ export function useCardFlights() {
         to: { x: b.left + b.width / 2, y: b.top + b.height * 0.45 },
       },
     ]);
-    window.setTimeout(() => setFlights((prev) => prev.filter((f) => f.id !== id)), 900);
+    window.setTimeout(() => setFlights((prev) => prev.filter((f) => f.id !== id)), CARD_FLIGHT_S * 1000 + 400);
   }, []);
   return { flights, fly };
 }
@@ -123,14 +125,14 @@ export function CardFlightLayer({ flights }: { flights: Flight[] }) {
                 rotate: [0, -6, 0],
                 opacity: [1, 1, 0],
               }}
-              transition={{ duration: 0.5, times: [0, 0.55, 1], ease: 'easeOut' }}
+              transition={{ duration: CARD_FLIGHT_S, times: [0, 0.55, 1], ease: 'easeOut' }}
             />
             <motion.span
               className="fx-burst"
               style={{ left: f.to.x, top: f.to.y }}
               initial={{ scale: 0.2, opacity: 0 }}
               animate={{ scale: [0.2, 1.6], opacity: [0, 0.9, 0] }}
-              transition={{ delay: 0.42, duration: 0.4, ease: 'easeOut' }}
+              transition={{ delay: CARD_FLIGHT_S * 0.85, duration: 0.5, ease: 'easeOut' }}
             />
           </div>
         );
@@ -195,7 +197,7 @@ export function useDeltaPops(value: number) {
     const id = seq.current;
     setPops((p) => [...p.slice(-2), { id, value: d }]);
     // 次の変化で消さない（連続で増減したときに前のポップが居残らないよう、個別に消す）。
-    window.setTimeout(() => setPops((p) => p.filter((x) => x.id !== id)), 950);
+    window.setTimeout(() => setPops((p) => p.filter((x) => x.id !== id)), DELTA_POP_MS + 50);
   }, [value]);
   return pops;
 }
@@ -211,7 +213,7 @@ export function DeltaPops({ pops, unit = '' }: { pops: DeltaPop[]; unit?: string
             initial={{ opacity: 0, y: 6, scale: 0.6 }}
             animate={{ opacity: [0, 1, 1, 0], y: [6, -10, -18, -26], scale: [0.6, 1.2, 1, 1] }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.9, times: [0, 0.18, 0.7, 1], ease: 'easeOut' }}
+            transition={{ duration: DELTA_POP_MS / 1000, times: [0, 0.18, 0.7, 1], ease: 'easeOut' }}
           >
             {p.value > 0 ? `+${p.value}` : `−${Math.abs(p.value)}`}
             {unit}

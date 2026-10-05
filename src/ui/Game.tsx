@@ -14,7 +14,7 @@ import { buildCostFor, canBuild, canUseCard, canUseRoad, cardCostFor, reduce } f
 import { createRng, type Rng } from '@/game/rng';
 import { handSlotsOf, ownedSlots, roadUsesRemaining, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
-import type { CardId, GameState } from '@/game/types';
+import type { Action, CardId, GameState } from '@/game/types';
 import { loadProgress, saveProgress } from '@/storage/storage';
 
 import { BUILDING_ART, CARD_ART, FIELD_URL } from './art';
@@ -40,9 +40,19 @@ import {
 } from './haptics';
 import { Hand } from './Hand';
 import { OpponentStrip } from './OpponentStrip';
+import { playIncome, slotAtPoint, useLater } from './play-helpers';
 import { ResultScreen } from './ResultScreen';
 import { Sheet } from './Sheets';
 import { TargetBanner } from './TargetBanner';
+import {
+  BUILD_EFFECT_DELAY_MS,
+  CARD_EFFECT_DELAY_MS,
+  CPU_EFFECT_DELAY_MS,
+  CPU_FIRST_GAP_MS,
+  CPU_STEP_GAP_MS,
+  RESULT_DELAY_MS,
+  TURN_INTRO_MS,
+} from './tempo';
 import { TurnBadge } from './TurnBadge';
 import {
   isHapticsEnabled,
@@ -73,11 +83,6 @@ type Pending =
   | { kind: 'settings' }
   | null;
 
-// CPU の 1 手ごとに空ける間隔。「結局見えない。早すぎる」という指摘を受け、
-// 手数に応じて詰めていた計算をやめ、常にこの値を使う（要望 7）。
-// ターン全体は長くなってよい。読めるかどうかが基準。
-const CPU_STEP_DELAY_MS = 900;
-
 export function Game({
   seed,
   difficulty,
@@ -93,12 +98,21 @@ export function Game({
 }) {
   const [rng] = useState<Rng>(() => createRng(seed * 7919 + 13));
   const [state, setState] = useState<GameState>(() => {
-    const g = createGame(seed, balance);
-    // プレイヤーが先手なら、ここで最初のターンの開始処理をすませる。
-    // 後手（CPU が先手）なら何もせず、下の useEffect が CPU の 1 手番を
-    // ログ付きで進める（プレイヤーの最初の startTurn はその手番の終わりに続く）。
-    return g.current === 'you' ? reduce(g, { type: 'startTurn' }, balance) : g;
+    // 開始処理（収入）はここでは済ませない。手番の帯を見せてから、下の useEffect が反映する。
+    // 後手（CPU が先手）のときも同じで、CPU の手番は収入から 1 手ずつ出す。
+    return createGame(seed, balance);
   });
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const later = useLater();
+  // 自分の手番に替わったが、まだ収入を反映していない間。この間は操作を受け付けない。
+  const [introPending, setIntroPending] = useState(() => state.current === 'you');
+  // カードを使う動きを見せてから効果を反映するまで（建設も同じ）の間。
+  const [busy, setBusy] = useState(false);
+  // 使用中の札（手札からは先に消し、盤面へ飛ぶ複製が見せる）。
+  const [using, setUsing] = useState<CardId | null>(null);
+  // 手札をドラッグ中の札。盤面に「ここへ落とす」表示を出す。
+  const [dragCard, setDragCard] = useState<CardId | null>(null);
   const [sheet, setSheet] = useState<Pending>(null);
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
   const [hapticsOn, setHapticsOn] = useState(() => isHapticsEnabled());
@@ -112,13 +126,15 @@ export function Game({
   const cpuCalloutSeq = useRef(0);
   const [cpuHighlightSlot, setCpuHighlightSlot] = useState<number | null>(null);
   const cpuActing = cpuTurn !== null;
+  /** 演出の途中で、プレイヤーの操作を受け付けない間。 */
+  const locked = cpuActing || introPending || busy;
 
   const finished = state.phase === 'finished';
   // 結果画面は、最後の 1 手（建物の着地・数字の弾み）を見せてから出す。
   const [resultReady, setResultReady] = useState(false);
   useEffect(() => {
     if (!finished) return;
-    const t = window.setTimeout(() => setResultReady(true), 900);
+    const t = window.setTimeout(() => setResultReady(true), RESULT_DELAY_MS);
     return () => window.clearTimeout(t);
   }, [finished]);
 
@@ -150,22 +166,29 @@ export function Game({
     });
   };
 
-  // CPU の 1 手番の結果を、実際の state に反映する。次のプレイヤーの手番があれば
-  // その startTurn も済ませ、ゲームが終わっていれば記録する。
-  // startTurn の前後でコインが増えていれば「コインが増える」音、減っていれば
-  // （高利貸の返済が収入を上回ったときだけ起こる。startTurn 内で唯一マイナスに
-  // なりうる処理）「引かれる」沈む音を鳴らす。
+  // CPU の手番の終わり。手番だけを替え、収入は帯を見せてから（下の useEffect が）反映する。
   const finishCpuTurn = (result: GameState) => {
-    const before = result.players.you.coins;
-    const final = result.phase === 'playing' ? reduce(result, { type: 'startTurn' }, balance) : result;
+    recordIfFinished(result);
     if (result.phase === 'playing') {
-      // 自分の手番が回ってきた合図の鐘と、手番開始の収入の音をまとめて鳴らす。
-      playYourTurn(final.players.you.coins - before);
+      playYourTurn(0);
       hapticYourTurn();
+      setIntroPending(true);
     }
-    recordIfFinished(final);
-    setState(final);
+    setState(result);
   };
+
+  // 自分の手番が回ってきたら、帯を見せてから収入を反映する（手番 → 収入、の順）。
+  useEffect(() => {
+    if (!introPending) return;
+    const timer = window.setTimeout(() => {
+      const before = stateRef.current;
+      const final = reduce(before, { type: 'startTurn' }, balance);
+      playIncome(final.players.you.coins - before.players.you.coins);
+      setState(final);
+      setIntroPending(false);
+    }, TURN_INTRO_MS);
+    return () => window.clearTimeout(timer);
+  }, [introPending]);
 
   const endTurn = () => {
     playEndTurn();
@@ -190,40 +213,44 @@ export function Game({
     setCpuTurn({ steps: playTurnSteps(state, difficulty, stepRng, balance), revealed: 0 });
   }, [state]);
 
-  // 1 手ずつ、最低でも読める速さ（900ms）を空けて出す（要望 7）。
-  // 何をしたかは文字のログだけでなく、盤面側にも指し示す：
-  // カードを使ったら相手のボードのそばに絵を一瞬大きく出し、物件を建てたら
-  // その区画を光らせる。振動は入れない（プレイヤーが起こしていない操作で
-  // スマホを震わせると誤動作に見えるため）。
+  // 1 手ずつ、2 段に分けて出す。まず「何をしたか」（絵と帯・使用の音）、少し置いて
+  // 「その結果」（盤面・コインの反映）。同時に起こすと、何が原因で何が変わったか読めない。
+  // 順番は 手番の帯 → 収入 → 行動 → その効果。振動は入れない（プレイヤーが起こした
+  // 操作ではないのでスマホを震わせると誤動作に見える）。
   useEffect(() => {
     if (!cpuTurn) return;
     const { steps, revealed } = cpuTurn;
     const step = steps[revealed];
     if (!step) return;
     const isLast = revealed === steps.length - 1;
-    const timer = window.setTimeout(() => {
+    const a = step.action;
+    const gap = revealed === 0 ? CPU_FIRST_GAP_MS : CPU_STEP_GAP_MS;
+    const effectDelay = a.type === 'endTurn' ? 600 : CPU_EFFECT_DELAY_MS;
+    const show = window.setTimeout(() => {
       setCpuLog((prev) => [...prev, step.log]);
-      // 盤面の上端に「絵 + 帯」で何をしたかを出す（ターン終了は手番の帯が受け持つ）。
       cpuCalloutSeq.current += 1;
-      const a = step.action;
+      const id = cpuCalloutSeq.current;
       setCpuCallout(
         a.type === 'useCard'
-          ? { id: cpuCalloutSeq.current, kind: 'card', art: CARD_ART[a.card], text: step.log }
+          ? { id, kind: 'card', art: CARD_ART[a.card], text: step.log }
           : a.type === 'useRoad'
-            ? { id: cpuCalloutSeq.current, kind: 'card', art: CARD_ART[a.target], text: step.log }
+            ? { id, kind: 'card', art: CARD_ART[a.target], text: step.log }
             : a.type === 'build'
-              ? {
-                  id: cpuCalloutSeq.current,
-                  kind: 'building',
-                  art: BUILDING_ART[state.market[a.slotId]!.buildingId]?.url,
-                  text: step.log,
-                }
-              : null,
+              ? { id, kind: 'building', art: BUILDING_ART[state.market[a.slotId]!.buildingId]?.url, text: step.log }
+              : a.type === 'startTurn'
+                ? { id, kind: 'none', text: step.log }
+                : null,
       );
-      setCpuHighlightSlot(step.action.type === 'build' ? step.action.slotId : null);
-      if (step.action.type === 'useCard') playUseCard(step.action.card);
-      else if (step.action.type === 'build') playBuild();
-      else if (step.action.type === 'endTurn') playEndTurn();
+      if (a.type === 'useCard') playUseCard(a.card);
+      else if (a.type === 'endTurn') playEndTurn();
+    }, gap);
+    const apply = window.setTimeout(() => {
+      if (a.type === 'build') {
+        playBuild();
+        setCpuHighlightSlot(a.slotId);
+      } else if (a.type === 'startTurn') {
+        playIncome(step.state.players.cpu.coins - stateRef.current.players.cpu.coins);
+      }
       if (isLast) {
         finishCpuTurn(step.state);
         setCpuTurn(null);
@@ -233,8 +260,11 @@ export function Game({
         setState(step.state);
         setCpuTurn((prev) => (prev ? { ...prev, revealed: prev.revealed + 1 } : prev));
       }
-    }, CPU_STEP_DELAY_MS);
-    return () => window.clearTimeout(timer);
+    }, gap + effectDelay);
+    return () => {
+      window.clearTimeout(show);
+      window.clearTimeout(apply);
+    };
     // eslint 的な exhaustive-deps はこのプロジェクトに無い。cpuTurn の変化だけを見る。
   }, [cpuTurn]);
 
@@ -252,14 +282,61 @@ export function Game({
     // eslint 的な exhaustive-deps はこのプロジェクトに無い。finished の変化だけを見る。
   }, [finished]);
 
-  const useCard = (card: CardId) => {
-    if (card === 'herald') return setSheet({ kind: 'heraldTarget' });
-    if (card === 'blockader') return setSheet({ kind: 'blockadeTarget' });
+  /** カードを使う。まず手札から盤面へ飛ぶところを見せ（音も先）、少し置いて効果を反映する。 */
+  const commitCard = (card: CardId, action: Action) => {
     playUseCard(card);
     hapticUseCard();
     flyCard(card);
-    const next = reduce(state, { type: 'useCard', card }, balance);
-    setState(next);
+    setUsing(card);
+    setBusy(true);
+    setSheet(null);
+    later(CARD_EFFECT_DELAY_MS, () => {
+      setState(reduce(stateRef.current, action, balance));
+      setUsing(null);
+      setBusy(false);
+    });
+  };
+
+  const useCard = (card: CardId) => {
+    if (card === 'herald') return setSheet({ kind: 'heraldTarget' });
+    if (card === 'blockader') return setSheet({ kind: 'blockadeTarget' });
+    commitCard(card, { type: 'useCard', card });
+  };
+
+  /** 物件を建てる。指示のあと少し置いて、着地とコインの減りを一緒に出す。 */
+  const commitBuild = (slotId: number) => {
+    hapticBuild();
+    setBusy(true);
+    setSheet(null);
+    later(BUILD_EFFECT_DELAY_MS, () => {
+      playBuild();
+      setState(reduce(stateRef.current, { type: 'build', slotId }, balance));
+      setBusy(false);
+    });
+  };
+
+  /** 手札を盤面へドラッグして離した。そのまま使用にする。 */
+  const dropCard = (card: CardId, point: { x: number; y: number }) => {
+    if (locked) return;
+    if (!canUseCard(state, card, balance)) {
+      playReject();
+      hapticReject();
+      return;
+    }
+    if (card === 'herald') return setSheet({ kind: 'heraldTarget' });
+    if (card === 'blockader') {
+      // 区画の上で離したら、その区画を対象にそのまま使う。盤面の空きで離したら対象選びへ。
+      const slotId = slotAtPoint(point.x, point.y);
+      if (slotId === null) return setSheet({ kind: 'blockadeTarget' });
+      const slot = state.market[slotId];
+      if (!slot || slot.owner === 'you') {
+        playReject();
+        hapticReject();
+        return;
+      }
+      return commitCard(card, { type: 'useCard', card, blockadeSlot: slotId });
+    }
+    commitCard(card, { type: 'useCard', card });
   };
 
   const toggleSound = () => {
@@ -287,14 +364,15 @@ export function Game({
             log={cpuLog}
             active={!finished && (cpuActing || state.current === 'cpu')}
           />
-          <div className="board-area" ref={boardAreaRef}>
+          <div className={`board-area${dragCard ? ' is-drop-armed' : ''}`} ref={boardAreaRef}>
             <Board
               state={state}
               balance={balance}
               highlightSlot={cpuHighlightSlot}
               targeting={sheet?.kind === 'blockadeTarget'}
+              dropArmed={dragCard !== null}
               onPick={(slotId) => {
-                if (cpuActing) return;
+                if (locked) return;
                 // 封鎖者の対象選択モード中は、通常の区画詳細シートを開かず、
                 // タップした区画をそのまま対象にして確定する（要望 G3）。
                 if (sheet?.kind === 'blockadeTarget') {
@@ -304,13 +382,7 @@ export function Game({
                     hapticReject();
                     return;
                   }
-                  playUseCard('blockader');
-                  hapticUseCard();
-                  flyCard('blockader');
-                  setState(
-                    reduce(state, { type: 'useCard', card: 'blockader', blockadeSlot: slotId }, balance),
-                  );
-                  setSheet(null);
+                  commitCard('blockader', { type: 'useCard', card: 'blockader', blockadeSlot: slotId });
                   return;
                 }
                 const slot = state.market[slotId];
@@ -350,7 +422,7 @@ export function Game({
             state={state}
             balance={balance}
             onEndTurn={endTurn}
-            endTurnEnabled={!finished && !cpuActing && state.current === 'you'}
+            endTurnEnabled={!finished && !locked && state.current === 'you'}
             active={!finished && !cpuActing && state.current === 'you'}
             endTurnHint={
               !handSlotsOf(state, 'you').some((c) => c !== null && canUseCard(state, c, balance)) &&
@@ -360,11 +432,15 @@ export function Game({
           <Hand
             state={state}
             balance={balance}
-            canUse={(card) => !cpuActing && canUseCard(state, card, balance)}
+            canUse={(card) => !locked && canUseCard(state, card, balance)}
+            using={using}
+            dropRef={boardAreaRef}
+            onDrop={dropCard}
+            onDragActive={setDragCard}
             targeting={sheet?.kind === 'heraldTarget'}
             selected={sheet?.kind === 'card' ? sheet.card : null}
             onPick={(card) => {
-              if (cpuActing) return;
+              if (locked) return;
               // 伝令の対象選択モード中は、通常のカード詳細シートを開かず、
               // タップした手札カードをそのまま対象にして確定する（封鎖者の
               // 盤面タップと同じ考え方）。伝令自身は対象にできない。
@@ -374,13 +450,7 @@ export function Game({
                   hapticReject();
                   return;
                 }
-                playUseCard('herald');
-                hapticUseCard();
-                flyCard('herald');
-                setState(
-                  reduce(state, { type: 'useCard', card: 'herald', heraldTarget: card }, balance),
-                );
-                setSheet(null);
+                commitCard('herald', { type: 'useCard', card: 'herald', heraldTarget: card });
                 return;
               }
               if (canUseCard(state, card, balance)) {
@@ -423,13 +493,8 @@ export function Game({
                   ) : null}
                   <button
                     className="btn3d btn3d-yellow"
-                    disabled={!canBuild(state, sheet.slotId, balance)}
-                    onClick={() => {
-                      playBuild();
-                      hapticBuild();
-                      setState(reduce(state, { type: 'build', slotId: sheet.slotId }, balance));
-                      setSheet(null);
-                    }}
+                    disabled={locked || !canBuild(state, sheet.slotId, balance)}
+                    onClick={() => commitBuild(sheet.slotId)}
                   >
                     {/* 押せない理由をボタンの上で言う（灰色のボタンだけでは何が足りないか分からない）。 */}
                     {slot.owner !== null
@@ -466,7 +531,7 @@ export function Game({
                 街道を持っていない／使い切っているときも、ボタンは消さず disabled にする。 */}
             <button
               className="sheet-row road-btn"
-              disabled={!canUseRoad(state, sheet.card, balance)}
+              disabled={locked || !canUseRoad(state, sheet.card, balance)}
               onClick={() => {
                 const card = sheet.card;
                 playSelect();
@@ -479,7 +544,7 @@ export function Game({
             </button>
             <button
               className="btn3d btn3d-yellow"
-              disabled={!canUseCard(state, sheet.card, balance)}
+              disabled={locked || !canUseCard(state, sheet.card, balance)}
               onClick={() => {
                 const card = sheet.card;
                 setSheet(null);

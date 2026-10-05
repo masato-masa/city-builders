@@ -6,7 +6,7 @@ import { buildCostFor } from '@/game/reducer';
 import { vpOfSlot } from '@/game/selectors';
 import type { GameState, PlayerId } from '@/game/types';
 
-import { BUILDING_ART, FIELD_URL } from './art';
+import { BUILDING_ART } from './art';
 import { PLOTS, PLOT_HEIGHT, PLOT_WIDTH, STREET_JUNCTIONS, STREET_Y, STUBS, rowOf } from './board-layout';
 import { ChainIcon } from './icons';
 
@@ -184,6 +184,7 @@ function PlotView({
       <button
         className={['plot', ...stateClass, targetable ? 'is-targetable' : null].filter(Boolean).join(' ')}
         style={{ ...box, zIndex: z }}
+        data-slot={slotId}
         aria-label={ariaLabel}
         onClick={() => onPick(slotId)}
       >
@@ -283,6 +284,7 @@ export function Board({
   viewer = 'you',
   highlightSlot,
   targeting = false,
+  dropArmed = false,
   onPick,
 }: {
   state: GameState;
@@ -297,10 +299,13 @@ export function Board({
    *  沈める。実際にどう振る舞うか（対象を決定する／リジェクト音を出す）は
    *  呼び出し側の onPick が決める。 */
   targeting?: boolean;
+  /** 手札をドラッグ中か。true の間は盤面全体を「ここへ落とすと使う」と分かる見た目にする。 */
+  dropArmed?: boolean;
   onPick: (slotId: number) => void;
 }) {
+  // 地（背景）は持たない。画面全体の地（.app-play）がそのまま続いて見える。
   return (
-    <div className="board" style={{ backgroundImage: `url(${FIELD_URL})` }}>
+    <div className={`board${dropArmed ? ' is-drop-armed' : ''}`}>
       <Roads state={state} />
       {state.market.map((slot) =>
         PLOTS[slot.slotId] ? (
