@@ -24,8 +24,8 @@ const TARGET: Record<string, { ms: number; hits: number }> = {
   reject: { ms: 400, hits: 2 },
   endTurn: { ms: 450, hits: 1 },
   yourTurn: { ms: 600, hits: 1 },
-  win: { ms: 2200, hits: 4 },
-  lose: { ms: 2000, hits: 3 },
+  win: { ms: 3500, hits: 4 },
+  lose: { ms: 3000, hits: 3 },
 };
 
 interface Metrics {

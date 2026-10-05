@@ -60,18 +60,20 @@ export function primeAudio(): void {
 const sampleUrls = import.meta.glob('../assets/sfx/*.wav', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 const samples = new Map<string, AudioBuffer>();
 
-/** 音ごとの音量（ピークをそろえたあとに掛ける）。 */
+/** 音ごとの音量（ピークをそろえたあとに掛ける）。生成した音は同じピークでも実効音量（RMS）が
+ *  -12〜-31dB とばらつくので、RMS を測って役割ごとの目標（UI -30 前後、カード -24、建設 -20、
+ *  勝敗 -22〜-24dB）に合わせた値。音を差し替えたら測り直す。 */
 const SAMPLE_GAIN: Record<string, number> = {
-  tap: 0.3, select: 0.4, cardBuff: 0.5, cardAttack: 0.55, chain: 0.5, shield: 0.5, horn: 0.5,
-  build: 0.65, coin: 0.45, coinBig: 0.5, coinLose: 0.45, reject: 0.45, endTurn: 0.45,
-  yourTurn: 0.45, win: 0.6, lose: 0.55,
+  tap: 0.44, select: 0.36, cardBuff: 0.88, cardAttack: 0.33, chain: 1, shield: 0.58, horn: 0.27,
+  build: 0.8, coin: 1, coinBig: 0.97, coinLose: 0.79, reject: 0.32, endTurn: 0.88,
+  yourTurn: 0.31, win: 0.44, lose: 0.3,
 };
 
 /** 音ごとの最大の長さ（ms）。scripts/build-sfx.mjs の TARGET.max と同じ。 */
 const SAMPLE_MAX_MS: Record<string, number> = {
   tap: 220, select: 300, cardBuff: 1200, cardAttack: 900, chain: 1300, shield: 900, horn: 1400,
   build: 1200, coin: 700, coinBig: 1600, coinLose: 1200, reject: 550, endTurn: 650,
-  yourTurn: 900, win: 2600, lose: 2600,
+  yourTurn: 900, win: 4000, lose: 4000,
 };
 
 /** 頭の無音を切り、ピークを 1 にそろえた AudioBuffer を作る。 */

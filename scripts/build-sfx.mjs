@@ -61,8 +61,8 @@ export const TARGET = {
   reject: { ms: 400, hits: 2, max: 550 },
   endTurn: { ms: 450, hits: 1, max: 650 },
   yourTurn: { ms: 600, hits: 1, max: 900 },
-  win: { ms: 2200, hits: 4, max: 2600 },
-  lose: { ms: 2000, hits: 3, max: 2600 },
+  win: { ms: 3500, hits: 4, max: 4000 },
+  lose: { ms: 3000, hits: 3, max: 4000 },
 };
 
 const CAND_RE = /^(\w+?)_(\d+)\.(mp3|ogg)$/;
