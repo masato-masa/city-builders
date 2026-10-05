@@ -248,6 +248,112 @@ function incomeOf(
   }
 }
 
+/** 手番の開始で入る収入の 1 段。UI が「基礎収入 → 建物収入 → …」と 1 つずつ見せるために分けてある。
+ *  startTurn 自身もこの段の合計を足すので、見せる額と実際に入る額はずれない。 */
+export interface IncomeStage {
+  kind: 'base' | 'building' | 'invest' | 'debt' | 'bind';
+  /** コインの増減（debt は負）。bind は 0 */
+  amount: number;
+  /** 祝祭が効いているターンか */
+  festival: boolean;
+  /** 祝祭で上乗せされた分（base: festivalIncomeBonus、building/invest: 倍にならなければ入らなかった額） */
+  festivalExtra: number;
+  /** この段の収入の元になった物件の区画（光らせる） */
+  slots: number[];
+  /** この段の元になった投資カード */
+  cards: CardId[];
+}
+
+/** 手番の開始で入る収入を段に分ける。state.current の側が対象で、festivalActive は
+ *  すでに立っている（startTurn が立てたあと）前提。 */
+function computeIncomeStages(state: GameState, balance: Balance): IncomeStage[] {
+  const player = state.current;
+  const p = state.players[player];
+  const festival = p.festivalActive;
+  const stages: IncomeStage[] = [];
+
+  // 基礎収入（後手の 1 ターン目の補正と、祝祭の +N もここ）。
+  // 後手の 1 ターン目だけ補正する。先手は市場を先に取れるぶん有利なので、
+  // その差を整数 1 つのつまみで埋める。turn 2 が後手の 1 ターン目。
+  const festivalBonus = festival ? balance.festivalIncomeBonus : 0;
+  stages.push({
+    kind: 'base',
+    amount:
+      balance.baseIncome + (state.turn === 2 ? balance.secondPlayerFirstTurnBonus : 0) + festivalBonus,
+    festival,
+    festivalExtra: festivalBonus,
+    slots: [],
+    cards: [],
+  });
+
+  // 建物収入（商館）。祝祭中は 2 倍。
+  const houses = activeOwnedSlots(state, player).filter((s) => s.buildingId === 'tradingHouse');
+  const houseOnce = houses.length * balance.tradingHouseIncome;
+  const houseIncome = festival ? houseOnce * balance.festivalMultiplier : houseOnce;
+  if (houseIncome !== 0) {
+    stages.push({
+      kind: 'building',
+      amount: houseIncome,
+      festival,
+      festivalExtra: houseIncome - houseOnce,
+      slots: houses.map((s) => s.slotId),
+      cards: [],
+    });
+  }
+
+  // 投資カード（採掘師・銀行家）の解決。取引所のボーナスは物件の効果なので祝祭で倍になる。
+  if (p.pendingIncome.length > 0) {
+    let invest = 0;
+    for (const card of p.pendingIncome) invest += incomeOf(state, player, card, balance);
+    const exchange = activeOwnedSlots(state, player).filter((s) => s.buildingId === 'exchange');
+    stages.push({
+      kind: 'invest',
+      amount: invest,
+      festival,
+      festivalExtra: 0,
+      slots: exchange.map((s) => s.slotId),
+      cards: [...p.pendingIncome],
+    });
+  }
+
+  // 高利貸の借り。収入を足したあとに引く。コインがマイナスになるのはここだけ。
+  if (p.pendingDebt > 0) {
+    stages.push({ kind: 'debt', amount: -p.pendingDebt, festival, festivalExtra: 0, slots: [], cards: [] });
+  }
+
+  // 買収者を受けていたら、このときの手札から spyBindCount 枚を抽選して縛る（コインは動かない）
+  if (p.bindPending) {
+    stages.push({ kind: 'bind', amount: 0, festival, festivalExtra: 0, slots: [], cards: [] });
+  }
+  return stages;
+}
+
+/** いまの手番側の、次の startTurn で見せる収入の段。 */
+export function incomeStages(state: GameState, balance: Balance = DEFAULT_BALANCE): IncomeStage[] {
+  const c = structuredClone(state);
+  const p = c.players[c.current];
+  p.festivalActive = p.festivalQueued;
+  return computeIncomeStages(c, balance);
+}
+
+/** 段ごとの「その段まで反映した盤面」。コインだけを段ごとに足した見せる用の状態で、
+ *  最後の 1 つだけは startTurn を完全に済ませた状態（手札の抽選・フラグのリセットを含む）。 */
+export function incomeStageStates(
+  state: GameState,
+  balance: Balance = DEFAULT_BALANCE,
+): { stage: IncomeStage; state: GameState }[] {
+  const stages = incomeStages(state, balance);
+  const final = startTurn(state, balance);
+  let coins = state.players[state.current].coins;
+  return stages.map((stage, i) => {
+    coins += stage.amount;
+    if (i === stages.length - 1) return { stage, state: final };
+    const view = structuredClone(state);
+    view.players[view.current].coins = coins;
+    return { stage, state: view };
+  });
+}
+
 function startTurn(state: GameState, balance: Balance): GameState {
   if (state.phase !== 'playing') return state;
   const next = structuredClone(state);
@@ -258,24 +364,9 @@ function startTurn(state: GameState, balance: Balance): GameState {
   p.festivalActive = p.festivalQueued;
   p.festivalQueued = false;
 
-  p.coins += balance.baseIncome;
-  // 後手の 1 ターン目だけ補正する。先手は市場を先に取れるぶん有利なので、
-  // その差を整数 1 つのつまみで埋める。turn 2 が後手の 1 ターン目。
-  if (next.turn === 2) p.coins += balance.secondPlayerFirstTurnBonus;
-  if (p.festivalActive) p.coins += balance.festivalIncomeBonus;
+  for (const stage of computeIncomeStages(next, balance)) p.coins += stage.amount;
 
-  let houseIncome = countActiveBuilding(next, player, 'tradingHouse') * balance.tradingHouseIncome;
-  if (p.festivalActive) houseIncome *= balance.festivalMultiplier;
-  p.coins += houseIncome;
-
-  for (const card of p.pendingIncome) {
-    p.coins += incomeOf(next, player, card, balance);
-  }
-
-  // 高利貸の借り。収入を足したあとに引く。コインがマイナスになるのはここだけ。
-  p.coins -= p.pendingDebt;
   p.pendingDebt = 0;
-
   p.pendingIncome = [];
   p.usedThisTurn = [];
   p.usedAnyCardThisTurn = false;

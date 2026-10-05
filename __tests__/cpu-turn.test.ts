@@ -33,8 +33,11 @@ describe('playTurnSteps', () => {
     const base = reduce(createGame(7), { type: 'endTurn' }, DEFAULT_BALANCE);
     const steps = playTurnSteps(base, 'normal', createRng(7), DEFAULT_BALANCE);
     expect(steps[0]!.action.type).toBe('startTurn');
-    expect(steps[0]!.log).toBe('収入を得た');
-    expect(steps.slice(1).some((s) => s.action.type === 'startTurn')).toBe(false);
+    // 収入は段ごとに独立した手になり（先頭は基礎収入）、行動より前にまとまって出る
+    expect(steps[0]!.stage?.kind).toBe('base');
+    expect(steps[0]!.log).toMatch(/^基礎収入 \+/);
+    const lastIncome = steps.map((s) => s.action.type).lastIndexOf('startTurn');
+    expect(steps.slice(0, lastIncome + 1).every((s) => s.action.type === 'startTurn')).toBe(true);
   });
 
   it('何もできないターンでも、収入と endTurn の 2 ステップは必ず出る', () => {
@@ -48,7 +51,7 @@ describe('playTurnSteps', () => {
     base.players.cpu.queue = ['usurer', 'herald', 'miner', 'guard', 'taxman', 'blockader'];
     const steps = playTurnSteps(base, 'normal', createRng(9), DEFAULT_BALANCE);
     expect(steps).toHaveLength(2);
-    expect(steps[0]!.log).toBe('収入を得た');
+    expect(steps[0]!.stage?.kind).toBe('base');
     expect(steps[1]!.log).toBe('ターンを終えた');
   });
 

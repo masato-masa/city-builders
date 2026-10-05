@@ -22,7 +22,7 @@ export function Hand({
   selected = null,
   onPick,
   onMenu,
-  using = null,
+  using = [],
   dropRef,
   onDrop,
   onDragActive,
@@ -42,7 +42,7 @@ export function Hand({
   /** 「次」の真上の横長メニューボタン（要望 2）。 */
   onMenu: () => void;
   /** いま使用中の札。盤面へ飛ぶ複製が受け持つので、手札の側では即座に消す。 */
-  using?: CardId | null;
+  using?: readonly CardId[];
   /** ドラッグで離したとき「使用」になる領域（盤面）。 */
   dropRef?: RefObject<HTMLElement | null>;
   /** 札を盤面の上で離した。point は離した位置（ビューポート座標）。 */
@@ -91,7 +91,7 @@ export function Hand({
                     targeting={targeting}
                     selected={selected === card}
                     onPick={onPick}
-                    using={using === card}
+                    using={using.includes(card)}
                     dropRef={dropRef}
                     onDrop={onDrop}
                     onDragActive={onDragActive}

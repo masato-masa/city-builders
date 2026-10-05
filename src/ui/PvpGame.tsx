@@ -15,19 +15,28 @@ import { createGame } from '@/game/setup';
 import type { Action, CardId, GameState } from '@/game/types';
 
 import { CARD_ART, FIELD_URL } from './art';
-import { Board } from './Board';
+import { Board, type IncomeFlash } from './Board';
 import { CoinBar, forecast } from './CoinBar';
-import { CardFlightLayer, TurnBanner, useCardFlights, useTurnBanner } from './Fx';
+import {
+  CardFlightLayer,
+  CpuCallout,
+  type CpuCalloutInfo,
+  TurnBanner,
+  useCardFlights,
+  useTurnBanner,
+} from './Fx';
 import { hapticBuild, hapticReject, hapticTap, hapticUseCard, hapticWin, hapticYourTurn } from './haptics';
 import { Hand } from './Hand';
 import { InfoBoard } from './InfoBoard';
-import { playIncome, slotAtPoint, useLater } from './play-helpers';
+import { playStageCue, stageCallout } from './income-stages';
+import { playIncome, runIncomeSequence, slotAtPoint, useLater } from './play-helpers';
 import { ResultScreen } from './ResultScreen';
 import { Sheet } from './Sheets';
 import { TargetBanner } from './TargetBanner';
 import {
   BUILD_EFFECT_DELAY_MS,
   CARD_EFFECT_DELAY_MS,
+  DISCARD_AT_MS,
   RESULT_DELAY_MS,
   TURN_INTRO_MS,
 } from './tempo';
@@ -86,7 +95,11 @@ export function PvpGame({
   // 目隠しを開けたが、まだ収入を反映していない間。この間は操作を受け付けない。
   const [introPending, setIntroPending] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [using, setUsing] = useState<CardId | null>(null);
+  const [using, setUsing] = useState<CardId[]>([]);
+  // 収入の段の帯と、光らせる建物。
+  const [callout, setCallout] = useState<CpuCalloutInfo | null>(null);
+  const calloutSeq = useRef(0);
+  const [incomeFlash, setIncomeFlash] = useState<IncomeFlash | null>(null);
   const [dragCard, setDragCard] = useState<CardId | null>(null);
   const [sheet, setSheet] = useState<Pending>(null);
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
@@ -113,6 +126,14 @@ export function PvpGame({
   /** 手札の札の絵を盤面の中央へ飛ばす（使った手応え）。札が手札から消える前に呼ぶ。 */
   const flyCard = (card: CardId) =>
     fly(document.querySelector(`.hand [data-card="${card}"]`), CARD_ART[card], boardAreaRef.current);
+  /** 山の底へ送る札（伝令の対象・街道）を「次」の札へ小さくなって飛ばす（捨てる演出）。 */
+  const flyDiscard = (card: CardId) =>
+    fly(
+      document.querySelector(`.hand [data-card="${card}"]`),
+      CARD_ART[card],
+      document.querySelector('.next-card'),
+      'discard',
+    );
 
   // 手番が替わるたびに盤面を横切る帯を出す（ゲーム開始の 1 回目も）。
   // 目隠しの間は出さず、「はじめる」を押した瞬間に出す。
@@ -137,16 +158,31 @@ export function PvpGame({
     setIntroPending(true);
   };
 
+  // 帯のあと、収入を 1 段ずつ反映する（基礎収入 → 建物収入 → 投資 → 返済。祝祭は建物収入の段で見せる）。
   useEffect(() => {
     if (!introPending) return;
-    const timer = window.setTimeout(() => {
-      const before = stateRef.current;
-      const final = reduce(before, { type: 'startTurn' }, balance);
-      playIncome(final.players[final.current].coins - before.players[before.current].coins);
-      setState(final);
-      setIntroPending(false);
-    }, TURN_INTRO_MS);
-    return () => window.clearTimeout(timer);
+    return runIncomeSequence(stateRef.current, balance, TURN_INTRO_MS, {
+      onShow: (b) => {
+        calloutSeq.current += 1;
+        const who = stateRef.current.current;
+        setCallout(stageCallout(b.stage, balance, who, calloutSeq.current));
+        setIncomeFlash(
+          b.stage.slots.length > 0
+            ? { id: calloutSeq.current, slots: b.stage.slots, festival: b.stage.festival && b.stage.kind === 'building' }
+            : null,
+        );
+        playStageCue(b.stage);
+      },
+      onApply: (b) => {
+        playIncome(b.stage.amount);
+        setState(b.state);
+      },
+      onFinish: () => {
+        setCallout(null);
+        setIncomeFlash(null);
+        setIntroPending(false);
+      },
+    });
   }, [introPending]);
 
   useEffect(() => {
@@ -163,17 +199,40 @@ export function PvpGame({
     hapticWin();
   }, [finished]);
 
-  /** カードを使う。まず手札から盤面へ飛ぶところを見せ（音も先）、少し置いて効果を反映する。 */
+  /** カードを使う。まず手札から盤面へ飛ぶところを見せ（音も先）、少し置いて効果を反映する。
+   *  伝令は、使う札のあとに「山の底へ送る札」も飛ばして（捨てる演出）から反映する。 */
   const commitCard = (card: CardId, action: Action) => {
+    const discard = action.type === 'useCard' ? action.heraldTarget : undefined;
     playUseCard(card);
     hapticUseCard();
     flyCard(card);
-    setUsing(card);
+    setUsing([card]);
+    setBusy(true);
+    setSheet(null);
+    if (discard) {
+      later(DISCARD_AT_MS, () => {
+        playEndTurn();
+        flyDiscard(discard);
+        setUsing([card, discard]);
+      });
+    }
+    later((discard ? DISCARD_AT_MS : 0) + CARD_EFFECT_DELAY_MS, () => {
+      setState(reduce(stateRef.current, action, balance));
+      setUsing([]);
+      setBusy(false);
+    });
+  };
+
+  /** 街道で札を山の底へ送る。送る札が「次」へ飛んでから反映する。 */
+  const commitRoad = (target: CardId) => {
+    playSelect();
+    flyDiscard(target);
+    setUsing([target]);
     setBusy(true);
     setSheet(null);
     later(CARD_EFFECT_DELAY_MS, () => {
-      setState(reduce(stateRef.current, action, balance));
-      setUsing(null);
+      setState(reduce(stateRef.current, { type: 'useRoad', target }, balance));
+      setUsing([]);
       setBusy(false);
     });
   };
@@ -282,6 +341,7 @@ export function PvpGame({
               viewer={active}
               targeting={sheet?.kind === 'blockadeTarget'}
               dropArmed={dragCard !== null}
+              flash={incomeFlash}
               onPick={(slotId) => {
                 if (locked) return;
                 // 封鎖者の対象選択モード中は、通常の区画詳細シートを開かず、
@@ -308,6 +368,7 @@ export function PvpGame({
               }}
             />
             <TurnBadge state={state} balance={balance} />
+            <CpuCallout info={callout} />
             <TurnBanner banner={banner} onDone={clearBanner} />
             {/* 対象選択中の案内はここ（盤面コンテナ）基準で上端中央に置く（要望
                 G3）。伝令は手札が対象だが、案内を手札のすぐ上に出すと自分の
@@ -451,12 +512,7 @@ export function PvpGame({
             <button
               className="sheet-row road-btn"
               disabled={locked || !canUseRoad(state, sheet.card, balance)}
-              onClick={() => {
-                const card = sheet.card;
-                playSelect();
-                setSheet(null);
-                setState(reduce(state, { type: 'useRoad', target: card }, balance));
-              }}
+              onClick={() => commitRoad(sheet.card)}
             >
               <span>山の底へ送る</span>
               <span className="road-btn-sub">街道・あと {roadUsesRemaining(state, active, balance)} 回</span>

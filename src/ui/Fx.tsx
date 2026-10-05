@@ -73,6 +73,8 @@ export function useTurnBanner(key: string, make: () => Omit<TurnBannerInfo, 'id'
 
 interface Flight {
   id: number;
+  /** 'use' は使った札が盤面へ飛んで弾ける。'discard' は山の底へ送る札が「次」の札へ小さくなって消える。 */
+  mode: 'use' | 'discard';
   art: string;
   from: { x: number; y: number; w: number; h: number };
   to: { x: number; y: number };
@@ -83,7 +85,7 @@ interface Flight {
 export function useCardFlights() {
   const [flights, setFlights] = useState<Flight[]>([]);
   const seq = useRef(0);
-  const fly = useCallback((fromEl: Element | null, art: string | undefined, toEl: Element | null) => {
+  const fly = useCallback((fromEl: Element | null, art: string | undefined, toEl: Element | null, mode: 'use' | 'discard' = 'use') => {
     if (!fromEl || !art || !toEl) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const a = fromEl.getBoundingClientRect();
@@ -94,9 +96,10 @@ export function useCardFlights() {
       ...prev,
       {
         id,
+        mode,
         art,
         from: { x: a.left, y: a.top, w: a.width, h: a.height },
-        to: { x: b.left + b.width / 2, y: b.top + b.height * 0.45 },
+        to: mode === 'discard' ? { x: b.left + b.width / 2, y: b.top + b.height / 2 } : { x: b.left + b.width / 2, y: b.top + b.height * 0.45 },
       },
     ]);
     window.setTimeout(() => setFlights((prev) => prev.filter((f) => f.id !== id)), CARD_FLIGHT_S * 1000 + 400);
@@ -110,6 +113,26 @@ export function CardFlightLayer({ flights }: { flights: Flight[] }) {
       {flights.map((f) => {
         const dx = f.to.x - (f.from.x + f.from.w / 2);
         const dy = f.to.y - (f.from.y + f.from.h / 2);
+        if (f.mode === 'discard') {
+          return (
+            <motion.img
+              key={f.id}
+              className="fx-card fx-card-discard"
+              src={f.art}
+              alt=""
+              style={{ left: f.from.x, top: f.from.y, width: f.from.w, height: f.from.h }}
+              initial={{ x: 0, y: 0, scale: 1, rotate: 0, opacity: 1 }}
+              animate={{
+                x: [0, dx * 0.45, dx],
+                y: [0, dy * 0.45 - 24, dy],
+                scale: [1, 1.12, 0.3],
+                rotate: [0, 8, 26],
+                opacity: [1, 1, 0],
+              }}
+              transition={{ duration: CARD_FLIGHT_S, times: [0, 0.4, 1], ease: 'easeInOut' }}
+            />
+          );
+        }
         return (
           <div key={f.id}>
             <motion.img
@@ -146,8 +169,10 @@ export function CardFlightLayer({ flights }: { flights: Flight[] }) {
 export interface CpuCalloutInfo {
   id: number;
   art?: string;
-  /** 'card' は縦長のカード枠、'building' は台座なしの建物の絵。 */
-  kind: 'card' | 'building' | 'none';
+  /** 誰の出来事か（帯の色）。省略は相手（CPU）。自分の収入も同じ帯で出す。 */
+  tone?: 'you' | 'cpu';
+  /** 'card' は縦長のカード枠、'building' は台座なしの建物の絵、'coin' はコインの絵。 */
+  kind: 'card' | 'building' | 'coin' | 'none';
   text: string;
 }
 
@@ -160,7 +185,7 @@ export function CpuCallout({ info }: { info: CpuCalloutInfo | null }) {
         {info ? (
           <motion.div
             key={info.id}
-            className="cpu-callout"
+            className={`cpu-callout cpu-callout-${info.tone ?? 'cpu'}`}
             initial={{ opacity: 0, y: -30, scale: 0.7 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -14, scale: 0.9, transition: { duration: 0.16 } }}

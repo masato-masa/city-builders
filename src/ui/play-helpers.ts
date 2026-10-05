@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react';
 
+import { incomeStageStates, type IncomeStage } from '@/game/reducer';
+import type { Balance } from '@/game/balance';
+import type { GameState } from '@/game/types';
+
 import { playCoinGain, playDebtSink } from './sound';
+import { INCOME_APPLY_MS, INCOME_BEAT_MS, INCOME_TAIL_MS } from './tempo';
 
 /** 一定時間あとに処理を走らせる。画面を離れたら（アンマウント）残りは全部捨てる。
  *  「使う → 効果」「手番 → 収入」を時間差で見せるために使う。 */
@@ -35,4 +40,36 @@ export function slotAtPoint(x: number, y: number): number | null {
 export function playIncome(delta: number): void {
   if (delta > 0) playCoinGain(delta);
   else if (delta < 0) playDebtSink();
+}
+
+export interface IncomeBeat {
+  stage: IncomeStage;
+  /** この段まで反映した盤面（最後の 1 つは手番開始の処理を済ませた状態） */
+  state: GameState;
+  index: number;
+}
+
+/** 自分の手番の収入を 1 段ずつ見せる。段ごとに onShow（帯・光・音）→ 少し置いて onApply（コインの反映）。
+ *  基礎収入 → 建物収入 → 投資 → 返済、の順に、前の段が読めてから次へ進む。
+ *  返す関数で残りの予定を取り消す（useEffect の後始末に渡す）。 */
+export function runIncomeSequence(
+  pre: GameState,
+  balance: Balance,
+  startDelay: number,
+  hooks: {
+    onShow: (beat: IncomeBeat) => void;
+    onApply: (beat: IncomeBeat) => void;
+    onFinish: () => void;
+  },
+): () => void {
+  const timers: number[] = [];
+  const beats = incomeStageStates(pre, balance).map((b, index) => ({ ...b, index }));
+  beats.forEach((beat) => {
+    const showAt = startDelay + beat.index * INCOME_BEAT_MS;
+    timers.push(window.setTimeout(() => hooks.onShow(beat), showAt));
+    timers.push(window.setTimeout(() => hooks.onApply(beat), showAt + INCOME_APPLY_MS));
+  });
+  const lastApply = startDelay + (beats.length - 1) * INCOME_BEAT_MS + INCOME_APPLY_MS;
+  timers.push(window.setTimeout(hooks.onFinish, lastApply + INCOME_TAIL_MS));
+  return () => timers.forEach((t) => window.clearTimeout(t));
 }

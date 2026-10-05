@@ -855,3 +855,67 @@
   min-height: 64px;
   font-size: 24px;
 }
+
+/* ======================================================================
+   収入の段（基礎収入・建物収入…）の帯。相手と同じ作りで、自分の分は青にする。
+   ====================================================================== */
+.cpu-callout-you .cpu-callout-text {
+  border-color: #0c2244;
+  background: linear-gradient(to bottom, #3f86d8, #1f569c);
+  -webkit-text-stroke: 3px #0c2244;
+}
+
+.cpu-callout-you .cpu-callout-art-card {
+  box-shadow:
+    0 0 0 2px var(--owner-you-glow),
+    0 0 14px 2px rgb(108 178 242 / 0.7);
+}
+
+.cpu-callout-art-coin {
+  width: 52px;
+  height: auto;
+}
+
+/* 山の底へ送る札（捨てる演出）。使う札より控えめな光にして、効果ではなく「送る」と読ませる。 */
+.fx-card-discard {
+  border-color: #c9d6e2;
+  box-shadow:
+    0 0 10px 2px rgb(160 190 220 / 0.5),
+    0 8px 14px rgb(0 0 0 / 0.5);
+}
+
+/* 収入の元になった建物の光。区画の箱いっぱいに重ねる（絶対配置なので寸法は動かない）。 */
+.plot-income {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.plot-income-glow {
+  position: absolute;
+  left: -8%;
+  right: -8%;
+  top: 14%;
+  height: 60%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 226 120 / 0.95) 0%, rgb(255 200 61 / 0.45) 55%, rgb(255 200 61 / 0) 100%);
+}
+
+/* 祝祭: 金に赤みを足して、ふつうの建物収入と見分けられるようにする。 */
+.plot-income-glow.is-festival {
+  background: radial-gradient(closest-side, rgb(255 244 170 / 1) 0%, rgb(255 168 60 / 0.6) 50%, rgb(255 120 40 / 0) 100%);
+}
+
+.plot-income-tag {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  translate: -50% 0;
+  font-size: 22px;
+  font-weight: 900;
+  color: #fff3b0;
+  -webkit-text-stroke: 4px #7a3a00;
+  paint-order: stroke fill;
+  white-space: nowrap;
+}

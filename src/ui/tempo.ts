@@ -31,3 +31,15 @@ export const CARD_FLIGHT_S = 0.7;
 
 /** 数字の増減ポップが出ている時間（ミリ秒）。 */
 export const DELTA_POP_MS = 1300;
+
+/** 収入の 1 段を見せる帯が出てから、コインへ反映するまでの間。 */
+export const INCOME_APPLY_MS = 550;
+
+/** 収入の 1 段ぶんの長さ（帯 → 反映 → 読む間）。次の段はこのあとに出る。 */
+export const INCOME_BEAT_MS = 1400;
+
+/** 最後の段を反映してから、帯を消して操作を戻すまでの間。 */
+export const INCOME_TAIL_MS = 600;
+
+/** 伝令で、使う札が飛んでから「捨てる札」が飛び始めるまでの間。 */
+export const DISCARD_AT_MS = 800;

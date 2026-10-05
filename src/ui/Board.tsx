@@ -119,12 +119,20 @@ function Flag({ owner }: { owner: PlayerId }) {
   );
 }
 
+/** 収入で光らせる区画。id が変わるたびに出し直す。festival は祝祭で建物収入が増えたとき。 */
+export interface IncomeFlash {
+  id: number;
+  slots: number[];
+  festival: boolean;
+}
+
 function PlotView({
   state,
   slotId,
   balance,
   viewer,
   highlighted,
+  flash,
   targeting,
   onPick,
 }: {
@@ -133,6 +141,8 @@ function PlotView({
   balance: Balance;
   viewer: PlayerId;
   highlighted: boolean;
+  /** 収入の段でこの区画が元になっているとき、その光（無ければ null）。 */
+  flash: IncomeFlash | null;
   targeting: boolean;
   onPick: (slotId: number) => void;
 }) {
@@ -204,6 +214,28 @@ function PlotView({
             animate={{ opacity: 0, scale: 1.25 }}
             transition={{ duration: 0.9, ease: 'easeOut' }}
           />
+        ) : null}
+        {flash ? (
+          // 収入の元になった建物。金の光と +/× の札を出す。祝祭のときは光を 2 度打ち、
+          // 「×2」を大きく出して、建物収入が増えたことを建物そのものの上で見せる。
+          <span key={`income-${flash.id}`} className="plot-income" aria-hidden="true">
+            <motion.span
+              className={`plot-income-glow${flash.festival ? ' is-festival' : ''}`}
+              initial={{ opacity: 0, scale: 0.6 }}
+              animate={{ opacity: flash.festival ? [0, 1, 0.35, 1, 0] : [0, 1, 0], scale: flash.festival ? [0.6, 1.2, 1, 1.35, 1.5] : [0.6, 1.25, 1.4] }}
+              transition={{ duration: flash.festival ? 1.5 : 1.0, ease: 'easeOut' }}
+            />
+            {flash.festival ? (
+              <motion.span
+                className="plot-income-tag"
+                initial={{ opacity: 0, y: 8, scale: 0.4 }}
+                animate={{ opacity: [0, 1, 1, 0], y: [8, -6, -14, -22], scale: [0.4, 1.4, 1.1, 1.1] }}
+                transition={{ duration: 1.5, times: [0, 0.2, 0.75, 1], ease: 'easeOut' }}
+              >
+                ×{balance.festivalMultiplier}
+              </motion.span>
+            ) : null}
+          </span>
         ) : null}
         {/* 建物の絵。未建設でも最初から置く（何が建つ区画か分かるように）。
             建つと絵を差し替え、上から落として着地させる。どちらも絶対配置なので
@@ -285,6 +317,7 @@ export function Board({
   highlightSlot,
   targeting = false,
   dropArmed = false,
+  flash = null,
   onPick,
 }: {
   state: GameState;
@@ -301,6 +334,8 @@ export function Board({
   targeting?: boolean;
   /** 手札をドラッグ中か。true の間は盤面全体を「ここへ落とすと使う」と分かる見た目にする。 */
   dropArmed?: boolean;
+  /** 収入の段で光らせる区画。 */
+  flash?: IncomeFlash | null;
   onPick: (slotId: number) => void;
 }) {
   // 地（背景）は持たない。画面全体の地（.app-play）がそのまま続いて見える。
@@ -316,6 +351,7 @@ export function Board({
             balance={balance}
             viewer={viewer}
             highlighted={highlightSlot === slot.slotId}
+            flash={flash && flash.slots.includes(slot.slotId) ? flash : null}
             targeting={targeting}
             onPick={onPick}
           />
