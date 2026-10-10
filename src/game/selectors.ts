@@ -189,22 +189,30 @@ export function roadUsesRemaining(
 /** 1 ターンあたりの見込み収入。商館の毎ターン収入と、城塞の通行料の期待値
  *  （相手が残りの区画の半分を建てるという見込み）を織り込む。封鎖者で止まって
  *  いる物件は activeOwnedSlots が除外するのでここには含まれない。
- *  祝祭が queued か active なら、ここまでの値をまとめて festivalMultiplier 倍し、
- *  さらに festivalIncomeBonus を足す。 */
+ *  祝祭は 1 ターン限りなので、ここ（毎ターン続く収入）には入れない。祝祭の上乗せは festivalExtraOf。 */
 export function incomePerTurnOf(
   state: GameState,
   player: PlayerId,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
-  const p = state.players[player];
   const houseIncome = activeEffectSum(state, player, 'tradingHouse', 'tradingHouseIncome', balance);
   const fortressToll = activeEffectSum(state, player, 'fortress', 'fortressToll', balance);
   const unbuiltCount = state.market.filter((s) => s.owner === null).length;
+  return balance.baseIncome + houseIncome + fortressToll * (unbuiltCount / 2);
+}
 
-  let income = balance.baseIncome + houseIncome + fortressToll * (unbuiltCount / 2);
-
-  if (p.festivalQueued || p.festivalActive) {
-    income = income * balance.festivalMultiplier + balance.festivalIncomeBonus;
-  }
-  return income;
+/** 使った祝祭が、次の自分の収入に 1 度だけ上乗せするコインの見込み。
+ *  基礎収入の +festivalIncomeBonus、商館の収入と取引所の投資ボーナスの倍増分を数える。
+ *  祝祭を使っていなければ 0。 */
+export function festivalExtraOf(
+  state: GameState,
+  player: PlayerId,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
+  const p = state.players[player];
+  if (!p.festivalQueued) return 0;
+  const extra = balance.festivalMultiplier - 1;
+  const houseIncome = activeEffectSum(state, player, 'tradingHouse', 'tradingHouseIncome', balance);
+  const exchange = activeEffectMax(state, player, 'exchange', 'exchangeBonus', balance);
+  return balance.festivalIncomeBonus + houseIncome * extra + exchange * extra * p.pendingIncome.length;
 }

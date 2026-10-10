@@ -2,11 +2,97 @@ import { describe, expect, it } from 'vitest';
 
 import { lookaheadScore, optionsFor, playTurn } from '@/ai/choose';
 import { DEFAULT_WEIGHTS, evaluateState } from '@/ai/evaluate';
-import { DEFAULT_BALANCE } from '@/game/balance';
+import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { legalActions, reduce } from '@/game/reducer';
 import { createRng } from '@/game/rng';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState, PlayerState } from '@/game/types';
+
+
+/** 回帰検知専用の凍結した数値。2026-10-10 時点の DEFAULT_BALANCE を写したもの。
+ *  DEFAULT_BALANCE を調整しても下の「最終コイン残高」は動かない（動くのは AI の指し手を変えたときだけ）。
+ *  ここは書き換えない。Balance に項目が増えたら、その項目だけ当時の既定の振る舞いになる値を足す。 */
+const FROZEN_BALANCE: Balance = {
+  handSize: 4,
+  baseIncome: 2,
+  startingCoins: { first: 0, second: 0 },
+  maxTurnsPerPlayer: 20,
+  cards: {
+    miner: { cost: 2 },
+    banker: { cost: 5 },
+    architect: { cost: 3 },
+    herald: { cost: 1 },
+    festival: { cost: 3 },
+    guard: { cost: 1 },
+    usurer: { cost: 0 },
+    spy: { cost: 1 },
+    taxman: { cost: 3 },
+    blockader: { cost: 4 },
+  },
+  minerIncome: 4,
+  bankerIncome: 6,
+  bankerPerBuilding: 2,
+  architectDiscount: 6,
+  taxmanAmount: 5,
+  spyAcquireDiscount: 3,
+  guardCostWithWall: 0,
+  heraldCostWithRoad: 0,
+  buildings: {
+    tradingHouse: { cost: 7, vp: 2 },
+    wall: { cost: 10, vp: 2 },
+    factory: { cost: 12, vp: 3 },
+    road: { cost: 14, vp: 2 },
+    cathedral: { cost: 16, vp: 0 },
+    fortress: { cost: 18, vp: 6 },
+    exchange: { cost: 20, vp: 3 },
+    quarry: { cost: 13, vp: 3 },
+  },
+  tradingHouseIncome: 1,
+  factoryDiscount: 2,
+  cathedralVpPerBuilding: 2,
+  exchangeBonus: 2,
+  usurerGain: 5,
+  usurerDebt: 7,
+  festivalMultiplier: 2,
+  festivalIncomeBonus: 2,
+  fortressToll: 2,
+  quarryExtraDiscount: 4,
+  roadUses: 1,
+  secondPlayerFirstTurnBonus: 1,
+  upgrades: {
+    tradingHouse: { cost: 7, vp: 4 },
+    wall: { cost: 10, vp: 4 },
+    factory: { cost: 12, vp: 5 },
+    road: { cost: 14, vp: 4 },
+    cathedral: { cost: 16, vp: 0 },
+    fortress: { cost: 18, vp: 9 },
+    exchange: { cost: 20, vp: 5 },
+    quarry: { cost: 13, vp: 5 },
+  },
+  level2: {
+    tradingHouseIncome: 2,
+    factoryDiscount: 4,
+    cathedralVpPerBuilding: 3,
+    exchangeBonus: 4,
+    fortressToll: 3,
+    quarryExtraDiscount: 6,
+    roadUses: 2,
+  },
+  acquireMarkup: 4,
+  slotLockTurns: 1,
+  market: [
+    'tradingHouse',
+    'tradingHouse',
+    'quarry',
+    'wall',
+    'factory',
+    'road',
+    'cathedral',
+    'fortress',
+    'fortress',
+    'exchange',
+  ],
+};
 
 /** テスト用の最小プレイヤー状態。setup.ts の emptyPlayer と同じ形を手で作る。
  *  ここでは手札 4 枚だけを持たせ、待機列は空にする（このテストは手札の中身の
@@ -77,8 +163,8 @@ describe('lookaheadScore: 相手の想定応手を読む', () => {
     // 前提確認: 収入を受け取った cpu にとって最善の一手は、想定どおりのカードである
     // （徴税官は相手の次の収入を削るので cpu にとって得。建築家はこのターンの建設費を
     //   下げるが、cpu はどのみち何も建てられないので、コストを払うだけ損）。
-    //   ※ 祝祭は incomePerTurnOf が festivalQueued を見て収入見積もりを
-    //   即座に押し上げるため、cpu にとって得な一手になってしまい、
+    //   ※ 祝祭は次の収入への上乗せ（festivalExtraOf）を評価に足すため、
+    //   cpu にとって得な一手になってしまい、
     //   「相手にとって無害なカード」の比較対象として使えなかった。
     const bestFor = (state: GameState): CardId | 'endTurn' => {
       let best: CardId | 'endTurn' = 'endTurn';
@@ -189,44 +275,27 @@ describe('easy / normal の決定性', () => {
     }
   });
 
-  // 実際に確認した最終局面のコイン残高。手札を「使った枠にだけ補充する」方式
-  // （moveToBottom による全体シフトをやめた変更）で、AI の指し手の並び方自体は
-  // 変えていないが、同じ手を選んでも手札に積まれるカードの並びが変わるため、
-  // 決定的な対局の軌跡がここで一度更新されている。以後の変更でここが動いたら、
-  // easy / normal の挙動が変わったということなので、意図的な変更でない限り疑うこと。
-  // 買収者の封印枚数を 1→2 枚にした変更（spyBindCount）で全 4 局が動いたため、
-  // ここも合わせて更新した。
-  // 徴税官を「相手の次の収入から引く」効果（pendingTax）に変えたときも更新した。
-  // 銀行家の収入を（11,+1/件）→（6,+2/件）に変えたときも更新した（自走改善の調整で数値は今後も動く）。
-  // アップグレード・買収の追加（合法手が増える）、採掘師 6→5、衛兵の一律加点の廃止で全 4 局が動いたので更新した。
-  // 買収者を「このターンの買収価格 −3」に作り替え、城壁×衛兵・街道×伝令の連携と数値の調整（後手 1 ターン目の補正 1→0 を含む）を入れたときも更新した。
-  // 難易度の段差を作り直し（3 段とも CPU_PROFILE、揺らぎ・妨害の頻度を測り直し）たときも更新した。
+  // 実際に確認した最終局面のコイン残高。数値は凍結した FROZEN_BALANCE で回すので、
+  // DEFAULT_BALANCE の調整では動かない。ここが動いたら easy / normal の指し手（AI）が変わったということなので、
+  // 意図的な変更でない限り疑うこと。祝祭を「毎ターンの収入」でなく 1 度きりの上乗せとして評価するよう直したときに更新した。
   it('seed 0 / 5 の最終コイン残高が既知の値と一致する（回帰検知用）', () => {
     const finish = (difficulty: 'easy' | 'normal', seed: number) => {
-      let g = createGame(seed);
+      let g = createGame(seed, FROZEN_BALANCE);
       const rng = createRng(seed + 4242);
       let guard = 0;
       while (g.phase === 'playing' && guard < 200) {
-        g = playTurn(g, optionsFor(difficulty), rng, DEFAULT_BALANCE);
+        g = playTurn(g, optionsFor(difficulty), rng, FROZEN_BALANCE);
         guard++;
       }
       return g;
     };
 
-    const easy0 = finish('easy', 0);
-    expect(easy0.players.you.coins).toBe(3);
-    expect(easy0.players.cpu.coins).toBe(4);
-
-    const easy5 = finish('easy', 5);
-    expect(easy5.players.you.coins).toBe(18);
-    expect(easy5.players.cpu.coins).toBe(0);
-
-    const normal0 = finish('normal', 0);
-    expect(normal0.players.you.coins).toBe(0);
-    expect(normal0.players.cpu.coins).toBe(2);
-
-    const normal5 = finish('normal', 5);
-    expect(normal5.players.you.coins).toBe(0);
-    expect(normal5.players.cpu.coins).toBe(3);
+    const coins = (g: GameState) => [g.players.you.coins, g.players.cpu.coins];
+    expect({
+      easy0: coins(finish('easy', 0)),
+      easy5: coins(finish('easy', 5)),
+      normal0: coins(finish('normal', 0)),
+      normal5: coins(finish('normal', 5)),
+    }).toEqual({ easy0: [-3, 2], easy5: [2, 0], normal0: [2, 1], normal5: [3, 1] });
   });
 });

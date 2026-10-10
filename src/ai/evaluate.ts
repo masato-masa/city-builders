@@ -4,6 +4,7 @@ import {
   acquireCostFor,
   acquirePriceOf,
   activeEffectMax,
+  festivalExtraOf,
   handOf,
   incomePerTurnOf,
   opponentOf,
@@ -165,7 +166,10 @@ export function exposedVpOf(
   const foe = opponentOf(player);
   const f = state.players[foe];
   let budget =
-    f.coins + incomePerTurnOf(state, foe, balance) + f.pendingIncome.length * balance.minerIncome;
+    f.coins +
+    incomePerTurnOf(state, foe, balance) +
+    festivalExtraOf(state, foe, balance) +
+    f.pendingIncome.length * balance.minerIncome;
   // 相手の手札に買収者があれば、使ったうえで割引の効いた値段で買ってくると見る（読み合いの核）
   let discount = 0;
   if (handOf(state, foe, balance).includes('spy')) {
@@ -226,6 +230,9 @@ export function evaluateState(
     stuck * weights.stuck +
     opponentStuck * weights.opponentStuck +
     p.pendingIncome.length * weights.pendingIncome * 4 +
+    // 祝祭は次の収入に 1 度だけ上乗せされる（毎ターンの収入ではない）。投資カードと同じ物差しで数える
+    festivalExtraOf(state, player, balance) * weights.pendingIncome +
+    festivalExtraOf(state, foe, balance) * weights.opponentCoin +
     incomePerTurn * weights.incomePerTurn * (1 - late) +
     opponentIncome * weights.opponentIncome +
     ownedSlots(state, player).length * 2 +
