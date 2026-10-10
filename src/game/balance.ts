@@ -262,10 +262,12 @@ export const DEFAULT_BALANCE: Balance = {
     // 検査官: 設計書の 3 は全体の幅が 35.0〜55.6%（封鎖者の優先 35.0・伝令の禁止 55.6）。4 で 39.0〜51.4%。
     // 払われた額の減り 5 → 3 は 37.0〜51.7%（card-value 400 --deck=new）
     inspector: { cost: 4 },
-    // 2 段目の新カード（設計書の出発点。card-value --deck=draw で測って直す）
+    // 2 段目の新カード。顔役・密告者・番頭は設計書のまま（card-value 300 --deck=draw で 禁止 42.8〜49.7%）
     boss: { cost: 2 },
     informer: { cost: 1 },
-    double: { cost: 1 },
+    // 影武者: 1 だと回転（手番に札を多く使う性格）だけが +8.7 点（deck-audit の係数）。2 で +7.2、3 で +3.6、
+    // 写す札から高利貸・お金の札を外すと逆に +9.4〜12.8。3 で 4 性格 42〜58% を外れるデッキ 50% → 44%（推定）
+    double: { cost: 3 },
     clerk: { cost: 1 },
   },
   minerIncome: 3,

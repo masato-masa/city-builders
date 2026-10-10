@@ -230,7 +230,7 @@ export function Home({
             {(
               [
                 ['newCards', `新カード入り（祝祭・徴税官 → ${CARD_NAMES.craftsman}・${CARD_NAMES.inspector}）`, '新カード入りのデッキ'],
-                ['draw', `抽選デッキ（試合ごとに全 ${CARD_POOL.length} 種から 10 枚。両者共通）`, '抽選デッキ'],
+                ['draw', `抽選デッキ（全 ${CARD_POOL.length} 種から 10 枚・両者共通）`, '抽選デッキ'],
               ] as const
             ).map(([kind, text, label]) => (
               <div className="dev-deck-row" key={kind}>
