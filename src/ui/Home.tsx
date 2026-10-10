@@ -1,14 +1,17 @@
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
 
 import type { Difficulty } from '@/ai/choose';
 import { ALL_CARDS, BUILDING_NAMES, CARD_NAMES, type Balance } from '@/game/balance';
+import { stepInfo } from '@/meta/rank';
+import { clearMeta, loadMeta } from '@/storage/meta';
 import { clearProgress, loadProgress } from '@/storage/storage';
 
 import { FIELD_URL } from './art';
 import { loadBalance, resetBalance, saveBalance } from './balance-store';
 import { hapticTap } from './haptics';
-import { CityEmblem, CrownIcon, SwordIcon, VersusIcon } from './icons';
+import { CityEmblem, SwordIcon, VersusIcon } from './icons';
+import { RankSheet, RankStars } from './RankRoad';
 import { Sheet } from './Sheets';
 import { playUiTap, primeAudio } from './sound';
 
@@ -61,7 +64,9 @@ export function Home({
   onStartPvp: () => void;
 }) {
   const progress = loadProgress();
+  const [meta, setMeta] = useState(loadMeta);
   const [dev, setDev] = useState(false);
+  const [rankOpen, setRankOpen] = useState(false);
   // 初回に一度だけ決める。以後の再描画で値が変わって動きがちらつかないようにする。
   const [animateEntrance] = useState(shouldAnimateEntrance);
   const [balance, setBalance] = useState<Balance>(() => loadBalance());
@@ -145,21 +150,37 @@ export function Home({
           </button>
         </motion.div>
 
-        <motion.p
+        {/* 戦績の位置に、段位と星。タップで段位ロードと実績の一覧（ボタンは増やさない）。 */}
+        <motion.button
+          type="button"
           className="home-progress"
+          aria-label={`段位 ${stepInfo(meta.rank.step).label}。段位ロードと実績を見る`}
           initial={animateEntrance ? ENTER[2].hidden : false}
           animate={{ opacity: 1, y: 0, transition: { ...SPRING, delay: ENTER[2].delay } }}
+          onClick={() => {
+            primeAudio();
+            playUiTap();
+            hapticTap();
+            setMeta(loadMeta());
+            setRankOpen(true);
+          }}
         >
+          <span className="rank-badge">{stepInfo(meta.rank.step).label}</span>
+          <RankStars rank={meta.rank} />
           {hasPlayed ? (
-            <>
-              <CrownIcon className="home-progress-crown" />
+            <span className="home-progress-record">
               <span className="home-progress-num home-progress-win">{progress.wins}</span>勝
               <span className="home-progress-num home-progress-lose">{progress.losses}</span>敗
-            </>
+            </span>
           ) : (
-            <span className="home-progress-empty">はじめての挑戦です</span>
+            <span className="home-progress-empty">はじめての挑戦</span>
           )}
-        </motion.p>
+          <span className="home-progress-more" aria-hidden="true">›</span>
+        </motion.button>
+
+        <AnimatePresence>
+          {rankOpen ? <RankSheet key="rank" meta={meta} onClose={() => setRankOpen(false)} /> : null}
+        </AnimatePresence>
       </div>
 
       <button className="dev-pill" onClick={() => { primeAudio(); playUiTap(); setDev(true); }}>
@@ -445,7 +466,14 @@ export function Home({
           >
             数値を既定に戻す
           </button>
-          <button className="sheet-row" onClick={() => clearProgress()}>
+          <button
+            className="sheet-row"
+            onClick={() => {
+              clearProgress();
+              clearMeta();
+              setMeta(loadMeta());
+            }}
+          >
             きろくをけす
           </button>
         </Sheet>

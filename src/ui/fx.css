@@ -1257,3 +1257,301 @@
 .self-wrap {
   position: relative;
 }
+
+/* ======================================================================
+   段位ロード（RankRoad.tsx）: ホームの戦績・結果画面・一覧のシート
+   ====================================================================== */
+button.home-progress {
+  border: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgb(232 238 243 / 0.9);
+  cursor: pointer;
+  gap: 8px;
+  padding: 6px 12px 6px 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button.home-progress:active {
+  transform: scale(0.97);
+}
+
+.home-progress-record {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  padding-left: 8px;
+  border-left: 1px solid rgb(255 255 255 / 0.2);
+}
+
+.home-progress-more {
+  font-size: 18px;
+  line-height: 1;
+  color: rgb(232 238 243 / 0.6);
+}
+
+.rank-badge {
+  display: inline-block;
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 18px;
+  white-space: nowrap;
+  color: #3a1e00;
+  background: linear-gradient(to bottom, #ffe45c, #ffb300);
+  box-shadow: 0 2px 0 #8a4f00;
+}
+
+.rank-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  flex: none;
+}
+
+.rank-star-slot {
+  position: relative;
+  width: 16px;
+  height: 16px;
+}
+
+.rank-star-fill {
+  position: absolute;
+  inset: 0;
+}
+
+.rank-star {
+  display: block;
+  width: 16px;
+  height: 16px;
+  fill: rgb(255 255 255 / 0.14);
+  stroke: rgb(255 255 255 / 0.4);
+  stroke-width: 1.5;
+}
+
+.rank-star.is-on {
+  fill: #ffe45c;
+  stroke: #8a4f00;
+}
+
+.rank-stars-count {
+  margin-left: 3px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 結果画面: 段位の 1 行（28px）と実績の 1 行（18px）。中身が無くても高さを取る。 */
+.result-rank {
+  height: 48px;
+  display: grid;
+  grid-template-rows: 28px 18px;
+  gap: 2px;
+  justify-items: center;
+  z-index: 1;
+}
+
+.result-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+}
+
+.result-rank-row .rank-badge {
+  font-size: 14px;
+}
+
+.result-rank-delta {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.result-rank-delta.is-gain {
+  color: #ffe45c;
+  background: rgb(255 228 92 / 0.14);
+}
+
+.result-rank-delta.is-up {
+  color: #3a1e00;
+  background: linear-gradient(to bottom, #fff2a8, #ffd84a);
+  box-shadow: 0 0 14px rgb(255 216 74 / 0.7);
+}
+
+.result-rank-delta.is-loss {
+  color: #ff9a8c;
+  background: rgb(255 154 140 / 0.12);
+}
+
+.result-rank-delta.is-floor {
+  color: #d6e4f2;
+  background: rgb(255 255 255 / 0.12);
+}
+
+.result-achv-slot {
+  height: 18px;
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+}
+
+.result-achv {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 18px;
+  color: #7fe0a0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 一覧のシート（明るい地）。中身だけをスクロールさせる。 */
+.rank-sheet {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 -6px;
+  padding: 0 6px;
+}
+
+.rank-sheet .rank-star {
+  fill: rgb(115 80 86 / 0.1);
+  stroke: rgb(115 80 86 / 0.35);
+}
+
+.rank-sheet .rank-star.is-on {
+  fill: #ffc21a;
+  stroke: #8a4f00;
+}
+
+.rank-now {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--title);
+}
+
+.rank-best {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.rank-road {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.rank-road-tier {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: rgb(115 80 86 / 0.06);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.rank-road-name {
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--title);
+}
+
+.rank-road-tier.is-here {
+  background: #fff3c4;
+  box-shadow: inset 0 0 0 2px #ffc21a;
+}
+
+.rank-road-tier.is-done .rank-road-mark {
+  color: #2e9e5b;
+}
+
+.rank-road-tier.is-here .rank-road-mark {
+  color: #8a4f00;
+  font-weight: 900;
+}
+
+.rank-rules {
+  margin: 0;
+  text-align: left;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.rank-achv-title {
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--title);
+}
+
+.rank-achv-title span {
+  margin-left: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.rank-achv-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.rank-achv-list li {
+  display: grid;
+  text-align: left;
+  grid-template-columns: 20px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgb(115 80 86 / 0.05);
+  color: var(--muted);
+}
+
+.rank-achv-icon {
+  grid-row: 1 / 3;
+  align-self: center;
+  width: 18px;
+  height: 18px;
+  fill: rgb(115 80 86 / 0.15);
+}
+
+.rank-achv-name {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.rank-achv-text {
+  font-size: 12px;
+}
+
+.rank-achv-list li.is-got {
+  background: #fff3c4;
+  color: var(--title);
+}
+
+.rank-achv-list li.is-got .rank-achv-icon {
+  fill: #ffc21a;
+  stroke: #8a4f00;
+  stroke-width: 1.5;
+}
