@@ -1,7 +1,7 @@
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { legalActions, reduce } from '@/game/reducer';
 import type { Rng } from '@/game/rng';
-import type { Action, GameState, PlayerId } from '@/game/types';
+import type { Action, CardId, GameState, PlayerId } from '@/game/types';
 
 import { DEFAULT_PROFILE, evaluateState, weightsAt, type Profile, type Weights } from './evaluate';
 
@@ -22,6 +22,9 @@ export interface AiOptions {
   /** 1 手先を読むか */
   lookahead: boolean;
   profile: Profile;
+  /** カードごとの加点。計測ツール（scripts/card-value.ts）専用で、通常の CPU は使わない。
+   *  大きな負値で「そのカードを使わない」、正値で「優先して使う」を作れる。 */
+  cardBonus?: Partial<Record<CardId, number>>;
 }
 
 /** 難易度から AiOptions を作る。今までの NOISE / HARASS_RATE / hard 分岐をそのまま写したもの。 */
@@ -157,6 +160,7 @@ export function chooseAction(
       score = score * 0.6 + follow * 0.4;
     }
     score += (rng.next() - 0.5) * options.noise;
+    if (action.type === 'useCard') score += options.cardBonus?.[action.card] ?? 0;
     if (score > bestScore) {
       bestScore = score;
       best = action;

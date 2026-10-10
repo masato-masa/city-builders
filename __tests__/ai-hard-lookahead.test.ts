@@ -213,6 +213,7 @@ describe('easy / normal の振る舞いは変えていない', () => {
   // 買収者の封印枚数を 1→2 枚にした変更（spyBindCount）で全 4 局が動いたため、
   // ここも合わせて更新した。
   // 徴税官を「相手の次の収入から引く」効果（pendingTax）に変えたときも更新した。
+  // 銀行家の収入を（11,+1/件）→（6,+2/件）に変えたときも更新した（自走改善の調整で数値は今後も動く）。
   it('seed 0 / 5 の最終コイン残高が既知の値と一致する（回帰検知用）', () => {
     const finish = (difficulty: 'easy' | 'normal', seed: number) => {
       let g = createGame(seed);
@@ -226,19 +227,19 @@ describe('easy / normal の振る舞いは変えていない', () => {
     };
 
     const easy0 = finish('easy', 0);
-    expect(easy0.players.you.coins).toBe(7);
-    expect(easy0.players.cpu.coins).toBe(9);
+    expect(easy0.players.you.coins).toBe(0);
+    expect(easy0.players.cpu.coins).toBe(-2);
 
     const easy5 = finish('easy', 5);
-    expect(easy5.players.you.coins).toBe(7);
-    expect(easy5.players.cpu.coins).toBe(5);
+    expect(easy5.players.you.coins).toBe(0);
+    expect(easy5.players.cpu.coins).toBe(0);
 
     const normal0 = finish('normal', 0);
-    expect(normal0.players.you.coins).toBe(0);
+    expect(normal0.players.you.coins).toBe(4);
     expect(normal0.players.cpu.coins).toBe(5);
 
     const normal5 = finish('normal', 5);
-    expect(normal5.players.you.coins).toBe(3);
-    expect(normal5.players.cpu.coins).toBe(-2);
+    expect(normal5.players.you.coins).toBe(11);
+    expect(normal5.players.cpu.coins).toBe(-5);
   });
 });
