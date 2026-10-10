@@ -1,7 +1,7 @@
 /** 日替わりの条件ごとに balance-lab を回し、先手勝率と性格の勝率の幅を表にする常設ツール。
  *
- *   npx tsx scripts/audit-daily.ts            # 採用中の条件、各 100 試合/組
- *   npx tsx scripts/audit-daily.ts 150 extra  # 不採用の候補も測る
+ *   npm run audit-daily                 # 採用中の条件、各 100 試合/組
+ *   npm run audit-daily -- 200 extra    # 不採用の候補も測る
  *
  * 合格は先手勝率 45〜55%。外れた条件は src/meta/daily.ts の DAILY_RULES から外す。
  * 既定値（balance.ts）や CPU を変えたら測り直す。 */
@@ -19,9 +19,19 @@ interface Candidate {
   patch: Partial<Balance>;
 }
 
-/** 測ったが採用していない候補。各 16 ターン・徴税官 +3 は先手勝率では収まる（49.0% / 52.8%）が、8 種で足りたので控え。 */
+/** 測ったが採用していない候補（2026-10-10、200 試合/組）。徴税官 +3 は 54.0% で収まるが、8 種で足りたので控え。 */
 const EXTRA: Candidate[] = [
-  { id: 'shortGame', label: '各 16 ターン', patch: { maxTurnsPerPlayer: DEFAULT_BALANCE.maxTurnsPerPlayer - 4 } },
+  // 先手勝率 57.5%（100 試合/組では 54.4% で境目だった）
+  {
+    id: 'startCoins',
+    label: '開幕資金 +5',
+    patch: {
+      startingCoins: {
+        first: DEFAULT_BALANCE.startingCoins.first + 5,
+        second: DEFAULT_BALANCE.startingCoins.second + 5,
+      },
+    },
+  },
   // 先手勝率は 48.1% で収まるが、性格の総合勝率が 20.5〜86.7% に割れる（1 つの打ち方だけが勝つ日になる）
   {
     id: 'cheapCards',

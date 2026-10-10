@@ -46,11 +46,9 @@ export const DAILY_RULES: readonly DailyRule[] = [
     patch: (b) => ({ districtTitleVp: b.districtTitleVp + 2 }),
   },
   {
-    id: 'startCoins',
-    label: () => '開幕資金 +5',
-    patch: (b) => ({
-      startingCoins: { first: b.startingCoins.first + 5, second: b.startingCoins.second + 5 },
-    }),
+    id: 'shortGame',
+    label: (b) => `短期決戦（各 ${b.maxTurnsPerPlayer - 4} ターン）`,
+    patch: (b) => ({ maxTurnsPerPlayer: b.maxTurnsPerPlayer - 4 }),
   },
   {
     id: 'cheapUpgrade',
