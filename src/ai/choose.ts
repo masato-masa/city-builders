@@ -3,15 +3,31 @@ import { legalActions, reduce } from '@/game/reducer';
 import type { Rng } from '@/game/rng';
 import type { Action, CardId, GameState, PlayerId } from '@/game/types';
 
-import { DEFAULT_PROFILE, evaluateState, weightsAt, type Profile, type Weights } from './evaluate';
+import { evaluateState, weightsAt, type Profile, type Weights } from './evaluate';
+import { CPU_PROFILE } from './profiles';
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
-/** 難易度ごとの揺らぎ。easy ほど評価をぶらして弱くする。 */
-const NOISE: Record<Difficulty, number> = { easy: 45, normal: 3, hard: 0 };
+/** 難易度ごとの揺らぎ。3 段とも同じ重み（CPU_PROFILE）を使い、段差はここと下の 2 つで付ける。
+ *  値は scripts/difficulty-ladder.ts（npm run ladder）で測って決めた:
+ *  ふつう→やさしい、つよい→ふつう がそれぞれ 70〜85% になるように（200 試合/組で 78.5% / 76.5%。
+ *  ふつうの揺らぎ 8 では つよい→ふつう が 69.5% で下に外れた）。 */
+const NOISE: Record<Difficulty, number> = { easy: 20, normal: 10, hard: 0 };
 
 /** 妨害カードを検討する確率。easy は妨害をあまり撃たない。 */
-const HARASS_RATE: Record<Difficulty, number> = { easy: 0.25, normal: 0.8, hard: 1 };
+const HARASS_RATE: Record<Difficulty, number> = { easy: 0.5, normal: 0.8, hard: 1 };
+
+/** 先読みの評価を、直後の静的な評価に混ぜる割合。 */
+const LOOKAHEAD_BLEND = 0.4;
+
+/** 先読みで 1 手番のうちに打つ手の上限（自分の残り・相手の手番それぞれ）。
+ *  実際の手番は 2〜4 手が多い。上限は思考時間の安全網。 */
+const LOOKAHEAD_STEPS = 6;
+
+/** 先読みする候補の数。静的な評価で上位のものだけ読む。
+ *  全部読む場合と強さは誤差の範囲で同じ（つよい 対 揺らぎ 6 の同じ重み、200 試合×2: 全部 69.8/74.5%、上位 3 つ 69.5/71.3%）で、
+ *  1 手番の思考時間は 最大 450ms → 83ms（Node.js、10 試合）に下がる。 */
+const LOOKAHEAD_TOP = 3;
 
 /** 指し手選択を細かく指定するための束。難易度はこれの既定セットの名前でしかない。 */
 export interface AiOptions {
@@ -19,7 +35,7 @@ export interface AiOptions {
   noise: number;
   /** 妨害カードを検討する確率 */
   harassRate: number;
-  /** 1 手先を読むか */
+  /** 相手の次の手番まで読むか */
   lookahead: boolean;
   profile: Profile;
   /** カードごとの加点。計測ツール（scripts/card-value.ts）専用で、通常の CPU は使わない。
@@ -27,13 +43,13 @@ export interface AiOptions {
   cardBonus?: Partial<Record<CardId, number>>;
 }
 
-/** 難易度から AiOptions を作る。今までの NOISE / HARASS_RATE / hard 分岐をそのまま写したもの。 */
+/** 難易度から AiOptions を作る。重みは 3 段とも CPU_PROFILE。 */
 export function optionsFor(difficulty: Difficulty): AiOptions {
   return {
     noise: NOISE[difficulty],
     harassRate: HARASS_RATE[difficulty],
     lookahead: difficulty === 'hard',
-    profile: DEFAULT_PROFILE,
+    profile: CPU_PROFILE,
   };
 }
 
@@ -47,41 +63,6 @@ function isHarass(action: Action): boolean {
   );
 }
 
-/** 相手の応手候補を絞る工夫の上限。1手あたりの実測が重かったときだけ効かせる
- *  安全弁で、実測（.superpowers/sdd/hard-lookahead-report.md）では市場10区画・
- *  手札4枚という盤面規模なら絞らなくても150msに収まったため、既定は
- *  Infinity（絞らない）のまま使っていない。将来カードや市場が増えて重くなった
- *  ときのための保険として残す。 */
-const MAX_REPLY_CANDIDATES = Number.POSITIVE_INFINITY;
-
-/** state（actor の手番）から、actor が「自分の重みで最善」と判断する1手を
- *  打った後の局面を返す。候補が MAX_REPLY_CANDIDATES を超える場合は、
- *  行動そのものの合法性チェックだけで絞れる範囲で数を抑える
- *  （現状は使っていないが、MAX_REPLY_CANDIDATES を実数に下げれば効く）。 */
-function bestReplyState(
-  state: GameState,
-  actor: PlayerId,
-  weights: Weights,
-  balance: Balance,
-): GameState {
-  let candidates = legalActions(state, balance);
-  if (candidates.length > MAX_REPLY_CANDIDATES) {
-    candidates = candidates.slice(0, MAX_REPLY_CANDIDATES);
-  }
-
-  let best = state;
-  let bestScore = -Infinity;
-  for (const action of candidates) {
-    const next = reduce(state, action, balance);
-    const score = evaluateState(next, actor, balance, weights);
-    if (score > bestScore) {
-      bestScore = score;
-      best = next;
-    }
-  }
-  return best;
-}
-
 /** state が from の手番なら、endTurn を通して次の手番に渡す。
  *  すでに他者の手番・試合が終わっている場合はそのまま返す。 */
 function handOver(state: GameState, from: PlayerId, balance: Balance): GameState {
@@ -91,42 +72,56 @@ function handOver(state: GameState, from: PlayerId, balance: Balance): GameState
   return state;
 }
 
-/** つよいの2手先読み。after（自分の行動を打った直後の局面）から、
- *  「自分の手 → ターンを終える → 相手の最善手 → ターンを終える → 自分の最善手」
- *  まで一直線に読み、最後の局面を自分（player）視点で評価する。
- *  1段目は「相手に妨害される」局面、2段目は「妨害されたあと自分がどう
- *  立て直せるか」を織り込むためのもの。
+/** 手番の持ち主が、weights で貪欲に最善手を打ち続け、手番を終えるまで進める。
+ *  「手番を終える」より良い手が無くなるか、上限に達したら手番を終えて返す。 */
+function greedyFinishTurn(state: GameState, weights: Weights, balance: Balance): GameState {
+  const actor = state.current;
+  let cur = state;
+  for (let i = 0; i < LOOKAHEAD_STEPS && cur.phase === 'playing' && cur.current === actor; i++) {
+    const stop = reduce(cur, { type: 'endTurn' }, balance);
+    let best = stop;
+    let bestScore = evaluateState(stop, actor, balance, weights);
+    for (const action of legalActions(cur, balance)) {
+      if (action.type === 'endTurn') continue;
+      const next = reduce(cur, action, balance);
+      if (next === cur) continue;
+      const score = evaluateState(next, actor, balance, weights);
+      if (score > bestScore) {
+        bestScore = score;
+        best = next;
+      }
+    }
+    if (best === stop) return stop;
+    cur = best;
+  }
+  return handOver(cur, actor, balance);
+}
+
+/** つよいの先読み。after（自分の行動を 1 つ打った直後の局面）から、
+ *  「自分の手番の残りを打ち切る → 相手が収入を受け取り、相手の手番を打ち切る」
+ *  まで進めた局面を、自分（player）視点で評価する。
  *
- *  相手・未来の自分の「最善」は、どちらもこちらと同じ重み（weights）で測る。
- *  実際の相手の重みは分からない（人間かもしれないし、性格の違う CPU かも
- *  しれない）ので、「お互い同じ物差しで最善を選ぶ」という前提を置く近似。
- *  各段は total-order のミニマックスではなく、その時点の手番の持ち主が
- *  自分自身の評価だけを見て貪欲に選ぶ一直線読み（相手は「自分がこう返される
- *  かもしれないから」までは読まない）。
+ *  手番単位で読むのが要点。以前の版は 1 手ずつ（自分の 1 手 → 相手の 1 手 → 自分の 1 手）で、
+ *  「建築家を使ってから建てる」のような組み合わせを途中で切り、相手の収入（startTurn）も
+ *  入れずに相手の応手を測っていたため、先読みなしより弱かった
+ *  （CPU_PROFILE 同士、先読みあり 対 なし: 1 手ずつの版 40% → 手番単位 67%、各 200〜300 試合）。
  *
- *  どこかの段で試合が終わる・手番が渡らない場合は、そこまでの局面をそのまま
- *  自分視点で評価して返す（それ以上読むものが無いため）。 */
+ *  相手・自分の残りの手は、どちらもこちらと同じ重み（weights）で貪欲に選ぶ近似。
+ *  実際の相手の重みは分からない（人間かもしれない）ので、「お互い同じ物差しで最善を選ぶ」と置く。
+ *  試合が途中で終われば、そこまでの局面をそのまま評価する。 */
 export function lookaheadScore(
   after: GameState,
   player: PlayerId,
   weights: Weights,
   balance: Balance,
 ): number {
-  // 1段目: 相手に手番を渡し、相手の最善手を読む
-  const handedToFoe = handOver(after, player, balance);
-  if (handedToFoe.phase !== 'playing' || handedToFoe.current === player) {
-    return evaluateState(handedToFoe, player, balance, weights);
+  const mine = after.current === player ? greedyFinishTurn(after, weights, balance) : after;
+  if (mine.phase !== 'playing' || mine.current === player) {
+    return evaluateState(mine, player, balance, weights);
   }
-  const foe = handedToFoe.current;
-  const afterFoeBest = bestReplyState(handedToFoe, foe, weights, balance);
-
-  // 2段目: 自分に手番を戻し、相手に妨害されたあとの自分の最善手（立て直し）を読む
-  const handedBack = handOver(afterFoeBest, foe, balance);
-  if (handedBack.phase !== 'playing' || handedBack.current !== player) {
-    return evaluateState(handedBack, player, balance, weights);
-  }
-  const afterSelfBest = bestReplyState(handedBack, player, weights, balance);
-  return evaluateState(afterSelfBest, player, balance, weights);
+  const foeStart = reduce(mine, { type: 'startTurn' }, balance);
+  const foeDone = greedyFinishTurn(foeStart, weights, balance);
+  return evaluateState(foeDone, player, balance, weights);
 }
 
 export function chooseAction(
@@ -145,20 +140,26 @@ export function chooseAction(
   );
   if (actions.length === 0) return { type: 'endTurn' };
 
+  // endTurn の評価は「このターンをここで終える価値」なので、
+  // 手番が移った後の局面をそのまま自分視点で測る
+  let scored = actions.map((action) => {
+    const after = reduce(state, action, balance);
+    return { action, after, score: evaluateState(after, player, balance, weights) };
+  });
+  if (options.lookahead) {
+    // 先読みは重いので、静的な評価で上位の候補だけを読む（下位は選ばない）
+    scored = [...scored].sort((a, b) => b.score - a.score).slice(0, LOOKAHEAD_TOP);
+    for (const s of scored) {
+      const follow = lookaheadScore(s.after, player, weights, balance);
+      s.score = s.score * (1 - LOOKAHEAD_BLEND) + follow * LOOKAHEAD_BLEND;
+    }
+  }
+
   let best: Action = { type: 'endTurn' };
   let bestScore = -Infinity;
 
-  for (const action of actions) {
-    const after = reduce(state, action, balance);
-    // endTurn の評価は「このターンをここで終える価値」なので、
-    // 手番が移った後の局面をそのまま自分視点で測る
-    let score = evaluateState(after, player, balance, weights);
-    if (options.lookahead) {
-      // 自分の手 → 相手の最善手 → 自分の最善手、まで2段読む。詳細は
-      // lookaheadScore を参照。
-      const follow = lookaheadScore(after, player, weights, balance);
-      score = score * 0.6 + follow * 0.4;
-    }
+  for (const { action, score: base } of scored) {
+    let score = base;
     score += (rng.next() - 0.5) * options.noise;
     if (action.type === 'useCard') score += options.cardBonus?.[action.card] ?? 0;
     if (score > bestScore) {

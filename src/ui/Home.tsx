@@ -26,9 +26,9 @@ const LABELS: Record<Difficulty, string> = {
 const SWORDS: Record<Difficulty, number> = { easy: 1, normal: 2, hard: 3 };
 
 const DESCRIPTIONS: Record<Difficulty, string> = {
-  easy: 'CPU は手加減します',
+  easy: 'CPU は迷いが多く妨害も控えめ',
   normal: 'CPU がふつうに戦います',
-  hard: 'CPU が本気で攻めてきます',
+  hard: 'CPU が次の手番まで読んできます',
 };
 
 // タイトル → ボタン → 戦績の順に、少しずつ遅らせて出す。全体で 500ms 程度に収める。
