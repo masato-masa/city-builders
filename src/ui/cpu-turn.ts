@@ -18,7 +18,7 @@ export interface CpuStep {
 }
 
 /** 1 手を短い日本語の実況文にする。表示専用で、ゲームの判定には使わない。 */
-function describeAction(before: GameState, action: Action): string {
+export function describeAction(before: GameState, action: Action): string {
   if (action.type === 'useCard') {
     return action.heraldTarget
       ? `${CARD_NAMES[action.card]}で${CARD_NAMES[action.heraldTarget]}を山の底へ`
@@ -27,6 +27,15 @@ function describeAction(before: GameState, action: Action): string {
   if (action.type === 'build') {
     const slot = before.market[action.slotId];
     return slot ? `${BUILDING_NAMES[slot.buildingId]}を建てた` : '物件を建てた';
+  }
+  if (action.type === 'upgrade') {
+    const slot = before.market[action.slotId];
+    return slot ? `${BUILDING_NAMES[slot.buildingId]}をアップグレードした` : '物件をアップグレードした';
+  }
+  if (action.type === 'acquire') {
+    // カードの「買収者」とは別。相手の物件を代金を払って奪う行動
+    const slot = before.market[action.slotId];
+    return slot ? `${BUILDING_NAMES[slot.buildingId]}を買収した` : '物件を買収した';
   }
   if (action.type === 'startTurn') return '収入を得た';
   if (action.type === 'useRoad') return `街道で${CARD_NAMES[action.target]}を送った`;
