@@ -64,26 +64,52 @@ export const BUILDING_NAMES: Record<BuildingId, string> = {
   quarry: '石切場',
 };
 
-/** 建物の説明文。カードと同じ理由で balance から組み立てる。 */
-export function buildingTextFor(building: BuildingId, balance: Balance): string {
+/** 建物の説明文。カードと同じ理由で balance から組み立てる。
+ *  level を渡すと、そのレベルでの効果値で書く（既定は Lv1）。 */
+export function buildingTextFor(building: BuildingId, balance: Balance, level = 1): string {
+  const v = (key: Level2EffectKey) => buildingEffect(balance, key, level);
   switch (building) {
     case 'tradingHouse':
-      return `毎ターン開始時 コイン +${balance.tradingHouseIncome}`;
+      return `毎ターン開始時 コイン +${v('tradingHouseIncome')}`;
     case 'wall':
       return '徴税官・封鎖者の効果を受けない';
     case 'factory':
-      return `毎ターン、最初に使用する人物カードのコスト −${balance.factoryDiscount}`;
-    case 'road':
-      return '毎ターン開始時、手札 1 枚を山の底へ送って補充してよい';
+      return `毎ターン、最初に使用する人物カードのコスト −${v('factoryDiscount')}`;
+    case 'road': {
+      const uses = v('roadUses');
+      return uses > 1
+        ? `毎ターン開始時、手札を ${uses} 回まで山の底へ送って補充してよい`
+        : '毎ターン開始時、手札 1 枚を山の底へ送って補充してよい';
+    }
     case 'cathedral':
-      return `自分の他の物件 1 件につき +${balance.cathedralVpPerBuilding} VP`;
+      return `自分の他の物件 1 件につき +${v('cathedralVpPerBuilding')} VP`;
     case 'fortress':
-      return `相手が物件を建てるたび コイン +${balance.fortressToll}`;
+      return `相手が物件を建てるたび コイン +${v('fortressToll')}`;
     case 'exchange':
-      return `人物カードの「次のターン コイン +X」がすべて +${balance.exchangeBonus}`;
+      return `人物カードの「次のターン コイン +X」がすべて +${v('exchangeBonus')}`;
     case 'quarry':
-      return `建築家を使ったターン、2 件目以降の建設費がさらに −${balance.quarryExtraDiscount}`;
+      return `建築家を使ったターン、2 件目以降の建設費がさらに −${v('quarryExtraDiscount')}`;
   }
+}
+
+/** レベルで値が変わる物件の効果。Lv1 の値は Balance の同名の項目、Lv2 の値は Balance.level2 にある。 */
+export type Level2EffectKey =
+  | 'tradingHouseIncome'
+  | 'factoryDiscount'
+  | 'cathedralVpPerBuilding'
+  | 'exchangeBonus'
+  | 'fortressToll'
+  | 'quarryExtraDiscount'
+  | 'roadUses';
+
+/** レベルに応じた物件の効果値。数値はすべて balance から引く（ロジックに直書きしない）。 */
+export function buildingEffect(balance: Balance, key: Level2EffectKey, level: number): number {
+  return level >= 2 ? balance.level2[key] : balance[key];
+}
+
+/** レベルに応じた物件の VP（大聖堂は vpOfSlot が別に数える）。 */
+export function buildingVp(balance: Balance, building: BuildingId, level: number): number {
+  return level >= 2 ? balance.upgrades[building].vp : balance.buildings[building].vp;
 }
 
 export interface Balance {
@@ -114,8 +140,17 @@ export interface Balance {
   fortressToll: number;
   /** 石切場: 建築家を使ったターン、2 件目以降の建設費にさらに乗る割引 */
   quarryExtraDiscount: number;
+  /** 街道: 1 ターンに山の底へ送れる回数（祝祭中は festivalMultiplier 倍） */
+  roadUses: number;
   /** 後手の 1 ターン目だけ、開始フェーズに足す収入。先手有利の補正 */
   secondPlayerFirstTurnBonus: number;
+  /** アップグレード（Lv1 → Lv2）。cost は払う額、vp は Lv2 での VP（加算ではなく置き換え）。
+   *  大聖堂の VP は物件数で決まるので、Lv2 では level2.cathedralVpPerBuilding が効く */
+  upgrades: Record<BuildingId, { cost: number; vp: number }>;
+  /** Lv2 の効果値。Lv1 の値は同名の項目 */
+  level2: Record<Level2EffectKey, number>;
+  /** 買収の上乗せ。価格は「その物件に払われたコインの合計 + これ」 */
+  acquireMarkup: number;
   /** 市場のスロット順。長さ 10 */
   market: BuildingId[];
 }
@@ -165,7 +200,28 @@ export const DEFAULT_BALANCE: Balance = {
   festivalIncomeBonus: 2,
   fortressToll: 2,
   quarryExtraDiscount: 4,
+  roadUses: 1,
   secondPlayerFirstTurnBonus: 1,
+  upgrades: {
+    tradingHouse: { cost: 7, vp: 4 },
+    wall: { cost: 10, vp: 4 },
+    factory: { cost: 12, vp: 5 },
+    road: { cost: 14, vp: 4 },
+    cathedral: { cost: 16, vp: 0 },
+    fortress: { cost: 18, vp: 9 },
+    exchange: { cost: 20, vp: 5 },
+    quarry: { cost: 13, vp: 5 },
+  },
+  level2: {
+    tradingHouseIncome: 2,
+    factoryDiscount: 4,
+    cathedralVpPerBuilding: 3,
+    exchangeBonus: 4,
+    fortressToll: 3,
+    quarryExtraDiscount: 6,
+    roadUses: 2,
+  },
+  acquireMarkup: 1,
   market: [
     'tradingHouse',
     'tradingHouse',

@@ -44,6 +44,9 @@ function scenario(cpuFirstCard: CardId): GameState {
     slotId,
     buildingId,
     owner: null,
+    paid: 0,
+    level: 1,
+    touchedTurn: 0,
   }));
   return {
     seed: 1,
