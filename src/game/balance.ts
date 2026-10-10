@@ -17,7 +17,7 @@ export const ALL_CARDS: readonly CardId[] = [
 export const DEFAULT_DECK: readonly CardId[] = ALL_CARDS;
 
 /** 既定のデッキに入っていない新しいカード。2 段目以降の抽選・ドラフトで入る。 */
-export const NEW_CARDS: readonly CardId[] = ['craftsman', 'inspector'];
+export const NEW_CARDS: readonly CardId[] = ['craftsman', 'inspector', 'boss', 'informer', 'double', 'clerk'];
 
 /** 存在するカードすべて（既定の 10 枚の後ろに新しいカード）。計測ツールの seed はこの並びの番号で決める。 */
 export const CARD_POOL: readonly CardId[] = [...ALL_CARDS, ...NEW_CARDS];
@@ -27,6 +27,14 @@ export const CARD_POOL: readonly CardId[] = [...ALL_CARDS, ...NEW_CARDS];
 export const NEW_CARDS_DECK: readonly CardId[] = ALL_CARDS.map((c) =>
   c === 'festival' ? 'craftsman' : c === 'taxman' ? 'inspector' : c,
 );
+
+/** 抽選（ドミニオン式）で必ず入るコア 4 枚（設計書 §3）。高利貸は「使える札が 1 枚も無い」を潰すコスト 0 の札、
+ *  残りは初心者でも分かる骨格（稼ぐ・建てる・回す）。抽選は残り 12 種から 6 枚。 */
+export const CORE_CARDS: readonly CardId[] = ['usurer', 'herald', 'miner', 'architect'];
+
+/** 影武者で写せない札。伝令（対象が手札で、写すと手札の並びが崩れる）・影武者自身・
+ *  祝祭と衛兵（2 回目は何も起きない: 次の手番の祝祭・守りはもう立っている）。 */
+export const DOUBLE_EXCLUDED: readonly CardId[] = ['herald', 'double', 'festival', 'guard'];
 
 export const CARD_NAMES: Record<CardId, string> = {
   miner: '採掘師',
@@ -41,6 +49,10 @@ export const CARD_NAMES: Record<CardId, string> = {
   blockader: '封鎖者',
   craftsman: '職人',
   inspector: '検査官',
+  boss: '顔役',
+  informer: '密告者',
+  double: '影武者',
+  clerk: '番頭',
 };
 
 /** カードの説明文。開発者メニューで効果値を変えたら、この文中の数字も
@@ -58,7 +70,7 @@ export function cardTextFor(card: CardId, balance: Balance): string {
     case 'festival':
       return `次の自分のターン、自分の物件の効果がすべて ${balance.festivalMultiplier} 倍。さらにそのターンの収入 +${balance.festivalIncomeBonus}`;
     case 'guard':
-      return `次の自分のターンまで、徴税官・封鎖者の効果と、物件の買収を受けない。城壁があればコスト ${balance.guardCostWithWall}`;
+      return `次の自分のターンまで、相手の妨害（徴税官・封鎖者・検査官・顔役・密告者）と物件の買収を受けない。城壁があればコスト ${balance.guardCostWithWall}`;
     case 'usurer':
       return `このターン コイン +${balance.usurerGain}。次の自分のターン開始時 コイン −${balance.usurerDebt}（マイナスになる）`;
     case 'spy':
@@ -71,6 +83,14 @@ export function cardTextFor(card: CardId, balance: Balance): string {
       return `このターン、自分の物件のアップグレード費 −${balance.craftsmanDiscount}（Lv1→2・Lv2→3 のどちらにも効く。建設・買収には効かない）`;
     case 'inspector':
       return `相手の物件 1 件の Lv を 1 段下げる（Lv3→2・Lv2→1。払われた額はそのまま）。Lv1 の物件なら払われた額 −${balance.inspectorPaidCut}（買収が安くなる）。衛兵で防がれる`;
+    case 'boss':
+      return `地区 1 つを選ぶ。その地区の物件の数が自分と相手で同じ（1 件以上）なら、地区の称号（${balance.districtTitleVp} VP）を今すぐ自分のものにする。衛兵で防がれる`;
+    case 'informer':
+      return `相手の「次」の札を見て、相手の山の底へ送る（相手が次に補充する札が 1 枚うしろにずれる）。衛兵で防がれる`;
+    case 'double':
+      return `このターン直前に使った人物カードの効果をもう一度（そのカードの元のコストも払う）。対象が要る札は対象を選び直す。伝令・祝祭・衛兵には使えない`;
+    case 'clerk':
+      return `このターン コイン +${balance.clerkPerHouse} × 自分の商館の数（最大 ${balance.clerkMaxHouses} 件。効果を止められた商館は数えない）`;
   }
 }
 
@@ -157,6 +177,9 @@ export interface Balance {
   craftsmanDiscount: number;
   /** 検査官: Lv1 の物件に撃ったとき、払われた額（買収の価格の元）から引く額。0 未満にはしない */
   inspectorPaidCut: number;
+  /** 番頭: 商館 1 件あたりのコインと、数える商館の上限 */
+  clerkPerHouse: number;
+  clerkMaxHouses: number;
   buildings: Record<BuildingId, { cost: number; vp: number }>;
   tradingHouseIncome: number;
   factoryDiscount: number;
@@ -236,6 +259,11 @@ export const DEFAULT_BALANCE: Balance = {
     // 検査官: 設計書の 3 は全体の幅が 35.0〜55.6%（封鎖者の優先 35.0・伝令の禁止 55.6）。4 で 39.0〜51.4%。
     // 払われた額の減り 5 → 3 は 37.0〜51.7%（card-value 400 --deck=new）
     inspector: { cost: 4 },
+    // 2 段目の新カード（設計書の出発点。card-value --deck=draw で測って直す）
+    boss: { cost: 2 },
+    informer: { cost: 1 },
+    double: { cost: 1 },
+    clerk: { cost: 1 },
   },
   minerIncome: 3,
   // 銀行家 5 → 4・採掘師のコスト 2 → 3: 盲点を直した後の回転（ゲーム内 CPU）は銀行家・採掘師を禁止すると
@@ -249,6 +277,8 @@ export const DEFAULT_BALANCE: Balance = {
   heraldCostWithRoad: 0,
   craftsmanDiscount: 3,
   inspectorPaidCut: 5,
+  clerkPerHouse: 2,
+  clerkMaxHouses: 3,
   buildings: {
     tradingHouse: { cost: 7, vp: 2 },
     wall: { cost: 10, vp: 2 },

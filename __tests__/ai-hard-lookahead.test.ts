@@ -31,6 +31,10 @@ const FROZEN_BALANCE: Balance = {
     // 新しいカード（凍結時点には無い。既定のデッキに入らないので試合には出ない）
     craftsman: { cost: 2 },
     inspector: { cost: 3 },
+    boss: { cost: 2 },
+    informer: { cost: 1 },
+    double: { cost: 1 },
+    clerk: { cost: 1 },
   },
   minerIncome: 4,
   bankerIncome: 6,
@@ -42,6 +46,8 @@ const FROZEN_BALANCE: Balance = {
   heraldCostWithRoad: 0,
   craftsmanDiscount: 5,
   inspectorPaidCut: 5,
+  clerkPerHouse: 2,
+  clerkMaxHouses: 3,
   buildings: {
     tradingHouse: { cost: 7, vp: 2 },
     wall: { cost: 10, vp: 2 },

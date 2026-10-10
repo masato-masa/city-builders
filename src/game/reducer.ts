@@ -5,6 +5,10 @@ import {
   activeEffectMax,
   activeEffectSum,
   activeOwnedSlots,
+  bossDistrictsOf,
+  clerkGainOf,
+  doubleSourceOf,
+  effectiveCardOf,
   handOf,
   nextTitles,
   opponentOf,
@@ -29,6 +33,11 @@ export function cardCostFor(
   balance: Balance = DEFAULT_BALANCE,
 ): number {
   let base = balance.cards[card].cost;
+  // 影武者は写す札の元のコストも払う（城壁・街道・工場の割引は乗らない。写す札は「元のコスト」）
+  if (card === 'double') {
+    const source = doubleSourceOf(state, player);
+    if (source) base += balance.cards[source].cost;
+  }
   // 物件との連携: 城壁があれば衛兵、街道があれば伝令が安くなる（効果が止められた物件は数えない）
   if (card === 'guard' && hasActiveBuilding(state, player, 'wall')) {
     base = Math.min(base, balance.guardCostWithWall);
@@ -55,8 +64,13 @@ export function canUseCard(
   const p = state.players[player];
   if (!handOf(state, player, balance).includes(card)) return false;
   if (p.usedThisTurn.includes(card)) return false;
+  // 影武者は写す札（このターン直前に使った札）が無ければ使えない。以下の対象の判定は写す札で行う
+  const eff = effectiveCardOf(state, player, card);
+  if (eff === null) return false;
   // 検査官は相手の物件が 1 件も無ければ撃つ先が無い
-  if (card === 'inspector' && !state.market.some((s) => s.owner !== null && s.owner !== player)) return false;
+  if (eff === 'inspector' && !state.market.some((s) => s.owner !== null && s.owner !== player)) return false;
+  // 顔役は同数の地区が無ければ撃つ先が無い
+  if (eff === 'boss' && bossDistrictsOf(state, player, balance).length === 0) return false;
   const cost = cardCostFor(state, player, card, balance);
   // コスト 0 のカード（高利貸）は、コインがマイナスのときでも必ず打てる。
   // 高利貸は「使える札が 1 枚も無い」を構造的に潰すための札なので、
@@ -248,23 +262,30 @@ function useCard(
 
   const player = state.current;
   const foe = opponentOf(player);
+  // 効果として起きる札（影武者なら写す札）。canUseCard を通っているので null ではない
+  const eff = effectiveCardOf(state, player, action.card)!;
 
-  // 対象を取るカードは、対象が妥当でなければ何も起きない
-  if (action.card === 'herald') {
+  // 対象を取るカードは、対象が妥当でなければ何も起きない（影武者は写す札の対象を取り直す）
+  if (eff === 'herald') {
     const target = action.heraldTarget;
     if (!target || target === 'herald') return state;
     if (!handOf(state, player, balance).includes(target)) return state;
   }
-  if (action.card === 'blockader') {
+  if (eff === 'blockader') {
     const slot = action.blockadeSlot;
     if (slot === undefined) return state;
     // 対象は自分が所有していない区画すべて（空き地でも相手の物件でもよい）
     if (!state.market[slot] || state.market[slot]!.owner === player) return state;
   }
-  if (action.card === 'inspector') {
+  if (eff === 'inspector') {
     // 対象は相手の物件だけ（空き地・自分の物件には撃てない）
     const slot = action.inspectSlot;
     if (slot === undefined || state.market[slot]?.owner !== foe) return state;
+  }
+  if (eff === 'boss') {
+    // 対象は件数が同数（1 件以上）で、称号がまだ自分のものでない地区だけ
+    const d = action.district;
+    if (d === undefined || !bossDistrictsOf(state, player, balance).includes(d)) return state;
   }
 
   const next = structuredClone(state);
@@ -274,60 +295,9 @@ function useCard(
   p.usedAnyCardThisTurn = true;
   p.usedThisTurn = [...p.usedThisTurn, action.card];
 
-  if (INCOME_CARDS.includes(action.card)) {
-    p.pendingIncome = [...p.pendingIncome, action.card];
-  }
-  if (action.card === 'architect') {
-    p.buildDiscount += balance.architectDiscount;
-  }
-  if (action.card === 'usurer') {
-    p.coins += balance.usurerGain;
-    p.pendingDebt += balance.usurerDebt;
-  }
-  if (action.card === 'festival') {
-    p.festivalQueued = true;
-  }
-  if (action.card === 'guard') {
-    p.guarded = true;
-  }
-  if (action.card === 'spy') {
-    // 自分にかかる効果なので衛兵・城壁では防げない（衛兵は買収そのものを防ぐ）
-    p.acquireDiscount += balance.spyAcquireDiscount;
-  }
-  if (action.card === 'craftsman') {
-    p.upgradeDiscount += balance.craftsmanDiscount;
-  }
+  applyCardEffect(next, player, eff, action, balance);
 
-  const foeGuarded = next.players[foe].guarded;
-  const foeWalled = hasActiveBuilding(next, foe, 'wall');
-
-  if (action.card === 'taxman' && !foeGuarded && !foeWalled) {
-    // 手持ちは相手の手番の合間にほぼ空なので、次の開始フェーズの収入から引く
-    next.players[foe].pendingTax += balance.taxmanAmount;
-  }
-  if (action.card === 'blockader' && !foeGuarded && !foeWalled) {
-    const slotId = action.blockadeSlot!;
-    const targetSlot = next.market[slotId]!;
-    if (targetSlot.owner === null) {
-      next.players[foe].blockedSlot = slotId;
-    } else {
-      next.players[foe].disabledSlot = slotId;
-    }
-    // 止めた物件を称号の件数に数えない設定なら、ここで称号が動く
-    next.titles = nextTitles(next, balance);
-  }
-  if (action.card === 'inspector' && !foeGuarded) {
-    // 衛兵では防げるが、城壁では防げない（城壁は徴税官・封鎖者だけ。全部防ぐと強すぎる）
-    const target = next.market[action.inspectSlot!]!;
-    if (target.level >= 2) {
-      // Lv を 1 段下げる。払われた額はそのまま（買収の価格は下がらない）。
-      // Lv3 → Lv2 で「最終段階は買収されない」が外れ、また買収できる物件になる
-      target.level -= 1;
-    } else {
-      target.paid = Math.max(0, target.paid - balance.inspectorPaidCut);
-    }
-  }
-  if (action.card === 'herald') {
+  if (eff === 'herald') {
     // 対象を先に処理し、伝令自身をそのあとに処理する。
     // 対象が待機列の先に、伝令がその下（＝より後ろ）に積まれる、という
     // 元の実装の順序をそのまま保つ。
@@ -338,6 +308,88 @@ function useCard(
 
   playCardInto(p, action.card);
   return next;
+}
+
+/** カード 1 枚分の効果を next に書き込む（コスト・手札の補充は呼び出し側）。
+ *  影武者は写した札の効果をここでもう一度起こす。 */
+function applyCardEffect(
+  next: GameState,
+  player: PlayerId,
+  card: CardId,
+  action: Extract<Action, { type: 'useCard' }>,
+  balance: Balance,
+): void {
+  const foe = opponentOf(player);
+  const p = next.players[player];
+
+  if (INCOME_CARDS.includes(card)) {
+    p.pendingIncome = [...p.pendingIncome, card];
+  }
+  if (card === 'architect') {
+    p.buildDiscount += balance.architectDiscount;
+  }
+  if (card === 'usurer') {
+    p.coins += balance.usurerGain;
+    p.pendingDebt += balance.usurerDebt;
+  }
+  if (card === 'festival') {
+    p.festivalQueued = true;
+  }
+  if (card === 'guard') {
+    p.guarded = true;
+  }
+  if (card === 'spy') {
+    // 自分にかかる効果なので衛兵・城壁では防げない（衛兵は買収そのものを防ぐ）
+    p.acquireDiscount += balance.spyAcquireDiscount;
+  }
+  if (card === 'craftsman') {
+    p.upgradeDiscount += balance.craftsmanDiscount;
+  }
+  if (card === 'clerk') {
+    // 自分にかかる効果（今すぐ入るコイン）。商館が無ければ何も起きない
+    p.coins += clerkGainOf(next, player, balance);
+  }
+
+  const foeGuarded = next.players[foe].guarded;
+  const foeWalled = hasActiveBuilding(next, foe, 'wall');
+
+  if (card === 'taxman' && !foeGuarded && !foeWalled) {
+    // 手持ちは相手の手番の合間にほぼ空なので、次の開始フェーズの収入から引く
+    next.players[foe].pendingTax += balance.taxmanAmount;
+  }
+  if (card === 'blockader' && !foeGuarded && !foeWalled) {
+    const slotId = action.blockadeSlot!;
+    const targetSlot = next.market[slotId]!;
+    if (targetSlot.owner === null) {
+      next.players[foe].blockedSlot = slotId;
+    } else {
+      next.players[foe].disabledSlot = slotId;
+    }
+    // 止めた物件を称号の件数に数えない設定なら、ここで称号が動く
+    next.titles = nextTitles(next, balance);
+  }
+  if (card === 'inspector' && !foeGuarded) {
+    // 衛兵では防げるが、城壁では防げない（城壁は徴税官・封鎖者だけ。全部防ぐと強すぎる）
+    const target = next.market[action.inspectSlot!]!;
+    if (target.level >= 2) {
+      // Lv を 1 段下げる。払われた額はそのまま（買収の価格は下がらない）。
+      // Lv3 → Lv2 で「最終段階は買収されない」が外れ、また買収できる物件になる
+      target.level -= 1;
+    } else {
+      target.paid = Math.max(0, target.paid - balance.inspectorPaidCut);
+    }
+  }
+  if (card === 'boss' && !foeGuarded) {
+    // 同数の地区の称号を今すぐ自分へ。同数のあいだは「今の持ち主が保つ」ので、相手が 1 件増やすか
+    // 買収で同数を崩すまで自分のもの。衛兵では防げる、城壁では防げない（検査官と同じ）
+    next.titles = [...next.titles];
+    next.titles[action.district!] = player;
+  }
+  if (card === 'informer' && !foeGuarded) {
+    // 相手の「次」の札（待機列の先頭）を待機列の底へ。相手の手札は動かない
+    const q = next.players[foe].queue;
+    if (q.length >= 2) q.push(q.shift()!);
+  }
 }
 
 /** 1 枚の投資カードが解決時に生むコイン。銀行家だけ解決時の物件数で変わる。
@@ -566,18 +618,22 @@ export function legalActions(
 
   for (const card of hand) {
     if (!canUseCard(state, card, balance)) continue;
-    if (card === 'herald') {
+    // 影武者は写す札の対象で展開する（伝令は写せない）
+    const eff = effectiveCardOf(state, player, card);
+    if (eff === 'boss') {
+      for (const district of bossDistrictsOf(state, player, balance)) out.push({ type: 'useCard', card, district });
+    } else if (card === 'herald') {
       for (const target of hand) {
         if (target !== 'herald') out.push({ type: 'useCard', card, heraldTarget: target });
       }
-    } else if (card === 'blockader') {
+    } else if (eff === 'blockader') {
       // 対象は自分が所有していない区画すべて（空き地・相手の物件どちらも）
       for (const slot of state.market) {
         if (slot.owner !== player) {
           out.push({ type: 'useCard', card, blockadeSlot: slot.slotId });
         }
       }
-    } else if (card === 'inspector') {
+    } else if (eff === 'inspector') {
       // 対象は相手の物件だけ。相手が 1 件も持っていなければ撃てない
       for (const slot of state.market) {
         if (slot.owner !== null && slot.owner !== player) {

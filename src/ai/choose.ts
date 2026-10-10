@@ -61,7 +61,11 @@ function resolveOptions(difficulty: Difficulty | AiOptions): AiOptions {
 function isHarass(action: Action): boolean {
   return (
     action.type === 'useCard' &&
-    (action.card === 'taxman' || action.card === 'blockader' || action.card === 'inspector')
+    (action.card === 'taxman' ||
+      action.card === 'blockader' ||
+      action.card === 'inspector' ||
+      action.card === 'boss' ||
+      action.card === 'informer')
   );
 }
 

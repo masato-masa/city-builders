@@ -2,6 +2,7 @@ import {
   buildingEffect,
   buildingVp,
   DEFAULT_BALANCE,
+  DOUBLE_EXCLUDED,
   type Balance,
   type Level2EffectKey,
 } from './balance';
@@ -336,4 +337,42 @@ export function festivalExtraOf(
   const houseIncome = activeEffectSum(state, player, 'tradingHouse', 'tradingHouseIncome', balance);
   const exchange = activeEffectMax(state, player, 'exchange', 'exchangeBonus', balance);
   return balance.festivalIncomeBonus + houseIncome * extra + exchange * extra * p.pendingIncome.length;
+}
+
+// ---------------------------------------------------------------------------
+// 2 段目の新カード（顔役・影武者・番頭）
+// ---------------------------------------------------------------------------
+
+/** 影武者がいま写す札（このターン直前に使った人物カード）。写せない札（DOUBLE_EXCLUDED）や、
+ *  まだ 1 枚も使っていなければ null。 */
+export function doubleSourceOf(state: GameState, player: PlayerId): CardId | null {
+  const used = state.players[player].usedThisTurn;
+  const last = used[used.length - 1];
+  if (!last || DOUBLE_EXCLUDED.includes(last)) return null;
+  return last;
+}
+
+/** 使う札の効果として実際に起きるカード。影武者は直前の札（写せなければ null）、それ以外はその札。 */
+export function effectiveCardOf(state: GameState, player: PlayerId, card: CardId): CardId | null {
+  return card === 'double' ? doubleSourceOf(state, player) : card;
+}
+
+/** 顔役で称号を取れる地区。件数が自分と相手で同じ（1 件以上）で、称号がまだ自分のものでない地区。 */
+export function bossDistrictsOf(
+  state: GameState,
+  player: PlayerId,
+  balance: Balance = DEFAULT_BALANCE,
+): number[] {
+  const out: number[] = [];
+  balance.districts.forEach((_, i) => {
+    const c = districtCounts(state, i, balance);
+    if (c.you === c.cpu && c.you >= Math.max(1, balance.districtMinCount) && titleHolder(state, i) !== player) out.push(i);
+  });
+  return out;
+}
+
+/** 番頭で今すぐ入るコイン。効果が生きている商館の数（上限 clerkMaxHouses）× clerkPerHouse。 */
+export function clerkGainOf(state: GameState, player: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
+  const houses = activeOwnedSlots(state, player).filter((s) => s.buildingId === 'tradingHouse').length;
+  return Math.min(houses, balance.clerkMaxHouses) * balance.clerkPerHouse;
 }

@@ -4,6 +4,7 @@ import {
   acquireCostFor,
   acquirePriceOf,
   activeEffectMax,
+  bossDistrictsOf,
   festivalExtraOf,
   handOf,
   incomePerTurnOf,
@@ -16,7 +17,7 @@ import {
   upgradePriceOf,
   vpOfSlot,
 } from '@/game/selectors';
-import type { GameState, PlayerId } from '@/game/types';
+import type { CardId, GameState, PlayerId, PlayerState } from '@/game/types';
 
 /** 評価関数の重み。ハードな条件分岐ではなく、ここの重みで振る舞いを決める。
  *  外から差し替えられるようにして、性格の違う CPU（balance-lab）を作れるようにする。 */
@@ -231,7 +232,40 @@ export function exposedVpOf(
     }
     total += worst;
   }
+  // 相手の手札に顔役があり、払えるなら、自分が持っている同数の地区の称号を 1 つ取られる
+  if (handOf(state, foe, balance).includes('boss') && budget >= balance.cards.boss.cost) {
+    if (bossDistrictsOf(state, foe, balance).length > 0) total += balance.districtTitleVp;
+  }
   return total;
+}
+
+/** 相手の「次」の札が相手の手札に入ったときの脅威の目安（コインの見当）。密告者の価値の物差し。
+ *  妨害・買収の札と大きな投資ほど高く、手札回し・小さな札ほど低い。 */
+export const NEXT_CARD_THREAT: Record<CardId, number> = {
+  miner: 3,
+  banker: 4,
+  architect: 4,
+  herald: 1,
+  festival: 2,
+  guard: 2,
+  usurer: 3,
+  spy: 3,
+  taxman: 5,
+  blockader: 5,
+  craftsman: 2,
+  inspector: 4,
+  boss: 3,
+  informer: 1,
+  double: 2,
+  clerk: 2,
+};
+
+/** 相手の「次」の札の脅威に掛ける重み（評価の点）。card-value で密告者の 禁止/優先 が 50% 付近になるように決める。 */
+export const INFORMER_NEXT_WEIGHT = 1.5;
+
+/** デッキ（手札＋待機列）にそのカードがあるか。デッキの中身は試合中に変わらないので、試合ごとの定数として使える。 */
+function deckHas(p: PlayerState, card: CardId): boolean {
+  return p.hand.includes(card) || p.queue.includes(card);
 }
 
 export function evaluateState(
@@ -267,7 +301,12 @@ export function evaluateState(
     (c) => foeState.coins < balance.cards[c].cost,
   ).length;
 
+  // 密告者がある試合だけ、相手の「次」の札の脅威を数える（無い試合では 0 なので既定のデッキの評価は変わらない）
+  const foeNext0 = foeState.queue[0];
+  const nextThreat = deckHas(p, 'informer') && foeNext0 ? NEXT_CARD_THREAT[foeNext0] * INFORMER_NEXT_WEIGHT : 0;
+
   return (
+    -nextThreat +
     scoreOf(state, player, balance) * weights.vp * (0.5 + late) +
     scoreOf(state, foe, balance) * weights.opponentVp * (0.5 + late) +
     p.coins * weights.coin +

@@ -1,4 +1,4 @@
-import { DEFAULT_BALANCE, DEFAULT_DECK, type Balance } from './balance';
+import { CARD_POOL, CORE_CARDS, DEFAULT_BALANCE, DEFAULT_DECK, type Balance } from './balance';
 import { createRng, shuffle } from './rng';
 import type { BuildingSlot, CardId, GameState, PlayerId, PlayerState } from './types';
 
@@ -87,4 +87,19 @@ export function createGame(
     titles: balance.districts.map(() => null),
     phase: 'playing',
   };
+}
+
+/** 抽選デッキの乱数の種を、試合の seed から別の系列にずらす定数。createGame の山札の並べ替えと
+ *  同じ乱数列を使わないため（同じ seed の試合でも、抽選と山札の並びが連動しない）。 */
+const DRAW_SALT = 0x5eed_d3c4;
+
+/** 抽選（ドミニオン式）のデッキ。コア 4 枚（CORE_CARDS）は必ず入り、残りの札（CARD_POOL からコアを除いた 12 種）から
+ *  seed で 6 枚を選ぶ。両者共通で使う。同じ seed からは必ず同じ 10 枚（決定性）。
+ *  並びは CARD_POOL の順に揃える（山札の並べ替えは createGame が行う）。 */
+export function drawDeck(seed: number, balance: Balance = DEFAULT_BALANCE): CardId[] {
+  const rng = createRng((seed ^ DRAW_SALT) >>> 0);
+  const rest = CARD_POOL.filter((c) => !CORE_CARDS.includes(c) && balance.cards[c]);
+  const size = 10;
+  const picked = new Set<CardId>([...CORE_CARDS, ...shuffle(rest, rng).slice(0, size - CORE_CARDS.length)]);
+  return CARD_POOL.filter((c) => picked.has(c));
 }

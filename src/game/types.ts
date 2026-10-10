@@ -12,7 +12,15 @@ export type CardId =
   /** 職人: このターンのアップグレード費を下げる（既定のデッキには入っていない） */
   | 'craftsman'
   /** 検査官: 相手の物件の Lv を 1 段下げる／Lv1 なら払われた額を減らす（既定のデッキには入っていない） */
-  | 'inspector';
+  | 'inspector'
+  /** 顔役: 件数が同数の地区の称号を今すぐ自分へ（既定のデッキには入っていない） */
+  | 'boss'
+  /** 密告者: 相手の「次」の札を相手の山の底へ送る（既定のデッキには入っていない） */
+  | 'informer'
+  /** 影武者: このターン直前に使った人物カードの効果をもう一度（既定のデッキには入っていない） */
+  | 'double'
+  /** 番頭: このターン、自分の商館の数に応じてコイン（既定のデッキには入っていない） */
+  | 'clerk';
 
 export type BuildingId =
   | 'tradingHouse'
@@ -97,7 +105,15 @@ export interface GameState {
 
 export type Action =
   | { type: 'startTurn' }
-  | { type: 'useCard'; card: CardId; heraldTarget?: CardId; blockadeSlot?: number; inspectSlot?: number }
+  | {
+      type: 'useCard';
+      card: CardId;
+      heraldTarget?: CardId;
+      blockadeSlot?: number;
+      inspectSlot?: number;
+      /** 顔役（と、顔役を写した影武者）の対象の地区（balance.districts の番号） */
+      district?: number;
+    }
   | { type: 'build'; slotId: number }
   /** 自分の物件を 1 段上げる。手札は使わない */
   | { type: 'upgrade'; slotId: number }

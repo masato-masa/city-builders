@@ -342,6 +342,11 @@ const CARD_SAMPLE: Record<CardId, string> = {
   // 新しいカード（まだ専用の音は無い）。職人は上げて固める＝投資系のきらめき、検査官は相手を削る＝一撃
   craftsman: 'cardBuff',
   inspector: 'cardAttack',
+  // 2 段目: 顔役（称号を奪う）・密告者（相手の手順を崩す）は一撃、番頭（即金）は投資系、影武者は写した札の音（playUseCard）
+  boss: 'cardAttack',
+  informer: 'cardAttack',
+  double: 'cardBuff',
+  clerk: 'cardBuff',
 };
 
 // 合成音で代わりに鳴らすときの高さ。投資系は明るく高く、妨害系は低く沈める。
@@ -358,6 +363,10 @@ const CARD_BASE_FREQ: Record<CardId, number> = {
   blockader: 300,
   craftsman: 600,
   inspector: 340,
+  boss: 350,
+  informer: 380,
+  double: 500,
+  clerk: 620,
 };
 
 /** カードを使う。カードの種類で音を変える（徴税官は相手のコインがこぼれる音を少し遅らせて重ねる）。 */
