@@ -183,13 +183,13 @@ describe('行動選択', () => {
 describe('AiOptions への分解', () => {
   it('optionsFor は難易度ごとの値をそのまま写している（3 段とも CPU_PROFILE）', () => {
     expect(optionsFor('easy')).toEqual({
-      noise: 26,
+      noise: 20,
       harassRate: 0.5,
       lookahead: false,
       profile: CPU_PROFILE,
     });
     expect(optionsFor('normal')).toEqual({
-      noise: 10,
+      noise: 6,
       harassRate: 0.8,
       lookahead: false,
       profile: CPU_PROFILE,
