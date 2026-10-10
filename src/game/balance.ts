@@ -151,6 +151,9 @@ export interface Balance {
   level2: Record<Level2EffectKey, number>;
   /** 買収の上乗せ。価格は「その物件に払われたコインの合計 + これ」 */
   acquireMarkup: number;
+  /** 建設・アップグレード・買収のあと、その区画を動かせないターン数（1 人の手番を 1 と数える）。
+   *  1 で「同じ区画は 1 ターンに 1 回まで」 */
+  slotLockTurns: number;
   /** 市場のスロット順。長さ 10 */
   market: BuildingId[];
 }
@@ -174,7 +177,7 @@ export const DEFAULT_BALANCE: Balance = {
     taxman: { cost: 3 },
     blockader: { cost: 3 },
   },
-  minerIncome: 6,
+  minerIncome: 5,
   bankerIncome: 6,
   bankerPerBuilding: 2,
   architectDiscount: 6,
@@ -221,7 +224,8 @@ export const DEFAULT_BALANCE: Balance = {
     quarryExtraDiscount: 6,
     roadUses: 2,
   },
-  acquireMarkup: 1,
+  acquireMarkup: 4,
+  slotLockTurns: 1,
   market: [
     'tradingHouse',
     'tradingHouse',
