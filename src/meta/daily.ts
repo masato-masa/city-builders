@@ -60,9 +60,12 @@ export const DAILY_RULES: readonly DailyRule[] = [
     }),
   },
   {
-    id: 'cheapCards',
-    label: () => '人物カードのコスト −1',
-    patch: (b) => ({ cards: mapValues(b.cards, (v) => ({ cost: Math.max(0, v.cost - 1) })) }),
+    id: 'toll2',
+    label: () => '城塞の通行料 2 倍',
+    patch: (b) => ({
+      fortressToll: b.fortressToll * 2,
+      level2: { ...b.level2, fortressToll: b.level2.fortressToll * 2 },
+    }),
   },
 ];
 

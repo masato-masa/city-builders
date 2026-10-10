@@ -19,10 +19,19 @@ interface Candidate {
   patch: Partial<Balance>;
 }
 
-/** 測ったが採用していない候補（理由は journal）。 */
+/** 測ったが採用していない候補。各 16 ターン・徴税官 +3 は先手勝率では収まる（49.0% / 52.8%）が、8 種で足りたので控え。 */
 const EXTRA: Candidate[] = [
   { id: 'shortGame', label: '各 16 ターン', patch: { maxTurnsPerPlayer: DEFAULT_BALANCE.maxTurnsPerPlayer - 4 } },
-  { id: 'toll2', label: '城塞の通行料 2 倍', patch: { fortressToll: DEFAULT_BALANCE.fortressToll * 2 } },
+  // 先手勝率は 48.1% で収まるが、性格の総合勝率が 20.5〜86.7% に割れる（1 つの打ち方だけが勝つ日になる）
+  {
+    id: 'cheapCards',
+    label: '人物カードのコスト −1',
+    patch: {
+      cards: Object.fromEntries(
+        Object.entries(DEFAULT_BALANCE.cards).map(([k, v]) => [k, { cost: Math.max(0, v.cost - 1) }]),
+      ) as Balance['cards'],
+    },
+  },
   { id: 'taxman', label: '徴税官 +3', patch: { taxmanAmount: DEFAULT_BALANCE.taxmanAmount + 3 } },
 ];
 
