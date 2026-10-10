@@ -3,14 +3,16 @@ import { useState } from 'react';
 
 import type { Difficulty } from '@/ai/choose';
 import { ALL_CARDS, BUILDING_NAMES, CARD_NAMES, type Balance } from '@/game/balance';
+import { dailyFor, formatScore, localDateKey } from '@/meta/daily';
 import { stepInfo } from '@/meta/rank';
+import { clearDaily, loadDaily } from '@/storage/daily';
 import { clearMeta, loadMeta } from '@/storage/meta';
 import { clearProgress, loadProgress } from '@/storage/storage';
 
 import { FIELD_URL } from './art';
 import { loadBalance, resetBalance, saveBalance } from './balance-store';
 import { hapticTap } from './haptics';
-import { CityEmblem, SwordIcon, VersusIcon } from './icons';
+import { CalendarIcon, CityEmblem, SwordIcon, VersusIcon } from './icons';
 import { RankSheet, RankStars } from './RankRoad';
 import { Sheet } from './Sheets';
 import { playUiTap, primeAudio } from './sound';
@@ -59,11 +61,17 @@ function shouldAnimateEntrance(): boolean {
 export function Home({
   onStart,
   onStartPvp,
+  onStartDaily,
 }: {
   onStart: (d: Difficulty) => void;
   onStartPvp: () => void;
+  onStartDaily: (dateKey: string) => void;
 }) {
   const progress = loadProgress();
+  // 日替わり: 開いた時点の端末の日付で決める。
+  const [today] = useState(() => localDateKey(new Date()));
+  const daily = dailyFor(today);
+  const [dailyRec, setDailyRec] = useState(() => loadDaily(today));
   const [meta, setMeta] = useState(loadMeta);
   const [dev, setDev] = useState(false);
   const [rankOpen, setRankOpen] = useState(false);
@@ -131,6 +139,28 @@ export function Home({
               </button>
             );
           })}
+          {/* 日替わりの一戦。日付で決まる同じ盤面・同じ条件で、その日の自己ベスト（VP 差）を競う。 */}
+          <button
+            className="btn3d btn3d-green home-mode home-daily"
+            aria-label={`日替わり。今日の条件 ${daily.label}`}
+            onClick={() => {
+              primeAudio();
+              playUiTap();
+              hapticTap();
+              onStartDaily(today);
+            }}
+          >
+            <span className="home-mode-icon" aria-hidden="true">
+              <CalendarIcon className="home-mode-cal" day={Number(today.slice(8))} />
+            </span>
+            <span className="home-mode-text">
+              <span className="btn3d-label home-mode-label">日替わり</span>
+              <span className="home-mode-desc home-daily-rule">今日: {daily.label}</span>
+            </span>
+            {dailyRec.best !== null ? (
+              <span className="home-mode-tag is-best">ベスト {formatScore(dailyRec.best)}</span>
+            ) : null}
+          </button>
           <button
             className="btn3d btn3d-red home-mode"
             onClick={() => {
@@ -471,7 +501,9 @@ export function Home({
             onClick={() => {
               clearProgress();
               clearMeta();
+              clearDaily();
               setMeta(loadMeta());
+              setDailyRec(loadDaily(today));
             }}
           >
             きろくをけす
