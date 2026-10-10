@@ -31,9 +31,9 @@ export const CARD_NAMES: Record<CardId, string> = {
 export function cardTextFor(card: CardId, balance: Balance): string {
   switch (card) {
     case 'miner':
-      return `次のターン コイン +${balance.minerIncome}`;
+      return `次の収入 コイン +${balance.minerIncome}`;
     case 'banker':
-      return `次のターン コイン +${balance.bankerIncome}。さらに解決時の自分の物件 1 件につき +${balance.bankerPerBuilding}`;
+      return `次の収入 コイン +${balance.bankerIncome}。さらに解決時の自分の物件 1 件につき +${balance.bankerPerBuilding}`;
     case 'architect':
       return `このターン建てる物件すべて、建設費 −${balance.architectDiscount}`;
     case 'herald':
@@ -87,7 +87,7 @@ export function buildingTextFor(building: BuildingId, balance: Balance, level = 
     case 'fortress':
       return `相手が物件を建てるたび コイン +${v('fortressToll')}`;
     case 'exchange':
-      return `人物カードの「次のターン コイン +X」がすべて +${v('exchangeBonus')}`;
+      return `人物カードの「次の収入 コイン +X」がすべて +${v('exchangeBonus')}`;
     case 'quarry':
       return `建築家を使ったターン、2 件目以降の建設費がさらに −${v('quarryExtraDiscount')}`;
   }
