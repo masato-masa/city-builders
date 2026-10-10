@@ -36,7 +36,8 @@ const SEARCHED_KEYS = [
   'incomePerTurn',
   'reach',
   'opponentReach',
-  'opponentBound',
+  // 旧 opponentBound（買収者が手札を縛る効果の評価）は効果ごと無くなったので、買収に晒される VP で置き換えた
+  'exposed',
 ] as const satisfies readonly (keyof Weights)[];
 
 type SearchedKey = (typeof SEARCHED_KEYS)[number];
@@ -80,12 +81,10 @@ const STARTING_POINTS: StartingPoint[] = [
       early: withOverrides({
         opponentCoin: DEFAULT_WEIGHTS.opponentCoin * 2,
         opponentReach: DEFAULT_WEIGHTS.opponentReach * 2,
-        opponentBound: DEFAULT_WEIGHTS.opponentBound * 2,
       }),
       late: withOverrides({
         opponentCoin: DEFAULT_WEIGHTS.opponentCoin * 2,
         opponentReach: DEFAULT_WEIGHTS.opponentReach * 2,
-        opponentBound: DEFAULT_WEIGHTS.opponentBound * 2,
       }),
     },
   },

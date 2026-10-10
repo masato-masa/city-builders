@@ -1,6 +1,6 @@
 import { DEFAULT_BALANCE, type Balance } from './balance';
 import {
-  acquirePriceOf,
+  acquireCostFor,
   activeEffectMax,
   activeEffectSum,
   activeOwnedSlots,
@@ -11,7 +11,6 @@ import {
   slotLocked,
   upgradePriceOf,
 } from './selectors';
-import { createRng, shuffle } from './rng';
 import type { Action, BuildingId, CardId, GameState, PlayerId, PlayerState } from './types';
 
 /** 効果が生きている自分の物件のうち、指定した種類を持っているか。
@@ -27,7 +26,14 @@ export function cardCostFor(
   card: CardId,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
-  const base = balance.cards[card].cost;
+  let base = balance.cards[card].cost;
+  // 物件との連携: 城壁があれば衛兵、街道があれば伝令が安くなる（効果が止められた物件は数えない）
+  if (card === 'guard' && hasActiveBuilding(state, player, 'wall')) {
+    base = Math.min(base, balance.guardCostWithWall);
+  }
+  if (card === 'herald' && hasActiveBuilding(state, player, 'road')) {
+    base = Math.min(base, balance.heraldCostWithRoad);
+  }
   const p = state.players[player];
   if (!p.usedAnyCardThisTurn && hasActiveBuilding(state, player, 'factory')) {
     const once = activeEffectMax(state, player, 'factory', 'factoryDiscount', balance);
@@ -47,7 +53,6 @@ export function canUseCard(
   const p = state.players[player];
   if (!handOf(state, player, balance).includes(card)) return false;
   if (p.usedThisTurn.includes(card)) return false;
-  if (p.boundCards.includes(card)) return false;
   const cost = cardCostFor(state, player, card, balance);
   // コスト 0 のカード（高利貸）は、コインがマイナスのときでも必ず打てる。
   // 高利貸は「使える札が 1 枚も無い」を構造的に潰すための札なので、
@@ -203,7 +208,7 @@ export function canAcquire(
   if (!slot || slot.owner !== foe) return false;
   if (state.players[foe].guarded) return false;
   if (slotLocked(state, slot, balance)) return false;
-  return state.players[player].coins >= acquirePriceOf(slot, balance);
+  return state.players[player].coins >= acquireCostFor(state, player, slot, balance);
 }
 
 function acquire(
@@ -216,7 +221,8 @@ function acquire(
   const player = next.current;
   const foe = opponentOf(player);
   const slot = next.market[action.slotId]!;
-  const price = acquirePriceOf(slot, balance);
+  // 買収者の割引が乗った実額。相手に渡る代金も、次に買われるときの基準（paid）もこの額
+  const price = acquireCostFor(state, player, state.market[action.slotId]!, balance);
   // コインの総量は変わらない。買収は VP と効果の移動
   next.players[player].coins -= price;
   next.players[foe].coins += price;
@@ -274,13 +280,14 @@ function useCard(
   if (action.card === 'guard') {
     p.guarded = true;
   }
+  if (action.card === 'spy') {
+    // 自分にかかる効果なので衛兵・城壁では防げない（衛兵は買収そのものを防ぐ）
+    p.acquireDiscount += balance.spyAcquireDiscount;
+  }
 
   const foeGuarded = next.players[foe].guarded;
   const foeWalled = hasActiveBuilding(next, foe, 'wall');
 
-  if (action.card === 'spy' && !foeGuarded) {
-    next.players[foe].bindPending = true;
-  }
   if (action.card === 'taxman' && !foeGuarded && !foeWalled) {
     // 手持ちは相手の手番の合間にほぼ空なので、次の開始フェーズの収入から引く
     next.players[foe].pendingTax += balance.taxmanAmount;
@@ -335,8 +342,8 @@ function incomeOf(
 /** 手番の開始で入る収入の 1 段。UI が「基礎収入 → 建物収入 → …」と 1 つずつ見せるために分けてある。
  *  startTurn 自身もこの段の合計を足すので、見せる額と実際に入る額はずれない。 */
 export interface IncomeStage {
-  kind: 'base' | 'building' | 'invest' | 'debt' | 'tax' | 'bind';
-  /** コインの増減（debt は負）。bind は 0 */
+  kind: 'base' | 'building' | 'invest' | 'debt' | 'tax';
+  /** コインの増減（debt・tax は負） */
   amount: number;
   /** 祝祭が効いているターンか */
   festival: boolean;
@@ -411,11 +418,6 @@ function computeIncomeStages(state: GameState, balance: Balance): IncomeStage[] 
     const taken = Math.min(p.pendingTax, have);
     stages.push({ kind: 'tax', amount: -taken, festival, festivalExtra: 0, slots: [], cards: [] });
   }
-
-  // 買収者を受けていたら、このときの手札から spyBindCount 枚を抽選して縛る（コインは動かない）
-  if (p.bindPending) {
-    stages.push({ kind: 'bind', amount: 0, festival, festivalExtra: 0, slots: [], cards: [] });
-  }
   return stages;
 }
 
@@ -465,14 +467,7 @@ function startTurn(state: GameState, balance: Balance): GameState {
   p.buildDiscount = 0;
   p.buildsThisTurn = 0;
   p.roadUsesThisTurn = 0;
-
-  // 買収者を受けていたら、このときの手札から spyBindCount 枚を抽選して縛る
-  if (p.bindPending) {
-    const hand = handOf(next, player, balance);
-    const rng = createRng(next.seed * 7919 + next.turn);
-    p.boundCards = shuffle(hand, rng).slice(0, balance.spyBindCount);
-    p.bindPending = false;
-  }
+  p.acquireDiscount = 0;
 
   // 衛兵の保護は、この開始フェーズの処理が終わったところで切れる
   p.guarded = false;
@@ -514,7 +509,8 @@ function endTurn(state: GameState, balance: Balance): GameState {
   // ただし封鎖者（blockedSlot/disabledSlot）は「1 ターンで解けると効果が
   // 意味をなさない」という指摘を受け、ひとまず永続にする（ここでは解除しない）。
   next.players[player].festivalActive = false;
-  next.players[player].boundCards = [];
+  // 買収者の割引はこのターン限り（次の startTurn でも消すが、相手の手番に残さない）
+  next.players[player].acquireDiscount = 0;
 
   const allBuilt = next.market.every((s) => s.owner !== null);
   const overTurnLimit = next.turn >= balance.maxTurnsPerPlayer * 2;

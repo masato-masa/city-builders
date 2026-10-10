@@ -28,8 +28,7 @@ function player(coins: number, hand: CardId[]): PlayerState {
     festivalQueued: false,
     festivalActive: false,
     guarded: false,
-    bindPending: false,
-    boundCards: [],
+    acquireDiscount: 0,
     disabledSlot: null,
   };
 }
@@ -218,6 +217,7 @@ describe('easy / normal の振る舞いは変えていない', () => {
   // 徴税官を「相手の次の収入から引く」効果（pendingTax）に変えたときも更新した。
   // 銀行家の収入を（11,+1/件）→（6,+2/件）に変えたときも更新した（自走改善の調整で数値は今後も動く）。
   // アップグレード・買収の追加（合法手が増える）、採掘師 6→5、衛兵の一律加点の廃止で全 4 局が動いたので更新した。
+  // 買収者を「このターンの買収価格 −3」に作り替え、城壁×衛兵・街道×伝令の連携と数値の調整（後手 1 ターン目の補正 1→0 を含む）を入れたときも更新した。
   it('seed 0 / 5 の最終コイン残高が既知の値と一致する（回帰検知用）', () => {
     const finish = (difficulty: 'easy' | 'normal', seed: number) => {
       let g = createGame(seed);
@@ -231,19 +231,19 @@ describe('easy / normal の振る舞いは変えていない', () => {
     };
 
     const easy0 = finish('easy', 0);
-    expect(easy0.players.you.coins).toBe(2);
-    expect(easy0.players.cpu.coins).toBe(3);
+    expect(easy0.players.you.coins).toBe(0);
+    expect(easy0.players.cpu.coins).toBe(5);
 
     const easy5 = finish('easy', 5);
-    expect(easy5.players.you.coins).toBe(8);
-    expect(easy5.players.cpu.coins).toBe(6);
+    expect(easy5.players.you.coins).toBe(1);
+    expect(easy5.players.cpu.coins).toBe(3);
 
     const normal0 = finish('normal', 0);
-    expect(normal0.players.you.coins).toBe(6);
-    expect(normal0.players.cpu.coins).toBe(0);
+    expect(normal0.players.you.coins).toBe(2);
+    expect(normal0.players.cpu.coins).toBe(7);
 
     const normal5 = finish('normal', 5);
-    expect(normal5.players.you.coins).toBe(5);
-    expect(normal5.players.cpu.coins).toBe(3);
+    expect(normal5.players.you.coins).toBe(3);
+    expect(normal5.players.cpu.coins).toBe(0);
   });
 });

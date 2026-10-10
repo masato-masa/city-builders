@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_BALANCE } from '@/game/balance';
-import { canUseCard, canUseRoad, reduce } from '@/game/reducer';
+import { canAcquire, canUseCard, canUseRoad, cardCostFor, reduce } from '@/game/reducer';
 import { handOf, scoreOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
@@ -118,7 +118,7 @@ describe('祝祭', () => {
 });
 
 describe('衛兵', () => {
-  it('張ると徴税官・買収者・封鎖者のどれも通らない。カードのコストは払われる', () => {
+  it('張ると徴税官・封鎖者・物件の買収のどれも通らない。カードのコストは払われる', () => {
     let g = fixture(
       ['guard', 'miner', 'banker', 'architect', 'herald', 'festival', 'usurer', 'spy', 'taxman', 'blockader'],
       10,
@@ -137,9 +137,15 @@ describe('衛兵', () => {
     expect(afterTaxman.players.you.coins).toBe(youCoinsBefore);
     expect(afterTaxman.players.cpu.coins).toBe(20 - DEFAULT_BALANCE.cards.taxman.cost);
 
+    // 買収者で割引を得ても、衛兵を張った相手の物件は買えない
+    const yourSlot = g.market.find((s) => s.owner === null)!;
+    yourSlot.owner = 'you';
+    yourSlot.paid = 1;
     const afterSpy = reduce(g, { type: 'useCard', card: 'spy' }, DEFAULT_BALANCE);
-    expect(afterSpy.players.you.bindPending).toBe(false);
-    expect(afterSpy.players.cpu.coins).toBe(20 - DEFAULT_BALANCE.cards.spy.cost);
+    expect(afterSpy.players.cpu.acquireDiscount).toBe(DEFAULT_BALANCE.spyAcquireDiscount);
+    expect(canAcquire(afterSpy, yourSlot.slotId, DEFAULT_BALANCE)).toBe(false);
+    yourSlot.owner = null;
+    yourSlot.paid = 0;
 
     const emptySlot = g.market.find((s) => s.owner === null)!.slotId;
     const afterBlockader = reduce(
@@ -153,35 +159,78 @@ describe('衛兵', () => {
 });
 
 describe('買収者', () => {
-  it('受けると次のターン手札の 1 枚が使えない。同じ seed なら同じカードが選ばれる', () => {
-    function resolve(): GameState {
-      let g = fixture(
-        ['spy', 'miner', 'banker', 'architect', 'herald', 'festival', 'guard', 'usurer', 'taxman', 'blockader'],
-        10,
-      );
-      g.seed = 777;
-      g.turn = 5;
-      g = reduce(g, { type: 'useCard', card: 'spy' }, DEFAULT_BALANCE);
-      expect(g.players.cpu.bindPending).toBe(true);
+  const B = DEFAULT_BALANCE;
+  /** you の手番。cpu が商館を持っていて、you は割引なしでは 1 コイン足りない */
+  function setup(): { g: GameState; slot: number; price: number } {
+    const g = fixture(
+      ['spy', 'miner', 'banker', 'architect', 'herald', 'festival', 'guard', 'usurer', 'taxman', 'blockader'],
+      0,
+    );
+    const house = g.market.find((s) => s.buildingId === 'tradingHouse')!;
+    house.owner = 'cpu';
+    house.paid = B.buildings.tradingHouse.cost;
+    const price = house.paid + B.acquireMarkup;
+    g.players.you.coins = B.cards.spy.cost + price - B.spyAcquireDiscount;
+    return { g, slot: house.slotId, price };
+  }
 
-      g.current = 'cpu';
-      g.players.cpu.hand = ['miner', 'banker', 'architect', 'herald'];
-      g.players.cpu.queue = ['festival', 'guard', 'usurer', 'taxman', 'blockader', 'spy'];
-      g.players.cpu.coins = 10;
-      return reduce(g, { type: 'startTurn' }, DEFAULT_BALANCE);
-    }
+  it('使ったターンは買収価格が下がり、相手に渡る代金と次の基準（paid）も下がる', () => {
+    const { g, slot, price } = setup();
+    expect(canAcquire(g, slot, B)).toBe(false);
+    const afterSpy = reduce(g, { type: 'useCard', card: 'spy' }, B);
+    expect(afterSpy.players.you.acquireDiscount).toBe(B.spyAcquireDiscount);
+    expect(canAcquire(afterSpy, slot, B)).toBe(true);
+    const cpuBefore = afterSpy.players.cpu.coins;
+    const after = reduce(afterSpy, { type: 'acquire', slotId: slot }, B);
+    const paid = price - B.spyAcquireDiscount;
+    expect(after.market[slot]!.owner).toBe('you');
+    expect(after.market[slot]!.paid).toBe(paid);
+    expect(after.players.you.coins).toBe(0);
+    expect(after.players.cpu.coins).toBe(cpuBefore + paid);
+  });
 
-    const a = resolve();
-    const b = resolve();
+  it('割引はそのターンだけ。ターンを終えると消える', () => {
+    const { g } = setup();
+    const afterSpy = reduce(g, { type: 'useCard', card: 'spy' }, B);
+    const ended = reduce(afterSpy, { type: 'endTurn' }, B);
+    expect(ended.players.you.acquireDiscount).toBe(0);
+  });
 
-    expect(a.players.cpu.bindPending).toBe(false);
-    expect(a.players.cpu.boundCards.length).toBe(DEFAULT_BALANCE.spyBindCount);
-    for (const card of a.players.cpu.boundCards) {
-      expect(handOf(a, 'cpu', DEFAULT_BALANCE)).toContain(card);
-      expect(canUseCard(a, card, DEFAULT_BALANCE)).toBe(false);
-    }
-    // 同じ seed・同じターンなら、抽選結果は必ず同じになる
-    expect(a.players.cpu.boundCards).toEqual(b.players.cpu.boundCards);
+  it('価格は 0 より下がらない', () => {
+    const { g, slot } = setup();
+    g.market[slot]!.paid = 0;
+    const big = { ...B, spyAcquireDiscount: 100 };
+    const afterSpy = reduce(g, { type: 'useCard', card: 'spy' }, big);
+    const coins = afterSpy.players.you.coins;
+    const after = reduce(afterSpy, { type: 'acquire', slotId: slot }, big);
+    expect(after.market[slot]!.owner).toBe('you');
+    expect(after.players.you.coins).toBe(coins);
+  });
+});
+
+describe('物件との連携', () => {
+  it('城壁があると衛兵のコストが下がる。封鎖者で城壁を止められると元に戻る', () => {
+    const g = fixture(
+      ['guard', 'miner', 'banker', 'architect', 'herald', 'festival', 'usurer', 'spy', 'taxman', 'blockader'],
+      0,
+    );
+    expect(cardCostFor(g, 'you', 'guard', DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.cards.guard.cost);
+    const wall = g.market.find((s) => s.buildingId === 'wall')!;
+    wall.owner = 'you';
+    expect(cardCostFor(g, 'you', 'guard', DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.guardCostWithWall);
+    expect(canUseCard(g, 'guard', DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.guardCostWithWall <= 0);
+    g.players.you.disabledSlot = wall.slotId;
+    expect(cardCostFor(g, 'you', 'guard', DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.cards.guard.cost);
+  });
+
+  it('街道があると伝令のコストが下がる', () => {
+    const g = fixture(
+      ['herald', 'miner', 'banker', 'architect', 'guard', 'festival', 'usurer', 'spy', 'taxman', 'blockader'],
+      0,
+    );
+    expect(cardCostFor(g, 'you', 'herald', DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.cards.herald.cost);
+    g.market.find((s) => s.buildingId === 'road')!.owner = 'you';
+    expect(cardCostFor(g, 'you', 'herald', DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.heraldCostWithRoad);
   });
 });
 

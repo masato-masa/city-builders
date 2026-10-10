@@ -47,8 +47,8 @@ function flatPersona(name: string, weights: Weights): Persona {
  *  すべて noise: 0 / harassRate: 1 / lookahead: false で戦わせる（揺らぎがあると性格が混ざる）。
  *
  *  10 枚化にあわせて重みを引き直した。
- *  - 妨害: opponentReach・opponentIncome・opponentBound を強く。徴税官・封鎖者・買収者は
- *    どれも「相手の reach か income を削る」効果なので、この 3 項を上げるだけで 3 枚まとめて
+ *  - 妨害: opponentReach・opponentIncome を強く。徴税官・封鎖者は
+ *    どれも「相手の reach か income を削る」効果なので、この 2 項を上げるだけで 2 枚まとめて
  *    優先度が上がる。
  *  - 回転: pendingIncome・incomePerTurn を強く、coin を弱く。稼いだコインを溜めずに
  *    すぐ使う（建てる・また稼ぐ）方向に寄せる。
@@ -62,7 +62,6 @@ const HAND_PLACED_PERSONAS: Persona[] = [
     opponentStuck: 3.5,
     opponentReach: -3.5,
     opponentIncome: -4.0,
-    opponentBound: 5.0,
     reach: 4.0,
     vp: 8,
   }),

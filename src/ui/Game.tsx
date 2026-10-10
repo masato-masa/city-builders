@@ -644,9 +644,7 @@ export function Game({
                 useCard(card);
               }}
             >
-              {!canUseCard(state, sheet.card, balance) && state.players['you'].boundCards.includes(sheet.card)
-                ? '買収者に縛られている'
-                : canUseCard(state, sheet.card, balance) ||
+              {canUseCard(state, sheet.card, balance) ||
               state.current !== 'you' ||
               state.players['you'].coins >= cardCostFor(state, 'you', sheet.card, balance)
                 ? '使う'

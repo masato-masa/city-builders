@@ -37,15 +37,15 @@ export function cardTextFor(card: CardId, balance: Balance): string {
     case 'architect':
       return `このターン建てる物件すべて、建設費 −${balance.architectDiscount}`;
     case 'herald':
-      return '手札 1 枚を使わずに山の底へ送り、補充する';
+      return `手札 1 枚を使わずに山の底へ送り、補充する。街道があればコスト ${balance.heraldCostWithRoad}`;
     case 'festival':
       return `次の自分のターン、自分の物件の効果がすべて ${balance.festivalMultiplier} 倍。さらにそのターンの収入 +${balance.festivalIncomeBonus}`;
     case 'guard':
-      return '次の自分のターンまで、徴税官・買収者・封鎖者の効果と、物件の買収を受けない';
+      return `次の自分のターンまで、徴税官・封鎖者の効果と、物件の買収を受けない。城壁があればコスト ${balance.guardCostWithWall}`;
     case 'usurer':
       return `このターン コイン +${balance.usurerGain}。次の自分のターン開始時 コイン −${balance.usurerDebt}（マイナスになる）`;
     case 'spy':
-      return `次の相手のターン、相手の手札 ${balance.spyBindCount} 枚がランダムに使えなくなる`;
+      return `このターン、相手の物件を買収する価格 −${balance.spyAcquireDiscount}（相手に渡る代金も減る）`;
     case 'taxman':
       return `次の相手のターン、収入を受け取ったあとの相手のコイン −${balance.taxmanAmount}（手持ちが足りなければ引けた分だけ）`;
     case 'blockader':
@@ -72,14 +72,15 @@ export function buildingTextFor(building: BuildingId, balance: Balance, level = 
     case 'tradingHouse':
       return `毎ターン開始時 コイン +${v('tradingHouseIncome')}`;
     case 'wall':
-      return '徴税官・封鎖者の効果を受けない';
+      return `徴税官・封鎖者の効果を受けない。衛兵のコスト ${balance.guardCostWithWall}`;
     case 'factory':
       return `毎ターン、最初に使用する人物カードのコスト −${v('factoryDiscount')}`;
     case 'road': {
       const uses = v('roadUses');
+      const herald = `。伝令のコスト ${balance.heraldCostWithRoad}`;
       return uses > 1
-        ? `毎ターン開始時、手札を ${uses} 回まで山の底へ送って補充してよい`
-        : '毎ターン開始時、手札 1 枚を山の底へ送って補充してよい';
+        ? `毎ターン開始時、手札を ${uses} 回まで山の底へ送って補充してよい${herald}`
+        : `毎ターン開始時、手札 1 枚を山の底へ送って補充してよい${herald}`;
     }
     case 'cathedral':
       return `自分の他の物件 1 件につき +${v('cathedralVpPerBuilding')} VP`;
@@ -123,8 +124,12 @@ export interface Balance {
   bankerPerBuilding: number;
   architectDiscount: number;
   taxmanAmount: number;
-  /** 買収者: 相手の手札から使えなくする枚数 */
-  spyBindCount: number;
+  /** 買収者: このターンの買収価格の割引 */
+  spyAcquireDiscount: number;
+  /** 城壁（効果が生きているもの）を持っているときの衛兵のコスト */
+  guardCostWithWall: number;
+  /** 街道（効果が生きているもの）を持っているときの伝令のコスト */
+  heraldCostWithRoad: number;
   buildings: Record<BuildingId, { cost: number; vp: number }>;
   tradingHouseIncome: number;
   factoryDiscount: number;
@@ -171,18 +176,20 @@ export const DEFAULT_BALANCE: Balance = {
     architect: { cost: 3 },
     herald: { cost: 1 },
     festival: { cost: 3 },
-    guard: { cost: 2 },
+    guard: { cost: 1 },
     usurer: { cost: 0 },
-    spy: { cost: 3 },
+    spy: { cost: 1 },
     taxman: { cost: 3 },
-    blockader: { cost: 3 },
+    blockader: { cost: 4 },
   },
-  minerIncome: 5,
+  minerIncome: 4,
   bankerIncome: 6,
   bankerPerBuilding: 2,
   architectDiscount: 6,
-  taxmanAmount: 6,
-  spyBindCount: 2,
+  taxmanAmount: 5,
+  spyAcquireDiscount: 3,
+  guardCostWithWall: 0,
+  heraldCostWithRoad: 0,
   buildings: {
     tradingHouse: { cost: 7, vp: 2 },
     wall: { cost: 10, vp: 2 },
@@ -204,7 +211,7 @@ export const DEFAULT_BALANCE: Balance = {
   fortressToll: 2,
   quarryExtraDiscount: 4,
   roadUses: 1,
-  secondPlayerFirstTurnBonus: 1,
+  secondPlayerFirstTurnBonus: 0,
   upgrades: {
     tradingHouse: { cost: 7, vp: 4 },
     wall: { cost: 10, vp: 4 },
