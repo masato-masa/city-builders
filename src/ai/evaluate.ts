@@ -1,11 +1,15 @@
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import {
-  activeOwnedSlots,
+  acquirePriceOf,
+  activeEffectMax,
   handOf,
   incomePerTurnOf,
   opponentOf,
   ownedSlots,
   scoreOf,
+  slotTouchedThisTurn,
+  upgradePriceOf,
+  vpOfSlot,
 } from '@/game/selectors';
 import type { GameState, PlayerId } from '@/game/types';
 
@@ -38,6 +42,9 @@ export interface Weights {
   stuck: number;
   /** 相手の手札のうち、相手がいま払えない枚数。相手が詰まっているのは自分に有利なので正の重み */
   opponentStuck: number;
+  /** 相手が次の手番で買収できてしまう自分の VP（相手の見込みの手持ちで、VP の高い順に貪欲に）。
+   *  マイナスに効く。アップグレード（価格が上がる）と衛兵（買収を防ぐ）の価値をここで測る */
+  exposed: number;
 }
 
 export const DEFAULT_WEIGHTS: Weights = {
@@ -55,6 +62,7 @@ export const DEFAULT_WEIGHTS: Weights = {
   opponentBound: 2.5,
   stuck: -1.5,
   opponentStuck: 1.0,
+  exposed: -4,
 };
 
 /** 性格。序盤と終盤で重みが変わる。進行度で線形に補間する。 */
@@ -74,49 +82,100 @@ function lateness(state: GameState, balance: Balance): number {
  *  補間の係数は lateness（0=序盤、1=終盤）をそのまま使う。 */
 export function weightsAt(profile: Profile, state: GameState, balance: Balance): Weights {
   const t = lateness(state, balance);
-  const keys = Object.keys(profile.early) as (keyof Weights)[];
+  // 重みの項目は DEFAULT_WEIGHTS を正とする。保存済みの性格（searched-profiles.json）に
+  // 後から足した項目が無ければ、既定値で埋める（undefined で NaN にしない）
+  const keys = Object.keys(DEFAULT_WEIGHTS) as (keyof Weights)[];
   const result = {} as Weights;
   for (const key of keys) {
-    result[key] = profile.early[key] + (profile.late[key] - profile.early[key]) * t;
+    const early = profile.early[key] ?? DEFAULT_WEIGHTS[key];
+    const late = profile.late[key] ?? DEFAULT_WEIGHTS[key];
+    result[key] = early + (late - early) * t;
   }
   return result;
 }
 
-/** いまの所持コインで、このターン中に実際に買える区画を VP の高い順に貪欲に買って
- *  いったときの、買えた VP の合計。建築家の割引・石切場の追加割引・すでに建てた件数を
- *  buildCostFor と同じ規則で織り込む。払えない区画があっても止めず、次の（もっと安い
- *  かもしれない）区画を試す。買えるものが 1 つも無ければ 0。
- *  structuredClone は使わず、コインと建設件数を数値のコピーとして持つだけで済ませる。 */
+/** いまの所持コインで、このターン中に実際に買えるもの（空き区画の建設・自分の物件の
+ *  アップグレード・相手の物件の買収）を、増える VP の高い順に貪欲に買っていったときの、
+ *  増えた VP の合計。建築家の割引・石切場の追加割引・すでに建てた件数を buildCostFor と
+ *  同じ規則で織り込む。払えないものがあっても止めず、次の（もっと安いかもしれない）ものを試す。
+ *  買えるものが 1 つも無ければ 0。structuredClone は使わず数値のコピーだけで済ませる。 */
 export function reachOf(
   state: GameState,
   player: PlayerId,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
   const p = state.players[player];
-  const hasQuarry = activeOwnedSlots(state, player).some((s) => s.buildingId === 'quarry');
+  const foe = opponentOf(player);
+  const quarryExtra = activeEffectMax(state, player, 'quarry', 'quarryExtraDiscount', balance);
 
-  const candidates = state.market
-    .filter((s) => s.owner === null && s.slotId !== p.blockedSlot)
-    .map((s) => balance.buildings[s.buildingId])
-    .sort((a, b) => b.vp - a.vp);
+  type Candidate = { vp: number; cost: (builds: number) => number; isBuild: boolean };
+  const candidates: Candidate[] = [];
+  for (const s of state.market) {
+    if (s.owner === null) {
+      if (s.slotId === p.blockedSlot) continue;
+      const b = balance.buildings[s.buildingId];
+      candidates.push({
+        vp: b.vp,
+        isBuild: true,
+        cost: (builds) => {
+          let discount = p.buildDiscount;
+          if (p.buildDiscount > 0 && builds >= 1) discount += quarryExtra;
+          return Math.max(0, b.cost - discount);
+        },
+      });
+      continue;
+    }
+    if (slotTouchedThisTurn(state, s)) continue;
+    if (s.owner === player && s.level < 2) {
+      const price = upgradePriceOf(s, balance);
+      // 大聖堂も同じ式で測れるよう、レベルだけ上げた区画を vpOfSlot に渡して差を取る
+      const gain = vpOfSlot(state, { ...s, level: s.level + 1 }, balance) - vpOfSlot(state, s, balance);
+      candidates.push({ vp: gain, isBuild: false, cost: () => price });
+    } else if (s.owner === foe && !state.players[foe].guarded) {
+      const price = acquirePriceOf(s, balance);
+      candidates.push({ vp: vpOfSlot(state, s, balance), isBuild: false, cost: () => price });
+    }
+  }
+  candidates.sort((a, b) => b.vp - a.vp);
 
   let coins = p.coins;
   let builds = p.buildsThisTurn;
   let totalVp = 0;
 
-  for (const building of candidates) {
-    let discount = p.buildDiscount;
-    if (p.buildDiscount > 0 && builds >= 1 && hasQuarry) {
-      discount += balance.quarryExtraDiscount;
-    }
-    const cost = Math.max(0, building.cost - discount);
+  for (const c of candidates) {
+    const cost = c.cost(builds);
     if (coins < cost) continue;
     coins -= cost;
-    builds += 1;
-    totalVp += building.vp;
+    if (c.isBuild) builds += 1;
+    totalVp += c.vp;
   }
 
   return totalVp;
+}
+
+/** 相手が次の手番で買収できてしまう、player の物件の VP の合計。
+ *  相手の予算は「いまの手持ち + 1 ターンの見込み収入 + 解決待ちの投資（採掘師の額で近似）」。
+ *  VP の高い順に貪欲に数える。player が衛兵で守られていれば 0。 */
+export function exposedVpOf(
+  state: GameState,
+  player: PlayerId,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
+  if (state.players[player].guarded) return 0;
+  const foe = opponentOf(player);
+  const f = state.players[foe];
+  let budget =
+    f.coins + incomePerTurnOf(state, foe, balance) + f.pendingIncome.length * balance.minerIncome;
+  const mine = ownedSlots(state, player)
+    .map((s) => ({ vp: vpOfSlot(state, s, balance), price: acquirePriceOf(s, balance) }))
+    .sort((a, b) => b.vp - a.vp);
+  let total = 0;
+  for (const m of mine) {
+    if (budget < m.price) continue;
+    budget -= m.price;
+    total += m.vp;
+  }
+  return total;
 }
 
 export function evaluateState(
@@ -135,6 +194,7 @@ export function evaluateState(
 
   const reach = reachOf(state, player, balance);
   const opponentReach = reachOf(state, foe, balance);
+  const exposed = exposedVpOf(state, player, balance);
 
   // 衛兵が守っているものの大きさ。持っているコインと、これから積み上がる収入が
   // 大きいほど「守れて良かった」の価値が上がる。相手の手札は読まない。
@@ -168,6 +228,7 @@ export function evaluateState(
     // 徴税官で相手に課した徴収は、自分の借りの裏返しとして得になる
     (foeState.pendingTax - p.pendingTax) * -weights.debt +
     guarded * weights.guarded +
+    exposed * weights.exposed * (0.5 + late) +
     opponentBound * weights.opponentBound
   );
 }
