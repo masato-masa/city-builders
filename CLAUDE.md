@@ -17,3 +17,9 @@
 - 鳴らし分け: カードは `CARD_SAMPLE`（投資系 → cardBuff、買収者・徴税官 → cardAttack、封鎖者 → chain、衛兵 → shield、伝令 → horn）。
   コインは 6 以上増えたら coinBig。自分の手番が回ってきたら `playYourTurn(収入の増減)` で鐘とコインをまとめて鳴らす
   （別々に呼ぶと間引きで片方が消える）。ゲームに関わらない UI の操作は `playUiTap`。
+
+## 自走改善
+
+ユーザーの指示が無くても改善を続ける。取り決めは `docs/autopilot/charter.md`、
+次にやることは `backlog.md`、過去の試行と結果は `journal.md`。**作業を始める前に 3 つとも読む。**
+ルール・演出・音・公開まで任されている。変更前に `autopilot/<連番>-<名前>` のタグでバックアップを取る。
