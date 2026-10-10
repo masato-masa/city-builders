@@ -49,7 +49,9 @@ import {
   BUILD_EFFECT_DELAY_MS,
   CARD_EFFECT_DELAY_MS,
   CPU_EFFECT_DELAY_MS,
+  CPU_END_DELAY_MS,
   CPU_FIRST_GAP_MS,
+  INCOME_BEAT_MS,
   DISCARD_AT_MS,
   CPU_STEP_GAP_MS,
   RESULT_DELAY_MS,
@@ -109,6 +111,8 @@ export function Game({
   const later = useLater();
   // 自分の手番に替わったが、まだ収入を反映していない間。この間は操作を受け付けない。
   const [introPending, setIntroPending] = useState(() => state.current === 'you');
+  // 収入の演出の途中でプレイヤーが触ったとき、残りを飛ばして反映する（待たせない）。
+  const flushIncome = useRef<(() => void) | null>(null);
   // カードを使う動きを見せてから効果を反映するまで（建設も同じ）の間。
   const [busy, setBusy] = useState(false);
   // 使用中の札（手札からは先に消し、盤面へ飛ぶ複製が見せる）。
@@ -207,7 +211,7 @@ export function Game({
   // （手番 → 基礎収入 → 建物収入 → 投資 → 返済、の順。祝祭のときは建物収入の段でそれと分かる）。
   useEffect(() => {
     if (!introPending) return;
-    return runIncomeSequence(stateRef.current, balance, TURN_INTRO_MS, {
+    const seq = runIncomeSequence(stateRef.current, balance, TURN_INTRO_MS, {
       onShow: (b) => showStage(b.stage, 'you'),
       onApply: (b) => {
         playIncome(b.stage.amount);
@@ -219,6 +223,11 @@ export function Game({
         setIntroPending(false);
       },
     });
+    flushIncome.current = seq.flush;
+    return () => {
+      flushIncome.current = null;
+      seq.cancel();
+    };
   }, [introPending]);
 
   const endTurn = () => {
@@ -255,11 +264,14 @@ export function Game({
     if (!step) return;
     const isLast = revealed === steps.length - 1;
     const a = step.action;
-    const gap = revealed === 0 ? CPU_FIRST_GAP_MS : CPU_STEP_GAP_MS;
+    // 収入の段は読める長さだけ（INCOME_BEAT_MS）で次へ。行動は 1 手あたり gap + effectDelay。
+    const isStage = a.type === 'startTurn' && step.stage !== undefined;
+    const gap = revealed === 0 ? CPU_FIRST_GAP_MS : isStage ? 0 : CPU_STEP_GAP_MS;
     // 伝令は、使う札のあとに「山の底へ送る札」を見せるぶん、効果の反映を遅らせる。
     const heraldTarget = a.type === 'useCard' ? a.heraldTarget : undefined;
     const effectDelay =
-      (a.type === 'endTurn' ? 600 : CPU_EFFECT_DELAY_MS) + (heraldTarget ? DISCARD_AT_MS : 0);
+      (a.type === 'endTurn' ? CPU_END_DELAY_MS : isStage ? INCOME_BEAT_MS : CPU_EFFECT_DELAY_MS) +
+      (heraldTarget ? DISCARD_AT_MS : 0);
     const showDiscard = heraldTarget
       ? window.setTimeout(() => {
           cpuCalloutSeq.current += 1;
@@ -432,7 +444,7 @@ export function Game({
       {/* ヘッダーの行は廃止（要望 1）。あきらめる／あそびかた／設定は
           手札の「次」の上のメニューボタン 1 つにまとめた（要望 2）。 */}
       <main className="play">
-        <div className="board-shell">
+        <div className="board-shell" onPointerDownCapture={() => flushIncome.current?.()}>
           <OpponentStrip
             state={state}
             balance={balance}
