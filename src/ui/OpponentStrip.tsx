@@ -1,10 +1,12 @@
 import { motion } from 'motion/react';
+import type { ReactNode } from 'react';
 
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { scoreOf } from '@/game/selectors';
 import type { GameState } from '@/game/types';
 
 import { forecast } from './CoinBar';
+import { incomeLine } from './income-text';
 import { InfoBoard } from './InfoBoard';
 
 /** 相手（CPU）の情報ボード。画面の最上段（要望 3）。自分の帯と同じ骨格
@@ -17,6 +19,7 @@ export function OpponentStrip({
   balance = DEFAULT_BALANCE,
   log,
   active = false,
+  overlay,
 }: {
   state: GameState;
   balance?: Balance;
@@ -24,6 +27,8 @@ export function OpponentStrip({
   log: string[];
   /** CPU の手番中か。ボードの縁を光らせる。 */
   active?: boolean;
+  /** ボードの上に重ねるもの（CPU の 1 手の絵と帯）。 */
+  overlay?: ReactNode;
 }) {
   const latest = log.length > 0 ? log[log.length - 1] : null;
   const rest = log.length > 1 ? log.slice(0, -1) : [];
@@ -53,12 +58,9 @@ export function OpponentStrip({
             ) : null}
           </div>
         }
-        sub={
-          <span className="coinbar-forecast">
-            次ターン収入 {income >= 0 ? `+${income}` : income}
-          </span>
-        }
+        sub={<span className="coinbar-forecast">{incomeLine(income)}</span>}
       />
+      {overlay}
     </div>
   );
 }

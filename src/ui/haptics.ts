@@ -44,6 +44,16 @@ export function hapticTap(): void {
   vibrate(6);
 }
 
+/** 衝撃（徴税官・封鎖者・買収）: 強さごとのパターンは feel.ts の IMPACT が持つ */
+export function hapticImpact(pattern: number[]): void {
+  vibrate(pattern);
+}
+
+/** 決着の鐘: 短く強い 1 回 */
+export function hapticFinale(): void {
+  vibrate(24);
+}
+
 /** 自分の手番が回ってきた: 軽い 2 連（画面を見ていなくても気付ける） */
 export function hapticYourTurn(): void {
   vibrate([10, 60, 14]);

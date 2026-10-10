@@ -1,28 +1,29 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 
-import {
-  CARD_NAMES,
-  cardTextFor,
-  DEFAULT_BALANCE,
-  type Balance,
-} from '@/game/balance';
-import { canAcquire, canBuild, canUpgrade, canUseCard, canUseRoad, cardCostFor, reduce } from '@/game/reducer';
-import { handSlotsOf, opponentOf, ownedSlots, roadUsesRemaining, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
+import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
+import { canAcquire, canBuild, canUpgrade, canUseCard, reduce } from '@/game/reducer';
+import { handSlotsOf, opponentOf, ownedSlots, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { Action, CardId, GameState } from '@/game/types';
 
 import { CARD_ART, FIELD_URL } from './art';
 import { Board, type IncomeFlash } from './Board';
+import { CardSheet } from './CardSheet';
 import { CoinBar, forecast } from './CoinBar';
+import { cardAftermath, cardSequence, TARGET_LABEL } from './feel';
 import {
+  AftermathLayer,
   CardFlightLayer,
   CpuCallout,
   type CpuCalloutInfo,
   TurnBanner,
+  useAftermath,
   useCardFlights,
   useTurnBanner,
 } from './Fx';
+import { ImpactFlash, useBoardFeel } from './impact-fx';
+import { incomeLine } from './income-text';
 import { hapticBuild, hapticReject, hapticTap, hapticUseCard, hapticWin, hapticYourTurn } from './haptics';
 import { Hand } from './Hand';
 import { InfoBoard } from './InfoBoard';
@@ -129,6 +130,9 @@ export function PvpGame({
   }, [finished]);
 
   const boardAreaRef = useRef<HTMLDivElement>(null);
+  // 衝撃（ヒットストップ・盤面の揺れ）と決着の静止。2 人とも人なので、どちらの手でも震わせる。
+  const feel = useBoardFeel(state, boardAreaRef, () => true);
+  const aftermath = useAftermath();
   const { flights, fly } = useCardFlights();
   /** 手札の札の絵を盤面の中央へ飛ばす（使った手応え）。札が手札から消える前に呼ぶ。 */
   const flyCard = (card: CardId) =>
@@ -205,16 +209,18 @@ export function PvpGame({
 
   // 勝敗が付いた瞬間に 1 回だけ鳴らす。PvP はどちらも人間なので勝ち/負けの
   // 効果音を出し分けず、対戦終了のファンファーレだけ鳴らす。
+  // 決着の一瞬の静止と鐘は useBoardFeel が出す。ファンファーレは結果画面と一緒に。
   useEffect(() => {
-    if (!finished) return;
+    if (!resultReady) return;
     playWin();
     hapticWin();
-  }, [finished]);
+  }, [resultReady]);
 
-  /** カードを使う。まず手札から盤面へ飛ぶところを見せ（音も先）、少し置いて効果を反映する。
+  /** カードを使う。溜め → 発動（盤面へ飛ぶ）→ 余韻（効果の一言）の 3 段。音は先に鳴らす。
    *  伝令は、使う札のあとに「山の底へ送る札」も飛ばして（捨てる演出）から反映する。 */
   const commitCard = (card: CardId, action: Action) => {
     const discard = action.type === 'useCard' ? action.heraldTarget : undefined;
+    const timing = cardSequence(discard !== undefined);
     playUseCard(card);
     hapticUseCard();
     flyCard(card);
@@ -228,10 +234,13 @@ export function PvpGame({
         setUsing([card, discard]);
       });
     }
-    later((discard ? DISCARD_AT_MS : 0) + CARD_EFFECT_DELAY_MS, () => {
-      setState(reduce(stateRef.current, action, balance));
+    later(timing.effectAt, () => {
+      const before = stateRef.current;
+      const after = reduce(before, action, balance);
+      setState(after);
       setUsing([]);
       setBusy(false);
+      aftermath.show(cardAftermath(before, after, card, balance), boardAreaRef.current, timing.aftermathMs);
     });
   };
 
@@ -334,9 +343,18 @@ export function PvpGame({
   };
 
   return (
-    <div className="app app-play" style={{ backgroundImage: `url(${FIELD_URL})` }}>
+    <div
+      className={`app app-play${feel.still ? ' is-finale-still' : ''}`}
+      style={{ backgroundImage: `url(${FIELD_URL})` }}
+    >
       <main className="play">
-        <div className="board-shell" onPointerDownCapture={() => flushIncome.current?.()}>
+        <div
+          className="board-shell"
+          onPointerDownCapture={() => {
+            flushIncome.current?.();
+            aftermath.skip();
+          }}
+        >
           <div className={`pvp-opponent${handoff ? ' is-concealed' : ''}`}>
             <AnimatePresence initial={false}>
               <motion.div
@@ -350,18 +368,14 @@ export function PvpGame({
                   owner={waiting}
                   coins={state.players[waiting].coins}
                   vp={scoreOf(state, waiting, balance)}
-                  sub={
-                    <span className="coinbar-forecast">
-                      次ターン収入 {waitingIncome >= 0 ? `+${waitingIncome}` : waitingIncome}
-                    </span>
-                  }
+                  sub={<span className="coinbar-forecast">{incomeLine(waitingIncome)}</span>}
                 />
               </motion.div>
             </AnimatePresence>
           </div>
           <div className={`board-area${dragCard ? ' is-drop-armed' : ''}`} ref={boardAreaRef}>
             <Board
-              state={state}
+              state={feel.boardState}
               balance={balance}
               viewer={active}
               targeting={sheet?.kind === 'blockadeTarget'}
@@ -392,6 +406,8 @@ export function PvpGame({
                 setSheet({ kind: 'slot', slotId });
               }}
             />
+            <ImpactFlash flash={feel.flash} />
+            {feel.still ? <span className="finale-still" aria-hidden="true" /> : null}
             <TurnBadge state={state} balance={balance} />
             <CpuCallout info={callout} />
             <TurnBanner banner={banner} onDone={clearBanner} />
@@ -406,7 +422,7 @@ export function PvpGame({
               {sheet?.kind === 'heraldTarget' ? (
                 <TargetBanner
                   key="heraldTarget"
-                  label="伝令モード中・山の底へ送るカードを手札からタップ"
+                  label={TARGET_LABEL.herald}
                   onCancel={() => setSheet(null)}
                 />
               ) : null}
@@ -503,43 +519,21 @@ export function PvpGame({
 
       <AnimatePresence>
         {sheet?.kind === 'card' ? (
-          <Sheet
+          <CardSheet
             key="card"
-            title={CARD_NAMES[sheet.card]}
-            subtitle={`コスト ${balance.cards[sheet.card].cost}`}
+            state={state}
+            card={sheet.card}
+            viewer={active}
+            balance={balance}
+            locked={locked}
+            onRoad={() => commitRoad(sheet.card)}
+            onUse={() => {
+              const card = sheet.card;
+              setSheet(null);
+              useCard(card);
+            }}
             onClose={() => setSheet(null)}
-          >
-            {CARD_ART[sheet.card] ? (
-              <img className="sheet-card-art" src={CARD_ART[sheet.card]} alt="" />
-            ) : null}
-            <p className="sheet-text">{cardTextFor(sheet.card, balance)}</p>
-            {sheet.card === 'blockader' ? (
-              <p className="sheet-text">永続する効果です。解除する手段はいまはありません。</p>
-            ) : null}
-            <button
-              className="sheet-row road-btn"
-              disabled={locked || !canUseRoad(state, sheet.card, balance)}
-              onClick={() => commitRoad(sheet.card)}
-            >
-              <span>山の底へ送る</span>
-              <span className="road-btn-sub">街道・あと {roadUsesRemaining(state, active, balance)} 回</span>
-            </button>
-            <button
-              className="btn3d btn3d-yellow"
-              disabled={locked || !canUseCard(state, sheet.card, balance)}
-              onClick={() => {
-                const card = sheet.card;
-                setSheet(null);
-                useCard(card);
-              }}
-            >
-              {canUseCard(state, sheet.card, balance) ||
-              state.current !== active ||
-              state.players[active].coins >= cardCostFor(state, active, sheet.card, balance)
-                ? '使う'
-                : `あと ${cardCostFor(state, active, sheet.card, balance) - state.players[active].coins} コイン`}
-            </button>
-          </Sheet>
+          />
         ) : null}
       </AnimatePresence>
 
@@ -582,8 +576,8 @@ export function PvpGame({
               VP の多いほうが勝ちです。
             </p>
             <p className="sheet-text">
-              投資カード（採掘師・銀行家）のコインが入るのは<b>次のターン</b>です。
-              だからコインバーに「次ターン収入 +N」を出しています。今建てるか、
+              投資カード（採掘師・銀行家）のコインが入るのは<b>次の収入</b>（自分の次のターンの始め）です。
+              だからコインバーに「次の収入 +N」を出しています。今建てるか、
               次のターンに回すかを、この 2 つの数字で比べてください。
             </p>
             <p className="sheet-text">
@@ -699,6 +693,7 @@ export function PvpGame({
       </AnimatePresence>
 
       <CardFlightLayer flights={flights} />
+      <AftermathLayer pops={aftermath.pops} />
     </div>
   );
 }

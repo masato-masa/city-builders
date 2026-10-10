@@ -348,6 +348,28 @@ export function playYourTurn(incomeDelta = 0): void {
   });
 }
 
+/** 決着の鐘: 手番の鐘（yourTurn）を遅らせずに、少し低く鳴らす。無ければ低めの合成の鐘。
+ *  新しい音源は持たない（既存の音の流用）。 */
+export function playBell(): void {
+  play(true, (c) => {
+    const buf = samples.get('yourTurn');
+    if (buf) {
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      src.playbackRate.value = 0.84;
+      const amp = c.createGain();
+      amp.gain.value = (SAMPLE_GAIN.yourTurn ?? 0.3) * 1.2;
+      src.connect(amp);
+      amp.connect(c.destination);
+      src.start(c.currentTime);
+      return;
+    }
+    tone(c, { freq: 990, duration: 0.6, type: 'sine', gain: 0.12 });
+    tone(c, { freq: 1980, duration: 0.4, type: 'sine', gain: 0.04 });
+    tone(c, { freq: 495, duration: 0.7, type: 'sine', gain: 0.05 });
+  });
+}
+
 /** 勝ち: 短いファンファーレ */
 export function playWin(): void {
   play(true, (c) => {

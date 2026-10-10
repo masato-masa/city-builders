@@ -43,7 +43,7 @@ export function SlotSheet({
     : `コスト ${buildCostFor(state, viewer, slotId, balance)} ・ ${current.vp}`;
 
   return (
-    <Sheet title={BUILDING_NAMES[slot.buildingId]} subtitle={subtitle} onClose={onClose}>
+    <Sheet title={BUILDING_NAMES[slot.buildingId]} subtitle={subtitle} onClose={onClose} anchor="bottom">
       {next ? (
         // いまの Lv と、上げたあとの Lv を左右に並べる（何が増えるかを比べて決められるように）。
         <div className="level-compare">
