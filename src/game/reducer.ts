@@ -8,7 +8,7 @@ import {
   opponentOf,
   ownedSlots,
   roadUsesRemaining,
-  slotTouchedThisTurn,
+  slotLocked,
   upgradePriceOf,
 } from './selectors';
 import { createRng, shuffle } from './rng';
@@ -169,7 +169,7 @@ export function canUpgrade(
   if (state.phase !== 'playing') return false;
   const slot = state.market[slotId];
   if (!slot || slot.owner !== state.current) return false;
-  if (slotTouchedThisTurn(state, slot)) return false;
+  if (slotLocked(state, slot, balance)) return false;
   return state.players[state.current].coins >= upgradePriceOf(slot, balance);
 }
 
@@ -202,7 +202,7 @@ export function canAcquire(
   const slot = state.market[slotId];
   if (!slot || slot.owner !== foe) return false;
   if (state.players[foe].guarded) return false;
-  if (slotTouchedThisTurn(state, slot)) return false;
+  if (slotLocked(state, slot, balance)) return false;
   return state.players[player].coins >= acquirePriceOf(slot, balance);
 }
 

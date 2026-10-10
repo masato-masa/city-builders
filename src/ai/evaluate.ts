@@ -7,7 +7,7 @@ import {
   opponentOf,
   ownedSlots,
   scoreOf,
-  slotTouchedThisTurn,
+  slotLocked,
   upgradePriceOf,
   vpOfSlot,
 } from '@/game/selectors';
@@ -58,7 +58,7 @@ export const DEFAULT_WEIGHTS: Weights = {
   opponentReach: -1.6,
   opponentIncome: -2.0,
   debt: -1.2,
-  guarded: 0.5,
+  guarded: 0,
   opponentBound: 2.5,
   stuck: -1.5,
   opponentStuck: 1.0,
@@ -125,7 +125,7 @@ export function reachOf(
       });
       continue;
     }
-    if (slotTouchedThisTurn(state, s)) continue;
+    if (slotLocked(state, s, balance)) continue;
     if (s.owner === player && s.level < 2) {
       const price = upgradePriceOf(s, balance);
       // 大聖堂も同じ式で測れるよう、レベルだけ上げた区画を vpOfSlot に渡して差を取る
@@ -166,7 +166,10 @@ export function exposedVpOf(
   const f = state.players[foe];
   let budget =
     f.coins + incomePerTurnOf(state, foe, balance) + f.pendingIncome.length * balance.minerIncome;
+  // 相手の次の手番の時点で、まだ動かせない区画は奪われない
+  const foeTurn = state.current === foe ? state.turn : state.turn + 1;
   const mine = ownedSlots(state, player)
+    .filter((s) => !slotLocked(state, s, balance, foeTurn))
     .map((s) => ({ vp: vpOfSlot(state, s, balance), price: acquirePriceOf(s, balance) }))
     .sort((a, b) => b.vp - a.vp);
   let total = 0;

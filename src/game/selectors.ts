@@ -100,9 +100,18 @@ export function upgradePriceOf(slot: BuildingSlot, balance: Balance = DEFAULT_BA
   return balance.upgrades[slot.buildingId].cost;
 }
 
-/** このターン、すでに建設・アップグレード・買収された区画か（同じ区画は 1 ターン 1 回まで）。 */
-export function slotTouchedThisTurn(state: GameState, slot: BuildingSlot): boolean {
-  return slot.touchedTurn === state.turn;
+/** 区画がまだ動かせない（アップグレード・買収できない）か。
+ *  最後に建設・アップグレード・買収されたターンから slotLockTurns ターン（1 人の手番を 1 と数える）
+ *  経つまで動かせない。1 なら「同じ区画は 1 ターンに 1 回まで」、2 なら「相手の直後の手番でも動かせない」。
+ *  atTurn を渡すと、そのターンの時点で判定する（CPU が相手の次の手番を見積もるため）。 */
+export function slotLocked(
+  state: GameState,
+  slot: BuildingSlot,
+  balance: Balance = DEFAULT_BALANCE,
+  atTurn: number = state.turn,
+): boolean {
+  if (slot.touchedTurn <= 0) return false;
+  return atTurn - slot.touchedTurn < balance.slotLockTurns;
 }
 
 export function countBuilding(state: GameState, player: PlayerId, id: BuildingId): number {

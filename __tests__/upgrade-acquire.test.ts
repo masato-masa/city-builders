@@ -8,6 +8,8 @@ import { createGame } from '@/game/setup';
 import type { BuildingId, GameState, PlayerId } from '@/game/types';
 
 const B = DEFAULT_BALANCE;
+/** 仕様書の例（10 → 11 → 12、20 → 21）を確かめるための、買収の上乗せが 1 の balance */
+const B1 = { ...DEFAULT_BALANCE, acquireMarkup: 1 };
 
 /** you の手番から始まる局面。手札・待機列は createGame のまま。 */
 function fixture(youCoins: number, cpuCoins: number): GameState {
@@ -65,18 +67,19 @@ describe('アップグレード', () => {
 });
 
 describe('買収', () => {
+  // 仕様書の例（+1）どおりに動くかを、上乗せ 1 の balance で確かめる。既定の上乗せは実測で決めた値
   it('価格は払われた合計 + 1。10 → 11 → 12 と上がり、代金は元の持ち主に入る', () => {
     let g = fixture(10, 0);
     const wall = slotOf(g, 'wall');
     expect(B.buildings.wall.cost).toBe(10);
-    g = reduce(g, { type: 'build', slotId: wall }, B);
+    g = reduce(g, { type: 'build', slotId: wall }, B1);
     g = pass(g);
 
     // cpu が 11 で買う
     g.players.cpu.coins = 30;
-    expect(acquirePriceOf(g.market[wall]!, B)).toBe(11);
+    expect(acquirePriceOf(g.market[wall]!, B1)).toBe(11);
     let coins = totalCoins(g);
-    g = reduce(g, { type: 'acquire', slotId: wall }, B);
+    g = reduce(g, { type: 'acquire', slotId: wall }, B1);
     expect(g.market[wall]!.owner).toBe('cpu');
     expect(g.market[wall]!.paid).toBe(11);
     expect(g.players.cpu.coins).toBe(30 - 11);
@@ -89,7 +92,7 @@ describe('買収', () => {
     // you が 12 で買い戻す
     g.players.you.coins = 12;
     coins = totalCoins(g);
-    g = reduce(g, { type: 'acquire', slotId: wall }, B);
+    g = reduce(g, { type: 'acquire', slotId: wall }, B1);
     expect(g.market[wall]!.owner).toBe('you');
     expect(g.market[wall]!.paid).toBe(12);
     expect(g.players.you.coins).toBe(0);
@@ -100,15 +103,15 @@ describe('買収', () => {
   it('10 で建てて 10 でアップグレードした物件は 21 で買収され、Lv は保たれる', () => {
     let g = fixture(20, 0);
     const wall = slotOf(g, 'wall');
-    g = reduce(g, { type: 'build', slotId: wall }, B);
+    g = reduce(g, { type: 'build', slotId: wall }, B1);
     g = pass(pass(g));
-    g = reduce(g, { type: 'upgrade', slotId: wall }, B);
+    g = reduce(g, { type: 'upgrade', slotId: wall }, B1);
     g = pass(g);
-    expect(acquirePriceOf(g.market[wall]!, B)).toBe(21);
+    expect(acquirePriceOf(g.market[wall]!, B1)).toBe(21);
     g.players.cpu.coins = 20;
-    expect(canAcquire(g, wall, B)).toBe(false);
+    expect(canAcquire(g, wall, B1)).toBe(false);
     g.players.cpu.coins = 21;
-    g = reduce(g, { type: 'acquire', slotId: wall }, B);
+    g = reduce(g, { type: 'acquire', slotId: wall }, B1);
     expect(g.market[wall]!.owner).toBe('cpu');
     expect(g.market[wall]!.level).toBe(2);
     expect(g.market[wall]!.paid).toBe(21);
@@ -185,7 +188,7 @@ describe('買収', () => {
     g.market[house]!.owner = 'cpu';
     g.market[house]!.paid = 7;
     const after = reduce(g, { type: 'acquire', slotId: house }, B);
-    expect(after.players.cpu.coins).toBe(8);
+    expect(after.players.cpu.coins).toBe(7 + B.acquireMarkup);
   });
 });
 
@@ -215,7 +218,19 @@ describe('同じ区画は 1 ターンに 1 回まで', () => {
     const wall = slotOf(g, 'wall');
     g = reduce(g, { type: 'build', slotId: wall }, B);
     g = pass(g);
+    expect(B.slotLockTurns).toBe(1);
     expect(canAcquire(g, wall, B)).toBe(true);
+  });
+
+  it('slotLockTurns を 2 にすると、相手の直後の手番でも動かせない（数値で振れる口）', () => {
+    const lock2 = { ...B, slotLockTurns: 2 };
+    let g = fixture(10, 50);
+    const wall = slotOf(g, 'wall');
+    g = reduce(g, { type: 'build', slotId: wall }, lock2);
+    g = pass(g);
+    expect(canAcquire(g, wall, lock2)).toBe(false);
+    g = pass(pass(g));
+    expect(canAcquire(g, wall, lock2)).toBe(true);
   });
 });
 
@@ -276,7 +291,7 @@ describe('Lv2 の効果', () => {
 
 describe('CPU の評価が新しい行動を見る', () => {
   it('reach は相手の物件の買収も数える。相手が衛兵なら数えない', () => {
-    const g = fixture(11, 0);
+    const g = fixture(10 + B.acquireMarkup, 0);
     const wall = slotOf(g, 'wall');
     // 空き地は全部埋めて、買収だけが候補になるようにする
     for (const s of g.market) {
