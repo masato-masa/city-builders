@@ -4,7 +4,18 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { BANNER_MS, CARD_FLIGHT_S, DELTA_POP_MS } from './tempo';
+import type { Aftermath } from './feel';
+import {
+  BANNER_MS,
+  CARD_CHARGE_MS,
+  CARD_CHARGE_SCALE,
+  CARD_EFFECT_DELAY_MS,
+  CARD_FLIGHT_S,
+  DELTA_POP_MS,
+} from './tempo';
+
+/** 使う札の飛翔（溜め＋発動）の長さ（秒）。効果の反映（CARD_EFFECT_DELAY_MS）と同じ時刻に着く。 */
+const USE_TOTAL_S = CARD_EFFECT_DELAY_MS / 1000;
 
 /* ---------------- 手番のバナー ---------------- */
 
@@ -133,6 +144,10 @@ export function CardFlightLayer({ flights }: { flights: Flight[] }) {
             />
           );
         }
+        // 3 段の 1・2 段目。溜め（その場で 0.9 倍に縮んで光る）→ 発動（盤面へ飛んで弾ける）。
+        // 3 段目の余韻（数字）は効果を反映した時点で AftermathLayer が出す。
+        const total = USE_TOTAL_S;
+        const c = CARD_CHARGE_MS / 1000 / total;
         return (
           <div key={f.id}>
             <motion.img
@@ -140,22 +155,23 @@ export function CardFlightLayer({ flights }: { flights: Flight[] }) {
               src={f.art}
               alt=""
               style={{ left: f.from.x, top: f.from.y, width: f.from.w, height: f.from.h }}
-              initial={{ x: 0, y: 0, scale: 1, rotate: 0, opacity: 1 }}
+              initial={{ x: 0, y: 0, scale: 1, rotate: 0, opacity: 1, filter: 'brightness(1)' }}
               animate={{
-                x: [0, dx * 0.5, dx],
-                y: [0, dy * 0.5 - 40, dy],
-                scale: [1, 1.35, 0.9],
-                rotate: [0, -6, 0],
-                opacity: [1, 1, 0],
+                x: [0, 0, dx * 0.5, dx],
+                y: [0, 0, dy * 0.5 - 40, dy],
+                scale: [1, CARD_CHARGE_SCALE, 1.3, 0.85],
+                rotate: [0, 0, -6, 0],
+                opacity: [1, 1, 1, 0],
+                filter: ['brightness(1)', 'brightness(1.7)', 'brightness(1.25)', 'brightness(1)'],
               }}
-              transition={{ duration: CARD_FLIGHT_S, times: [0, 0.55, 1], ease: 'easeOut' }}
+              transition={{ duration: total, times: [0, c, c + (1 - c) * 0.55, 1], ease: 'easeOut' }}
             />
             <motion.span
               className="fx-burst"
               style={{ left: f.to.x, top: f.to.y }}
               initial={{ scale: 0.2, opacity: 0 }}
               animate={{ scale: [0.2, 1.6], opacity: [0, 0.9, 0] }}
-              transition={{ delay: CARD_FLIGHT_S * 0.85, duration: 0.5, ease: 'easeOut' }}
+              transition={{ delay: total * 0.88, duration: 0.4, ease: 'easeOut' }}
             />
           </div>
         );
@@ -178,16 +194,25 @@ export interface CpuCalloutInfo {
 
 /** CPU の 1 手を、盤面の上端中央に「絵 + 帯」で大きく出す。
  *  ログの文字だけでは追えないという指摘（要望 7）への上乗せ。次の 1 手が来たら差し替わる。 */
-export function CpuCallout({ info }: { info: CpuCalloutInfo | null }) {
+export function CpuCallout({
+  info,
+  placement = 'board',
+}: {
+  info: CpuCalloutInfo | null;
+  /** 'board' は盤面の上端中央。'strip' は相手の情報ボードの右側（行動ログの上）に横並びで出し、
+   *  盤面の建物を隠さない（UX の指摘）。 */
+  placement?: 'board' | 'strip';
+}) {
+  const strip = placement === 'strip';
   return (
-    <div className="cpu-callout-layer" aria-hidden="true">
+    <div className={`cpu-callout-layer${strip ? ' is-strip' : ''}`} aria-hidden="true">
       <AnimatePresence>
         {info ? (
           <motion.div
             key={info.id}
             className={`cpu-callout cpu-callout-${info.tone ?? 'cpu'}`}
-            initial={{ opacity: 0, y: -30, scale: 0.7 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
+            initial={strip ? { opacity: 0, x: 24, scale: 0.8 } : { opacity: 0, y: -30, scale: 0.7 }}
+            animate={strip ? { opacity: 1, x: 0, scale: 1 } : { opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -14, scale: 0.9, transition: { duration: 0.16 } }}
             transition={{ type: 'spring', stiffness: 520, damping: 26 }}
           >
@@ -197,6 +222,54 @@ export function CpuCallout({ info }: { info: CpuCalloutInfo | null }) {
             <span className="cpu-callout-text">{info.text}</span>
           </motion.div>
         ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ---------------- カード使用の余韻 ---------------- */
+
+interface AftermathPop extends Aftermath {
+  id: number;
+  x: number;
+  y: number;
+  ms: number;
+}
+
+/** カード使用の 3 段目。効果を反映した時点で、盤面の着地点に「次の収入 +3」のような一言を出して消す。
+ *  操作は止めない（pointer-events: none）。skip で即座に消す（盤面のどこかを触ったとき）。 */
+export function useAftermath() {
+  const [pops, setPops] = useState<AftermathPop[]>([]);
+  const seq = useRef(0);
+  const show = useCallback((info: Aftermath | null, at: Element | null, ms: number) => {
+    if (!info || !at || ms <= 0) return;
+    const r = at.getBoundingClientRect();
+    seq.current += 1;
+    const id = seq.current;
+    setPops([{ ...info, id, x: r.left + r.width / 2, y: r.top + r.height * 0.45, ms }]);
+    window.setTimeout(() => setPops((p) => p.filter((x) => x.id !== id)), ms);
+  }, []);
+  const skip = useCallback(() => setPops((p) => (p.length > 0 ? [] : p)), []);
+  return { pops, show, skip };
+}
+
+export function AftermathLayer({ pops }: { pops: AftermathPop[] }) {
+  return (
+    <div className="fx-layer" aria-hidden="true">
+      <AnimatePresence>
+        {pops.map((p) => (
+          <motion.span
+            key={p.id}
+            className={`fx-aftermath is-${p.tone}`}
+            style={{ left: p.x, top: p.y }}
+            initial={{ opacity: 0, scale: 0.6, y: 0 }}
+            animate={{ opacity: [0, 1, 1, 0], scale: [0.6, 1.15, 1, 1], y: [0, -6, -14, -24] }}
+            exit={{ opacity: 0, transition: { duration: 0.08 } }}
+            transition={{ duration: p.ms / 1000, times: [0, 0.2, 0.7, 1], ease: 'easeOut' }}
+          >
+            {p.text}
+          </motion.span>
+        ))}
       </AnimatePresence>
     </div>
   );

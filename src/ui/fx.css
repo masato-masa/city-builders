@@ -1095,3 +1095,165 @@
   paint-order: stroke fill;
   white-space: nowrap;
 }
+
+/* ======================================================================
+   手触り（feel.ts / impact-fx.tsx）。どれも transform / opacity だけで、寸法は動かさない。
+   ====================================================================== */
+
+/* CPU の 1 手を相手の情報ボードの右側（行動ログの上）に横並びで出す。盤面の建物を隠さない。 */
+.cpu-callout-layer.is-strip {
+  z-index: 4;
+  overflow: visible;
+}
+
+.cpu-callout-layer.is-strip .cpu-callout {
+  top: 50%;
+  left: auto;
+  right: 8px;
+  translate: 0 -50%;
+  flex-direction: row-reverse;
+  gap: 6px;
+  filter: drop-shadow(0 4px 8px rgb(0 0 0 / 0.5));
+}
+
+.cpu-callout-layer.is-strip .cpu-callout-art-card {
+  width: 40px;
+}
+
+.cpu-callout-layer.is-strip .cpu-callout-art-building {
+  width: 58px;
+}
+
+.cpu-callout-layer.is-strip .cpu-callout-art-coin {
+  width: 36px;
+}
+
+.cpu-callout-layer.is-strip .cpu-callout-text {
+  max-width: 210px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 衝撃の閃光。ヒットストップの間は止まった絵のまま置き、明けたら消える。 */
+.impact-flash {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  margin: -60px 0 0 -60px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 4;
+  background: radial-gradient(circle, rgb(255 255 255 / 0.95) 0%, rgb(255 236 190 / 0.6) 30%, rgb(255 120 80 / 0) 68%);
+  opacity: 1;
+}
+
+.impact-flash.impact-heavy {
+  width: 170px;
+  height: 170px;
+  margin: -85px 0 0 -85px;
+  background: radial-gradient(circle, rgb(255 255 255 / 1) 0%, rgb(255 210 170 / 0.75) 30%, rgb(230 60 60 / 0) 70%);
+}
+
+.impact-flash.is-released {
+  opacity: 0;
+  scale: 1.25;
+  transition:
+    opacity 0.2s ease-out,
+    scale 0.2s ease-out;
+}
+
+/* カード使用の余韻（効果の一言）。fx-layer（fixed・pointer-events: none）の中に出す。 */
+.fx-aftermath {
+  position: absolute;
+  translate: -50% -50%;
+  padding: 4px 12px;
+  border-radius: 10px;
+  font-size: 20px;
+  font-weight: 900;
+  white-space: nowrap;
+  color: #fff3b0;
+  -webkit-text-stroke: 4px #5a2c00;
+  paint-order: stroke fill;
+  text-shadow: 0 3px 0 rgb(0 0 0 / 0.35);
+}
+
+.fx-aftermath.is-hit {
+  color: #ffd0d6;
+  -webkit-text-stroke-color: #5a0018;
+}
+
+.fx-aftermath.is-guard {
+  color: #d8ecff;
+  -webkit-text-stroke-color: #0c2244;
+}
+
+.fx-aftermath.is-blocked {
+  color: #e6eaee;
+  -webkit-text-stroke-color: #2a3038;
+}
+
+/* 決着の一瞬の静止。盤面を少し沈め、画面の脈打ち（CSS のアニメーション）もその間だけ止める。 */
+.finale-still {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: radial-gradient(ellipse 80% 70% at 50% 50%, rgb(0 0 0 / 0) 40%, rgb(0 0 0 / 0.35) 100%);
+}
+
+.app-play.is-finale-still * {
+  animation-play-state: paused !important;
+}
+
+/* 手札の札のコスト不足（あと N）。札の上端中央に重ねる。札の外（.card-drag 直下）に置くので
+   札の「使えない」の暗さを受けずに読める。寸法は変えない。 */
+.card-short {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 3;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1.5px solid #3a0818;
+  background: linear-gradient(to bottom, #e2506f, #a3123f);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* 残りターンの時計の説明（タップで出す）。時計の真下に重ねる。 */
+.turn-clock-tip {
+  position: absolute;
+  top: 40px;
+  right: 8px;
+  z-index: 7;
+  max-width: 220px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(22, 32, 41, 0.94);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.4);
+  color: var(--chrome-ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+.target-banner > span {
+  min-width: 0;
+}
+
+/* 下端に揃えるシート（カード・区画）。主ボタンがいつも同じ高さに来る。 */
+.overlay.overlay-bottom {
+  place-items: end center;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+}
+
+/* 自分の情報ボードの器（収入の段の帯を重ねる基準）。寸法は中身のまま。 */
+.self-wrap {
+  position: relative;
+}
