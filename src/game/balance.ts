@@ -41,7 +41,7 @@ export function cardTextFor(card: CardId, balance: Balance): string {
     case 'festival':
       return `次の自分のターン、自分の物件の効果がすべて ${balance.festivalMultiplier} 倍。さらにそのターンの収入 +${balance.festivalIncomeBonus}`;
     case 'guard':
-      return '次の自分のターンまで、徴税官・買収者・封鎖者の効果を受けない';
+      return '次の自分のターンまで、徴税官・買収者・封鎖者の効果と、物件の買収を受けない';
     case 'usurer':
       return `このターン コイン +${balance.usurerGain}。次の自分のターン開始時 コイン −${balance.usurerDebt}（マイナスになる）`;
     case 'spy':
