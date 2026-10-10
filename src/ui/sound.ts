@@ -7,41 +7,44 @@
 // タイミング（＝最初のユーザー操作）で作る。作れなかった場合・設定で切って
 // ある場合は、何もせず黙って続行する（例外を投げない）。
 //
+// 衝撃の大きい動作（買収・徴税官・封鎖者・アップグレード・建設・勝利）は、生成した音（中域の本体）に
+// 合成の「低いドン」「高いカチ」を重ねる（sound-plan.ts の LAYERS）。繰り返し鳴る音は VARIANTS で
+// 3〜5 通りに鳴らし分ける。出力は効果音バス → コンプレッサー → リミッター（audio-graph.ts）。
+// 山場（買収・アップグレード・決着の鐘）では BGM を一拍引く（bgm.ts の duckBgm）。
+//
 // 音は互いにぶつかる。直前に鳴らした音から一定時間内は次を間引き、
 // 3 つ以上が同時に濁るのを防ぐ（勝ち負け・手番の合図だけは必ず鳴らす）。
 
 import type { CardId } from '@/game/types';
 
+import { getGraph, whenGraphCreated } from './audio-graph';
+import { duckBgm, stopBgm } from './bgm';
 import { isSoundEnabled } from './settings';
+import {
+  jitterLayer,
+  layersFor,
+  nextVariantIndex,
+  shouldPlay,
+  VARIANTS,
+  type ImpactAction,
+  type LayerSpec,
+} from './sound-plan';
 
-let ctx: AudioContext | null = null;
-let unavailable = false;
+/** 効果音の出口（効果音バス）。 */
+let bus: AudioNode | null = null;
 
 function getContext(): AudioContext | null {
-  if (unavailable) return null;
-  if (ctx) {
-    if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {
-        // 再開できなくても致命的ではない
-      });
-    }
-    return ctx;
-  }
-  try {
-    const w = window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext };
-    const Ctor = w.AudioContext ?? w.webkitAudioContext;
-    if (!Ctor) {
-      unavailable = true;
-      return null;
-    }
-    ctx = new Ctor();
-    loadSamples(ctx);
-    return ctx;
-  } catch {
-    unavailable = true;
-    return null;
-  }
+  const g = getGraph();
+  if (!g) return null;
+  bus = g.sfxBus;
+  return g.ctx;
 }
+
+function out(c: AudioContext): AudioNode {
+  return bus ?? c.destination;
+}
+
+whenGraphCreated((g) => loadSamples(g.ctx));
 
 /** 最初のユーザー操作（ホームの難易度ボタンなど）で、なるべく早く AudioContext を
  *  用意しておく。失敗しても何もしない。 */
@@ -52,6 +55,19 @@ export function primeAudio(): void {
   } catch {
     // 何もしない
   }
+}
+
+/** 確認用の数（開発中だけ window.__cbSfx で見る）。 */
+const stats = { samples: 0, synth: 0, layers: 0, throttled: 0 };
+
+/** 層を重ねるか（sfx.html の聴き比べで切り替える。ゲームでは常に入）。 */
+let layersOn = true;
+export function setLayersEnabled(on: boolean): void {
+  layersOn = on;
+}
+
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  (window as unknown as { __cbSfx?: unknown }).__cbSfx = { stats };
 }
 
 // ---------------------------------------------------------------------------
@@ -115,29 +131,108 @@ function loadSamples(c: AudioContext): void {
   }
 }
 
+/** 音ごとの、直前に使った変化の番号。 */
+const lastVariant = new Map<string, number>();
+
 /** 生成した音を鳴らす。無ければ false（呼び出し側が合成音で代わりに鳴らす）。
- *  spread は音程のゆれ幅、delay は鳴らし始めるまでの秒数。 */
+ *  spread は音程のゆれ幅、delay は鳴らし始めるまでの秒数。
+ *  VARIANTS にある音は、音程・フィルタ・開始位置の違う 3〜5 通りから直前と違うものを選ぶ。 */
 function sample(c: AudioContext, name: string, spread = 0.06, delay = 0): boolean {
   const buf = samples.get(name);
   if (!buf) return false;
+  const variants = VARIANTS[name];
+  let rate = 1;
+  let gain = 1;
+  let offset = 0;
+  let lowpass: number | null = null;
+  if (variants) {
+    const i = nextVariantIndex(variants.length, lastVariant.get(name) ?? -1, Math.random);
+    lastVariant.set(name, i);
+    const v = variants[i]!;
+    rate = v.rate;
+    gain = v.gain;
+    offset = Math.min(v.offsetMs / 1000, buf.duration * 0.3);
+    lowpass = v.lowpassHz;
+  }
   const src = c.createBufferSource();
   src.buffer = buf;
-  src.playbackRate.value = 1 + (Math.random() * 2 - 1) * spread;
+  src.playbackRate.value = rate * (1 + (Math.random() * 2 - 1) * spread);
   const amp = c.createGain();
-  amp.gain.value = (SAMPLE_GAIN[name] ?? 0.5) * (0.88 + Math.random() * 0.24);
-  src.connect(amp);
-  amp.connect(c.destination);
-  src.start(c.currentTime + delay);
+  amp.gain.value = (SAMPLE_GAIN[name] ?? 0.5) * gain * (0.88 + Math.random() * 0.24);
+  if (lowpass) {
+    const f = c.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = lowpass;
+    src.connect(f);
+    f.connect(amp);
+  } else {
+    src.connect(amp);
+  }
+  amp.connect(out(c));
+  src.start(c.currentTime + delay, offset);
+  stats.samples++;
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// 層（合成の「低いドン」「高いカチ」を生成した音に重ねる）
+
+let noiseBuf: AudioBuffer | null = null;
+
+function noise(c: AudioContext): AudioBuffer {
+  if (!noiseBuf || noiseBuf.sampleRate !== c.sampleRate) {
+    noiseBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.3), c.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  return noiseBuf;
+}
+
+function layer(c: AudioContext, spec: LayerSpec, delay: number): void {
+  const t = c.currentTime + delay + spec.at;
+  const amp = c.createGain();
+  amp.gain.setValueAtTime(0.0001, t);
+  // 速い立ち上がり（クリックは 1ms、ほかは 4ms）と短い余韻
+  amp.gain.exponentialRampToValueAtTime(spec.gain, t + (spec.kind === 'click' ? 0.001 : 0.004));
+  amp.gain.exponentialRampToValueAtTime(0.0001, t + spec.dur);
+  amp.connect(out(c));
+  if (spec.kind === 'thump') {
+    const osc = c.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(spec.freq, t);
+    osc.frequency.exponentialRampToValueAtTime(spec.freqEnd ?? spec.freq * 0.5, t + spec.dur);
+    osc.connect(amp);
+    osc.start(t);
+    osc.stop(t + spec.dur + 0.03);
+  } else {
+    const src = c.createBufferSource();
+    src.buffer = noise(c);
+    const f = c.createBiquadFilter();
+    f.type = spec.kind === 'click' ? 'highpass' : 'lowpass';
+    f.frequency.value = spec.freq;
+    f.Q.value = spec.kind === 'click' ? 0.9 : 0.7;
+    src.connect(f);
+    f.connect(amp);
+    src.start(t, Math.random() * 0.2, spec.dur + 0.03);
+  }
+  stats.layers++;
+}
+
+/** 動作の層をまとめて鳴らす。間引き（gate）は呼び出し元の play で 1 回だけ数える。 */
+function layers(c: AudioContext, action: ImpactAction, delay = 0): void {
+  if (!layersOn) return;
+  for (const spec of layersFor(action)) layer(c, jitterLayer(spec, Math.random), delay);
+}
+
 let lastPlayedAt = 0;
-const THROTTLE_MS = 60;
 
 /** 直前の音から近すぎるときは間引く。force で強制的に鳴らす（勝ち負け・手番の合図用）。 */
 function gate(force = false): boolean {
   const now = performance.now();
-  if (!force && now - lastPlayedAt < THROTTLE_MS) return false;
+  if (!shouldPlay(now, lastPlayedAt, force)) {
+    stats.throttled++;
+    return false;
+  }
   lastPlayedAt = now;
   return true;
 }
@@ -165,9 +260,10 @@ function tone(audioCtx: AudioContext, opts: ToneOptions): void {
   amp.gain.exponentialRampToValueAtTime(Math.max(gain, 0.0005), t0 + Math.min(0.014, duration / 3));
   amp.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
   osc.connect(amp);
-  amp.connect(audioCtx.destination);
+  amp.connect(out(audioCtx));
   osc.start(t0);
   osc.stop(t0 + duration + 0.03);
+  stats.synth++;
 }
 
 /** 呼び出し全体を try/catch で包む。鳴らせなくても例外は外に出さない。 */
@@ -262,6 +358,8 @@ const CARD_BASE_FREQ: Record<CardId, number> = {
 /** カードを使う。カードの種類で音を変える（徴税官は相手のコインがこぼれる音を少し遅らせて重ねる）。 */
 export function playUseCard(card: CardId): void {
   play(false, (c) => {
+    // 妨害の 2 枚（徴税官・封鎖者）は衝撃が大きいので、カチとドンを重ねる
+    if (card === 'taxman' || card === 'blockader') layers(c, card);
     if (sample(c, CARD_SAMPLE[card])) {
       if (card === 'taxman') sample(c, 'coinLose', 0.05, 0.22);
       return;
@@ -275,6 +373,7 @@ export function playUseCard(card: CardId): void {
 /** 物件を建てる: いちばん気持ちいい音。石と木がずしんと据わる。 */
 export function playBuild(): void {
   play(false, (c) => {
+    layers(c, 'build');
     if (sample(c, 'build', 0.04)) return;
     tone(c, { freq: 90, duration: 0.22, type: 'sine', gain: 0.22 });
     tone(c, { freq: 180, freqEnd: 260, duration: 0.28, type: 'triangle', gain: 0.14, delay: 0.01 });
@@ -285,7 +384,9 @@ export function playBuild(): void {
 /** 物件をアップグレードする: 建設の据わる音にきらめき（cardBuff）を重ねる。
  *  専用の音源は持たない（既存の音の流用。無ければ上がっていく合成音）。 */
 export function playUpgrade(): void {
+  duckBgm('upgrade');
   play(false, (c) => {
+    layers(c, 'upgrade');
     const built = sample(c, 'build', 0.03);
     const shine = sample(c, 'cardBuff', 0.04, 0.08);
     if (built || shine) return;
@@ -298,7 +399,9 @@ export function playUpgrade(): void {
 /** 物件を買収する（した・された）: 一撃（cardAttack）のあとにコインが相手へ渡る音。
  *  カードの「買収者」とは別の行動だが、相手から奪う手触りは同じ系統にそろえる。 */
 export function playAcquire(): void {
+  duckBgm('acquire');
   play(false, (c) => {
+    layers(c, 'acquire');
     const hit = sample(c, 'cardAttack', 0.04);
     const coins = sample(c, 'coinBig', 0.05, 0.2);
     if (hit || coins) return;
@@ -351,6 +454,7 @@ export function playYourTurn(incomeDelta = 0): void {
 /** 決着の鐘: 手番の鐘（yourTurn）を遅らせずに、少し低く鳴らす。無ければ低めの合成の鐘。
  *  新しい音源は持たない（既存の音の流用）。 */
 export function playBell(): void {
+  duckBgm('finale');
   play(true, (c) => {
     const buf = samples.get('yourTurn');
     if (buf) {
@@ -360,8 +464,9 @@ export function playBell(): void {
       const amp = c.createGain();
       amp.gain.value = (SAMPLE_GAIN.yourTurn ?? 0.3) * 1.2;
       src.connect(amp);
-      amp.connect(c.destination);
+      amp.connect(out(c));
       src.start(c.currentTime);
+      stats.samples++;
       return;
     }
     tone(c, { freq: 990, duration: 0.6, type: 'sine', gain: 0.12 });
@@ -372,7 +477,10 @@ export function playBell(): void {
 
 /** 勝ち: 短いファンファーレ */
 export function playWin(): void {
+  // 決着: BGM はここで消し、ファンファーレだけを聴かせる
+  stopBgm(0.4);
   play(true, (c) => {
+    layers(c, 'win');
     if (sample(c, 'win', 0)) return;
     [520, 660, 880].forEach((freq, i) => {
       tone(c, { freq, duration: 0.28, type: 'triangle', gain: 0.15, delay: i * 0.11 });
@@ -382,6 +490,7 @@ export function playWin(): void {
 
 /** 負け: 沈む短いフレーズ */
 export function playLose(): void {
+  stopBgm(0.4);
   play(true, (c) => {
     if (sample(c, 'lose', 0)) return;
     [420, 340, 240].forEach((freq, i) => {

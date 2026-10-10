@@ -46,3 +46,17 @@ export function setHapticsEnabled(value: boolean): void {
   hapticsEnabled = value;
   writeFlag(HAPTICS_KEY, value);
 }
+
+// BGM の入切。効果音を切っているときは BGM も鳴らない（効果音の設定が全体の音の入切を兼ねる）。
+const BGM_KEY = 'city-builders:bgm';
+let bgmEnabled: boolean | null = null;
+
+export function isBgmEnabled(): boolean {
+  if (bgmEnabled === null) bgmEnabled = readFlag(BGM_KEY);
+  return bgmEnabled;
+}
+
+export function setBgmEnabled(value: boolean): void {
+  bgmEnabled = value;
+  writeFlag(BGM_KEY, value);
+}

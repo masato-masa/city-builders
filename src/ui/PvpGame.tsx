@@ -43,6 +43,8 @@ import {
   TURN_INTRO_MS,
 } from './tempo';
 import { TurnBadge } from './TurnBadge';
+import { refreshBgm } from './bgm';
+import { useGameBgm } from './use-bgm';
 import {
   isHapticsEnabled,
   isSoundEnabled,
@@ -112,6 +114,8 @@ export function PvpGame({
   const [sheet, setSheet] = useState<Pending>(null);
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
   const [hapticsOn, setHapticsOn] = useState(() => isHapticsEnabled());
+  // BGM（プレイ画面でだけ流す。残り手番で緊張、決着で消える）
+  const { bgmOn, toggleBgm } = useGameBgm(turnsRemaining(state, balance), state.phase === 'finished');
   // ターン交代のスライド演出中は操作を無効化する。
   const [swapping, setSwapping] = useState(false);
 
@@ -333,6 +337,7 @@ export function PvpGame({
     const next = !soundOn;
     setSoundOn(next);
     setSoundEnabled(next);
+    refreshBgm();
     playUiTap();
   };
   const toggleHaptics = () => {
@@ -609,6 +614,20 @@ export function PvpGame({
                 aria-checked={soundOn}
                 aria-label="効果音"
                 onClick={toggleSound}
+              />
+            </div>
+            <div className="sheet-row static">
+              <span>BGM</span>
+              <button
+                className="switch"
+                role="switch"
+                aria-checked={bgmOn && soundOn}
+                aria-label="BGM"
+                disabled={!soundOn}
+                onClick={() => {
+                  toggleBgm();
+                  playUiTap();
+                }}
               />
             </div>
             <div className="sheet-row static">

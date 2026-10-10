@@ -63,6 +63,8 @@ import {
   TURN_INTRO_MS,
 } from './tempo';
 import { TurnBadge } from './TurnBadge';
+import { refreshBgm } from './bgm';
+import { useGameBgm } from './use-bgm';
 import {
   isHapticsEnabled,
   isSoundEnabled,
@@ -132,6 +134,8 @@ export function Game({
   const [sheet, setSheet] = useState<Pending>(null);
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
   const [hapticsOn, setHapticsOn] = useState(() => isHapticsEnabled());
+  // BGM（プレイ画面でだけ流す。残り手番で緊張、決着で消える）
+  const { bgmOn, toggleBgm } = useGameBgm(turnsRemaining(state, balance), state.phase === 'finished');
 
   // CPU の手番を 1 手ずつ出すための進行役。null のときは進行中ではない。
   const [cpuTurn, setCpuTurn] = useState<{ steps: CpuStep[]; revealed: number } | null>(null);
@@ -486,6 +490,7 @@ export function Game({
     const next = !soundOn;
     setSoundOn(next);
     setSoundEnabled(next);
+    refreshBgm();
     playUiTap();
   };
   const toggleHaptics = () => {
@@ -748,6 +753,20 @@ export function Game({
                 aria-checked={soundOn}
                 aria-label="効果音"
                 onClick={toggleSound}
+              />
+            </div>
+            <div className="sheet-row static">
+              <span>BGM</span>
+              <button
+                className="switch"
+                role="switch"
+                aria-checked={bgmOn && soundOn}
+                aria-label="BGM"
+                disabled={!soundOn}
+                onClick={() => {
+                  toggleBgm();
+                  playUiTap();
+                }}
               />
             </div>
             <div className="sheet-row static">
