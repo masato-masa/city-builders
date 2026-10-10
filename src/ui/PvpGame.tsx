@@ -94,6 +94,8 @@ export function PvpGame({
   const [handoff, setHandoff] = useState(true);
   // 目隠しを開けたが、まだ収入を反映していない間。この間は操作を受け付けない。
   const [introPending, setIntroPending] = useState(false);
+  // 収入の演出の途中で触ったとき、残りを飛ばして反映する。
+  const flushIncome = useRef<(() => void) | null>(null);
   const [busy, setBusy] = useState(false);
   const [using, setUsing] = useState<CardId[]>([]);
   // 収入の段の帯と、光らせる建物。
@@ -161,7 +163,7 @@ export function PvpGame({
   // 帯のあと、収入を 1 段ずつ反映する（基礎収入 → 建物収入 → 投資 → 返済。祝祭は建物収入の段で見せる）。
   useEffect(() => {
     if (!introPending) return;
-    return runIncomeSequence(stateRef.current, balance, TURN_INTRO_MS, {
+    const seq = runIncomeSequence(stateRef.current, balance, TURN_INTRO_MS, {
       onShow: (b) => {
         calloutSeq.current += 1;
         const who = stateRef.current.current;
@@ -183,6 +185,11 @@ export function PvpGame({
         setIntroPending(false);
       },
     });
+    flushIncome.current = seq.flush;
+    return () => {
+      flushIncome.current = null;
+      seq.cancel();
+    };
   }, [introPending]);
 
   useEffect(() => {
@@ -311,7 +318,7 @@ export function PvpGame({
   return (
     <div className="app app-play" style={{ backgroundImage: `url(${FIELD_URL})` }}>
       <main className="play">
-        <div className="board-shell">
+        <div className="board-shell" onPointerDownCapture={() => flushIncome.current?.()}>
           <div className={`pvp-opponent${handoff ? ' is-concealed' : ''}`}>
             <AnimatePresence initial={false}>
               <motion.div

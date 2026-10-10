@@ -51,7 +51,9 @@ export interface IncomeBeat {
 
 /** 自分の手番の収入を 1 段ずつ見せる。段ごとに onShow（帯・光・音）→ 少し置いて onApply（コインの反映）。
  *  基礎収入 → 建物収入 → 投資 → 返済、の順に、前の段が読めてから次へ進む。
- *  返す関数で残りの予定を取り消す（useEffect の後始末に渡す）。 */
+ *  cancel は残りの予定を取り消す（useEffect の後始末に渡す）。
+ *  flush は残りの演出を飛ばして最後の状態を反映し、onFinish まで一気に進める
+ *  （演出の途中でプレイヤーが触ったとき、待たせずに操作へ戻すため）。 */
 export function runIncomeSequence(
   pre: GameState,
   balance: Balance,
@@ -61,7 +63,7 @@ export function runIncomeSequence(
     onApply: (beat: IncomeBeat) => void;
     onFinish: () => void;
   },
-): () => void {
+): { cancel: () => void; flush: () => void } {
   const timers: number[] = [];
   const beats = incomeStageStates(pre, balance).map((b, index) => ({ ...b, index }));
   beats.forEach((beat) => {
@@ -70,6 +72,21 @@ export function runIncomeSequence(
     timers.push(window.setTimeout(() => hooks.onApply(beat), showAt + INCOME_APPLY_MS));
   });
   const lastApply = startDelay + (beats.length - 1) * INCOME_BEAT_MS + INCOME_APPLY_MS;
-  timers.push(window.setTimeout(hooks.onFinish, lastApply + INCOME_TAIL_MS));
-  return () => timers.forEach((t) => window.clearTimeout(t));
+  let done = false;
+  timers.push(
+    window.setTimeout(() => {
+      done = true;
+      hooks.onFinish();
+    }, lastApply + INCOME_TAIL_MS),
+  );
+  const cancel = () => timers.forEach((t) => window.clearTimeout(t));
+  const flush = () => {
+    if (done) return;
+    done = true;
+    cancel();
+    const last = beats[beats.length - 1];
+    if (last) hooks.onApply(last);
+    hooks.onFinish();
+  };
+  return { cancel, flush };
 }
