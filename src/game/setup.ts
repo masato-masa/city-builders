@@ -19,6 +19,7 @@ function emptyPlayer(
     blockedSlot: null,
     roadUsesThisTurn: 0,
     pendingDebt: 0,
+    pendingTax: 0,
     festivalQueued: false,
     festivalActive: false,
     guarded: false,

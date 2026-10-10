@@ -54,6 +54,8 @@ export interface PlayerState {
   roadUsesThisTurn: number;
   /** 高利貸の借り。次の自分の開始フェーズで引かれる */
   pendingDebt: number;
+  /** 徴税官。次の自分の開始フェーズの収入から引かれる（手持ちが無ければ引けた分だけ） */
+  pendingTax: number;
   /** 祝祭。使ったターンは queued、次の自分のターンだけ active */
   festivalQueued: boolean;
   festivalActive: boolean;

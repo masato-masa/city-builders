@@ -47,7 +47,7 @@ export function cardTextFor(card: CardId, balance: Balance): string {
     case 'spy':
       return `次の相手のターン、相手の手札 ${balance.spyBindCount} 枚がランダムに使えなくなる`;
     case 'taxman':
-      return `相手のコイン −${balance.taxmanAmount}`;
+      return `次の相手のターン、収入を受け取ったあとの相手のコイン −${balance.taxmanAmount}（手持ちが足りなければ引けた分だけ）`;
     case 'blockader':
       return '市場の区画 1 つを指定する。空き地ならそこに建設させない。相手の物件ならその効果を止める';
   }

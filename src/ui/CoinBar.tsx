@@ -36,6 +36,7 @@ export function forecast(state: GameState, viewer: PlayerId, balance: Balance): 
     }
   }
   total -= p.pendingDebt;
+  total -= Math.min(p.pendingTax, Math.max(0, p.coins + total));
   return total;
 }
 

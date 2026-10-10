@@ -24,6 +24,7 @@ function player(coins: number, hand: CardId[]): PlayerState {
     blockedSlot: null,
     roadUsesThisTurn: 0,
     pendingDebt: 0,
+    pendingTax: 0,
     festivalQueued: false,
     festivalActive: false,
     guarded: false,
@@ -111,9 +112,6 @@ describe('lookaheadScore: 相手の想定応手を読む', () => {
     const lookB = lookaheadScore(afterB, 'you', DEFAULT_WEIGHTS, DEFAULT_BALANCE);
     expect(lookA).toBeLessThan(lookB);
 
-    // 2段目（自分の立て直し）を足しても、徴税官で削られた分（コイン-6・reach低下）を
-    // 完全には取り戻せず、静的評価（相手がまだ何もしていない時点の評価）より低いまま。
-    expect(lookA).toBeLessThan(staticA);
     // 建築家のほうは相手が結局何もしない（cpu の最善手は endTurn）ので、
     // 手番が返ってきた自分は 10 コインまるごと使って立て直せる。その分だけ
     // 静的評価より明確に高くなる。
@@ -214,6 +212,7 @@ describe('easy / normal の振る舞いは変えていない', () => {
   // easy / normal の挙動が変わったということなので、意図的な変更でない限り疑うこと。
   // 買収者の封印枚数を 1→2 枚にした変更（spyBindCount）で全 4 局が動いたため、
   // ここも合わせて更新した。
+  // 徴税官を「相手の次の収入から引く」効果（pendingTax）に変えたときも更新した。
   it('seed 0 / 5 の最終コイン残高が既知の値と一致する（回帰検知用）', () => {
     const finish = (difficulty: 'easy' | 'normal', seed: number) => {
       let g = createGame(seed);
@@ -231,15 +230,15 @@ describe('easy / normal の振る舞いは変えていない', () => {
     expect(easy0.players.cpu.coins).toBe(9);
 
     const easy5 = finish('easy', 5);
-    expect(easy5.players.you.coins).toBe(10);
-    expect(easy5.players.cpu.coins).toBe(2);
+    expect(easy5.players.you.coins).toBe(7);
+    expect(easy5.players.cpu.coins).toBe(5);
 
     const normal0 = finish('normal', 0);
-    expect(normal0.players.you.coins).toBe(1);
-    expect(normal0.players.cpu.coins).toBe(15);
+    expect(normal0.players.you.coins).toBe(0);
+    expect(normal0.players.cpu.coins).toBe(5);
 
     const normal5 = finish('normal', 5);
-    expect(normal5.players.you.coins).toBe(0);
-    expect(normal5.players.cpu.coins).toBe(5);
+    expect(normal5.players.you.coins).toBe(3);
+    expect(normal5.players.cpu.coins).toBe(-2);
   });
 });

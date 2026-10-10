@@ -25,6 +25,8 @@ export function stageCallout(
       return { id, tone, kind: 'card', art: CARD_ART[stage.cards[0] ?? 'miner'], text };
     case 'debt':
       return { id, tone, kind: 'card', art: CARD_ART.usurer, text };
+    case 'tax':
+      return { id, tone, kind: 'card', art: CARD_ART.taxman, text };
     case 'bind':
       return { id, tone, kind: 'card', art: CARD_ART.spy, text };
   }

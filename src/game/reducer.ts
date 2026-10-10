@@ -199,7 +199,8 @@ function useCard(
     next.players[foe].bindPending = true;
   }
   if (action.card === 'taxman' && !foeGuarded && !foeWalled) {
-    next.players[foe].coins = Math.max(0, next.players[foe].coins - balance.taxmanAmount);
+    // 手持ちは相手の手番の合間にほぼ空なので、次の開始フェーズの収入から引く
+    next.players[foe].pendingTax += balance.taxmanAmount;
   }
   if (action.card === 'blockader' && !foeGuarded && !foeWalled) {
     const slotId = action.blockadeSlot!;
@@ -251,7 +252,7 @@ function incomeOf(
 /** 手番の開始で入る収入の 1 段。UI が「基礎収入 → 建物収入 → …」と 1 つずつ見せるために分けてある。
  *  startTurn 自身もこの段の合計を足すので、見せる額と実際に入る額はずれない。 */
 export interface IncomeStage {
-  kind: 'base' | 'building' | 'invest' | 'debt' | 'bind';
+  kind: 'base' | 'building' | 'invest' | 'debt' | 'tax' | 'bind';
   /** コインの増減（debt は負）。bind は 0 */
   amount: number;
   /** 祝祭が効いているターンか */
@@ -321,6 +322,13 @@ function computeIncomeStages(state: GameState, balance: Balance): IncomeStage[] 
     stages.push({ kind: 'debt', amount: -p.pendingDebt, festival, festivalExtra: 0, slots: [], cards: [] });
   }
 
+  // 徴税官。ここまでの収入を足した手持ちを上限に引く（マイナスにはしない）。
+  if (p.pendingTax > 0) {
+    const have = Math.max(0, p.coins + stages.reduce((sum, s) => sum + s.amount, 0));
+    const taken = Math.min(p.pendingTax, have);
+    stages.push({ kind: 'tax', amount: -taken, festival, festivalExtra: 0, slots: [], cards: [] });
+  }
+
   // 買収者を受けていたら、このときの手札から spyBindCount 枚を抽選して縛る（コインは動かない）
   if (p.bindPending) {
     stages.push({ kind: 'bind', amount: 0, festival, festivalExtra: 0, slots: [], cards: [] });
@@ -367,6 +375,7 @@ function startTurn(state: GameState, balance: Balance): GameState {
   for (const stage of computeIncomeStages(next, balance)) p.coins += stage.amount;
 
   p.pendingDebt = 0;
+  p.pendingTax = 0;
   p.pendingIncome = [];
   p.usedThisTurn = [];
   p.usedAnyCardThisTurn = false;

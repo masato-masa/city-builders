@@ -165,6 +165,8 @@ export function evaluateState(
     reach * weights.reach +
     opponentReach * weights.opponentReach +
     p.pendingDebt * weights.debt +
+    // 徴税官で相手に課した徴収は、自分の借りの裏返しとして得になる
+    (foeState.pendingTax - p.pendingTax) * -weights.debt +
     guarded * weights.guarded +
     opponentBound * weights.opponentBound
   );

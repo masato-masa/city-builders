@@ -88,24 +88,31 @@ describe('伝令', () => {
 });
 
 describe('徴税官', () => {
-  it('相手のコインを 6 減らす', () => {
-    const g = fixture(['taxman', 'miner', 'usurer', 'banker', 'architect', 'spy', 'herald', 'blockader'], 10);
+  const HAND = ['taxman', 'miner', 'usurer', 'banker', 'architect', 'spy', 'herald', 'blockader'] as const;
+
+  it('使った時点では相手のコインは動かず、次の収入から 6 引かれる', () => {
+    const g = fixture([...HAND], 10);
     const after = reduce(g, { type: 'useCard', card: 'taxman' }, DEFAULT_BALANCE);
-    expect(after.players.cpu.coins).toBe(20 - DEFAULT_BALANCE.taxmanAmount);
+    expect(after.players.cpu.coins).toBe(20);
+    expect(after.players.cpu.pendingTax).toBe(DEFAULT_BALANCE.taxmanAmount);
+    const next = reduce(reduce(after, { type: 'endTurn' }, DEFAULT_BALANCE), { type: 'startTurn' }, DEFAULT_BALANCE);
+    expect(next.players.cpu.coins).toBe(20 + DEFAULT_BALANCE.baseIncome + DEFAULT_BALANCE.secondPlayerFirstTurnBonus - DEFAULT_BALANCE.taxmanAmount);
+    expect(next.players.cpu.pendingTax).toBe(0);
   });
 
-  it('相手のコインが足りなければ 0 で止まる', () => {
-    const g = fixture(['taxman', 'miner', 'usurer', 'banker', 'architect', 'spy', 'herald', 'blockader'], 10);
-    g.players.cpu.coins = 2;
+  it('手持ちと収入が足りなければ、引けた分で止まりマイナスにならない', () => {
+    const g = fixture([...HAND], 10);
+    g.players.cpu.coins = 0;
     const after = reduce(g, { type: 'useCard', card: 'taxman' }, DEFAULT_BALANCE);
-    expect(after.players.cpu.coins).toBe(0);
+    const next = reduce(reduce(after, { type: 'endTurn' }, DEFAULT_BALANCE), { type: 'startTurn' }, DEFAULT_BALANCE);
+    expect(next.players.cpu.coins).toBe(0);
   });
 
   it('相手が城壁を持っていると無効。コストは払う', () => {
     const g = fixture(['taxman', 'miner', 'usurer', 'banker', 'architect', 'spy', 'herald', 'blockader'], 10);
     g.market.find((s) => s.buildingId === 'wall')!.owner = 'cpu';
     const after = reduce(g, { type: 'useCard', card: 'taxman' }, DEFAULT_BALANCE);
-    expect(after.players.cpu.coins).toBe(20);
+    expect(after.players.cpu.pendingTax).toBe(0);
     expect(after.players.you.coins).toBe(10 - DEFAULT_BALANCE.cards.taxman.cost);
   });
 });
