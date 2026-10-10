@@ -272,7 +272,12 @@ function CardButton({
       onContextMenu={(e) => e.preventDefault()}
       onPointerDown={(e) => {
         if (e.button !== 0 || using) return;
-        e.currentTarget.setPointerCapture(e.pointerId);
+        try {
+          // 指が札の外へ出ても、離すまでこの札が受け取る。
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch {
+          // 取れない環境（合成イベントなど）でも、押す・離すの判定は続ける
+        }
         const timer = window.setTimeout(() => {
           const p = press.current;
           if (!p || p.kind !== 'pending') return;
