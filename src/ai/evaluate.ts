@@ -126,6 +126,8 @@ export function reachOf(
   // 残っている値は次の startTurn で消えるので、次に買うときの値段には乗らない
   const ownTurn = state.phase === 'playing' && state.current === player;
   const buildDiscount = ownTurn ? p.buildDiscount : 0;
+  // 職人の割引も同じ（手番を終えた後に残っていても次には乗らない。journal の盲点①と同じ扱い）
+  const upgradeDiscount = ownTurn ? p.upgradeDiscount : 0;
   const quarryExtra = activeEffectMax(state, player, 'quarry', 'quarryExtraDiscount', balance);
 
   type Candidate = { vp: number; cost: (builds: number) => number; isBuild: boolean };
@@ -148,7 +150,7 @@ export function reachOf(
     }
     if (slotLocked(state, s, balance)) continue;
     if (s.owner === player && s.level < balance.maxLevel) {
-      const price = upgradePriceOf(s, balance);
+      const price = Math.max(0, upgradePriceOf(s, balance) - upgradeDiscount);
       // 大聖堂も同じ式で測れるよう、レベルだけ上げた区画を vpOfSlot に渡して差を取る
       const gain = vpOfSlot(state, { ...s, level: s.level + 1 }, balance) - vpOfSlot(state, s, balance);
       candidates.push({ vp: gain, isBuild: false, cost: () => price });
@@ -218,6 +220,16 @@ export function exposedVpOf(
     if (budget < m.price) continue;
     budget -= m.price;
     total += m.vp;
+  }
+  // 相手の手札に検査官があり、払えるなら、自分の Lv2 以上の 1 件が 1 段下がる（VP の減りがいちばん大きいもの）。
+  // 衛兵の価値（検査官も防ぐ）とアップグレードの危うさを、買収と同じ物差しで数える
+  if (handOf(state, foe, balance).includes('inspector') && budget >= balance.cards.inspector.cost) {
+    let worst = 0;
+    for (const s of ownedSlots(state, player)) {
+      if (s.level < 2) continue;
+      worst = Math.max(worst, vpOfSlot(state, s, balance) - vpOfSlot(state, { ...s, level: s.level - 1 }, balance));
+    }
+    total += worst;
   }
   return total;
 }

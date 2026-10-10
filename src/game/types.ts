@@ -8,7 +8,11 @@ export type CardId =
   | 'usurer'
   | 'spy'
   | 'taxman'
-  | 'blockader';
+  | 'blockader'
+  /** 職人: このターンのアップグレード費を下げる（既定のデッキには入っていない） */
+  | 'craftsman'
+  /** 検査官: 相手の物件の Lv を 1 段下げる／Lv1 なら払われた額を減らす（既定のデッキには入っていない） */
+  | 'inspector';
 
 export type BuildingId =
   | 'tradingHouse'
@@ -71,6 +75,8 @@ export interface PlayerState {
   guarded: boolean;
   /** このターン限りの買収価格の割引（買収者） */
   acquireDiscount: number;
+  /** このターン限りのアップグレード費の割引（職人）。Lv1→2・Lv2→3 のどちらにも効く */
+  upgradeDiscount: number;
   /** 封鎖者に効果を止められている自分の物件の区画。解除する手段が無いので永続 */
   disabledSlot: number | null;
 }
@@ -91,7 +97,7 @@ export interface GameState {
 
 export type Action =
   | { type: 'startTurn' }
-  | { type: 'useCard'; card: CardId; heraldTarget?: CardId; blockadeSlot?: number }
+  | { type: 'useCard'; card: CardId; heraldTarget?: CardId; blockadeSlot?: number; inspectSlot?: number }
   | { type: 'build'; slotId: number }
   /** 自分の物件を 1 段上げる。手札は使わない */
   | { type: 'upgrade'; slotId: number }

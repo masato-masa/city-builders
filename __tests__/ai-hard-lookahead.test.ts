@@ -28,6 +28,9 @@ const FROZEN_BALANCE: Balance = {
     spy: { cost: 1 },
     taxman: { cost: 3 },
     blockader: { cost: 4 },
+    // 新しいカード（凍結時点には無い。既定のデッキに入らないので試合には出ない）
+    craftsman: { cost: 2 },
+    inspector: { cost: 3 },
   },
   minerIncome: 4,
   bankerIncome: 6,
@@ -37,6 +40,8 @@ const FROZEN_BALANCE: Balance = {
   spyAcquireDiscount: 3,
   guardCostWithWall: 0,
   heraldCostWithRoad: 0,
+  craftsmanDiscount: 5,
+  inspectorPaidCut: 5,
   buildings: {
     tradingHouse: { cost: 7, vp: 2 },
     wall: { cost: 10, vp: 2 },
@@ -141,6 +146,7 @@ function player(coins: number, hand: CardId[]): PlayerState {
     festivalActive: false,
     guarded: false,
     acquireDiscount: 0,
+    upgradeDiscount: 0,
     disabledSlot: null,
   };
 }

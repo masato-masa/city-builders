@@ -11,7 +11,7 @@ import {
   ownedSlots,
   roadUsesRemaining,
   slotLocked,
-  upgradePriceOf,
+  upgradeCostFor,
 } from './selectors';
 import type { Action, BuildingId, CardId, GameState, PlayerId, PlayerState } from './types';
 
@@ -55,6 +55,8 @@ export function canUseCard(
   const p = state.players[player];
   if (!handOf(state, player, balance).includes(card)) return false;
   if (p.usedThisTurn.includes(card)) return false;
+  // 検査官は相手の物件が 1 件も無ければ撃つ先が無い
+  if (card === 'inspector' && !state.market.some((s) => s.owner !== null && s.owner !== player)) return false;
   const cost = cardCostFor(state, player, card, balance);
   // コスト 0 のカード（高利貸）は、コインがマイナスのときでも必ず打てる。
   // 高利貸は「使える札が 1 枚も無い」を構造的に潰すための札なので、
@@ -178,7 +180,7 @@ export function canUpgrade(
   const slot = state.market[slotId];
   if (!slot || slot.owner !== state.current) return false;
   if (slotLocked(state, slot, balance)) return false;
-  return state.players[state.current].coins >= upgradePriceOf(slot, balance);
+  return state.players[state.current].coins >= upgradeCostFor(state, state.current, slot, balance);
 }
 
 function upgrade(
@@ -189,7 +191,8 @@ function upgrade(
   if (!canUpgrade(state, action.slotId, balance)) return state;
   const next = structuredClone(state);
   const slot = next.market[action.slotId]!;
-  const price = upgradePriceOf(slot, balance);
+  // 職人の割引が乗った実額。買収の価格の元（paid）もこの額（建築家と同じく、安く上げた物件は安く買われる）
+  const price = upgradeCostFor(state, state.current, state.market[action.slotId]!, balance);
   next.players[next.current].coins -= price;
   slot.paid += price;
   slot.level += 1;
@@ -258,6 +261,11 @@ function useCard(
     // 対象は自分が所有していない区画すべて（空き地でも相手の物件でもよい）
     if (!state.market[slot] || state.market[slot]!.owner === player) return state;
   }
+  if (action.card === 'inspector') {
+    // 対象は相手の物件だけ（空き地・自分の物件には撃てない）
+    const slot = action.inspectSlot;
+    if (slot === undefined || state.market[slot]?.owner !== foe) return state;
+  }
 
   const next = structuredClone(state);
   const p = next.players[player];
@@ -286,6 +294,9 @@ function useCard(
     // 自分にかかる効果なので衛兵・城壁では防げない（衛兵は買収そのものを防ぐ）
     p.acquireDiscount += balance.spyAcquireDiscount;
   }
+  if (action.card === 'craftsman') {
+    p.upgradeDiscount += balance.craftsmanDiscount;
+  }
 
   const foeGuarded = next.players[foe].guarded;
   const foeWalled = hasActiveBuilding(next, foe, 'wall');
@@ -304,6 +315,17 @@ function useCard(
     }
     // 止めた物件を称号の件数に数えない設定なら、ここで称号が動く
     next.titles = nextTitles(next, balance);
+  }
+  if (action.card === 'inspector' && !foeGuarded) {
+    // 衛兵では防げるが、城壁では防げない（城壁は徴税官・封鎖者だけ。全部防ぐと強すぎる）
+    const target = next.market[action.inspectSlot!]!;
+    if (target.level >= 2) {
+      // Lv を 1 段下げる。払われた額はそのまま（買収の価格は下がらない）。
+      // Lv3 → Lv2 で「最終段階は買収されない」が外れ、また買収できる物件になる
+      target.level -= 1;
+    } else {
+      target.paid = Math.max(0, target.paid - balance.inspectorPaidCut);
+    }
   }
   if (action.card === 'herald') {
     // 対象を先に処理し、伝令自身をそのあとに処理する。
@@ -472,6 +494,7 @@ function startTurn(state: GameState, balance: Balance): GameState {
   p.buildsThisTurn = 0;
   p.roadUsesThisTurn = 0;
   p.acquireDiscount = 0;
+  p.upgradeDiscount = 0;
 
   // 衛兵の保護は、この開始フェーズの処理が終わったところで切れる
   p.guarded = false;
@@ -515,6 +538,8 @@ function endTurn(state: GameState, balance: Balance): GameState {
   next.players[player].festivalActive = false;
   // 買収者の割引はこのターン限り（次の startTurn でも消すが、相手の手番に残さない）
   next.players[player].acquireDiscount = 0;
+  // 職人の割引も同じくこのターン限り
+  next.players[player].upgradeDiscount = 0;
 
   const allBuilt = next.market.every((s) => s.owner !== null);
   const overTurnLimit = next.turn >= balance.maxTurnsPerPlayer * 2;
@@ -550,6 +575,13 @@ export function legalActions(
       for (const slot of state.market) {
         if (slot.owner !== player) {
           out.push({ type: 'useCard', card, blockadeSlot: slot.slotId });
+        }
+      }
+    } else if (card === 'inspector') {
+      // 対象は相手の物件だけ。相手が 1 件も持っていなければ撃てない
+      for (const slot of state.market) {
+        if (slot.owner !== null && slot.owner !== player) {
+          out.push({ type: 'useCard', card, inspectSlot: slot.slotId });
         }
       }
     } else {

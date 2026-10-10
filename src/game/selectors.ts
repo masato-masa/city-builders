@@ -117,6 +117,19 @@ export function upgradePriceOf(slot: BuildingSlot, balance: Balance = DEFAULT_BA
     : balance.upgrades[slot.buildingId].cost;
 }
 
+/** player がいまその区画をアップグレードするときに実際に払う額（このターンの職人の割引を織り込む。0 未満にはしない）。
+ *  最大レベルなら Infinity。 */
+export function upgradeCostFor(
+  state: GameState,
+  player: PlayerId,
+  slot: BuildingSlot,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
+  const price = upgradePriceOf(slot, balance);
+  if (!Number.isFinite(price)) return price;
+  return Math.max(0, price - state.players[player].upgradeDiscount);
+}
+
 /** 最終段階（balance.maxLevel）まで上げた物件か。最終段階の物件は買収されない。 */
 export function slotMaxed(slot: BuildingSlot, balance: Balance = DEFAULT_BALANCE): boolean {
   return slot.owner !== null && slot.level >= balance.maxLevel;

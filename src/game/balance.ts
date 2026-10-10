@@ -13,6 +13,21 @@ export const ALL_CARDS: readonly CardId[] = [
   'blockader',
 ];
 
+/** 既定のデッキ（いまの 10 枚）。createGame でデッキを省略したときに使う。 */
+export const DEFAULT_DECK: readonly CardId[] = ALL_CARDS;
+
+/** 既定のデッキに入っていない新しいカード。2 段目以降の抽選・ドラフトで入る。 */
+export const NEW_CARDS: readonly CardId[] = ['craftsman', 'inspector'];
+
+/** 存在するカードすべて（既定の 10 枚の後ろに新しいカード）。計測ツールの seed はこの並びの番号で決める。 */
+export const CARD_POOL: readonly CardId[] = [...ALL_CARDS, ...NEW_CARDS];
+
+/** 新しいカードを試すデッキ（設計書 §5 段 1）: 既定の 10 枚から祝祭・徴税官を抜き、職人・検査官を入れる。
+ *  役割で入れ替える（祝祭=次の収入を伸ばす ↔ 職人=上げて固める、徴税官=妨害 ↔ 検査官=妨害）。 */
+export const NEW_CARDS_DECK: readonly CardId[] = ALL_CARDS.map((c) =>
+  c === 'festival' ? 'craftsman' : c === 'taxman' ? 'inspector' : c,
+);
+
 export const CARD_NAMES: Record<CardId, string> = {
   miner: '採掘師',
   banker: '銀行家',
@@ -24,6 +39,8 @@ export const CARD_NAMES: Record<CardId, string> = {
   spy: '買収者',
   taxman: '徴税官',
   blockader: '封鎖者',
+  craftsman: '職人',
+  inspector: '検査官',
 };
 
 /** カードの説明文。開発者メニューで効果値を変えたら、この文中の数字も
@@ -50,6 +67,10 @@ export function cardTextFor(card: CardId, balance: Balance): string {
       return `次の相手のターン、収入を受け取ったあとの相手のコイン −${balance.taxmanAmount}（手持ちが足りなければ引けた分だけ）`;
     case 'blockader':
       return '市場の区画 1 つを指定する。空き地ならそこに建設させない。相手の物件ならその効果を止める';
+    case 'craftsman':
+      return `このターン、自分の物件のアップグレード費 −${balance.craftsmanDiscount}（Lv1→2・Lv2→3 のどちらにも効く。建設・買収には効かない）`;
+    case 'inspector':
+      return `相手の物件 1 件の Lv を 1 段下げる（Lv3→2・Lv2→1。払われた額はそのまま）。Lv1 の物件なら払われた額 −${balance.inspectorPaidCut}（買収が安くなる）。衛兵で防がれる`;
   }
 }
 
@@ -132,6 +153,10 @@ export interface Balance {
   guardCostWithWall: number;
   /** 街道（効果が生きているもの）を持っているときの伝令のコスト */
   heraldCostWithRoad: number;
+  /** 職人: このターンのアップグレード費の割引 */
+  craftsmanDiscount: number;
+  /** 検査官: Lv1 の物件に撃ったとき、払われた額（買収の価格の元）から引く額。0 未満にはしない */
+  inspectorPaidCut: number;
   buildings: Record<BuildingId, { cost: number; vp: number }>;
   tradingHouseIncome: number;
   factoryDiscount: number;
@@ -204,6 +229,9 @@ export const DEFAULT_BALANCE: Balance = {
     spy: { cost: 1 },
     taxman: { cost: 3 },
     blockader: { cost: 5 },
+    // 新しいカード（既定のデッキには入っていない。NEW_CARDS_DECK で測る）
+    craftsman: { cost: 2 },
+    inspector: { cost: 3 },
   },
   minerIncome: 3,
   // 銀行家 5 → 4・採掘師のコスト 2 → 3: 盲点を直した後の回転（ゲーム内 CPU）は銀行家・採掘師を禁止すると
@@ -215,6 +243,8 @@ export const DEFAULT_BALANCE: Balance = {
   spyAcquireDiscount: 3,
   guardCostWithWall: 0,
   heraldCostWithRoad: 0,
+  craftsmanDiscount: 5,
+  inspectorPaidCut: 5,
   buildings: {
     tradingHouse: { cost: 7, vp: 2 },
     wall: { cost: 10, vp: 2 },
