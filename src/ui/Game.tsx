@@ -13,7 +13,7 @@ import { createRng, type Rng } from '@/game/rng';
 import { handSlotsOf, ownedSlots, roadUsesRemaining, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { Action, CardId, GameState } from '@/game/types';
-import { loadProgress, saveProgress } from '@/storage/storage';
+import { loadProgress, saveProgress, withResult } from '@/storage/storage';
 
 import { BUILDING_ART, CARD_ART, FIELD_URL } from './art';
 import { Board, type IncomeFlash } from './Board';
@@ -40,7 +40,9 @@ import { Hand } from './Hand';
 import { OpponentStrip } from './OpponentStrip';
 import { stageCallout, playStageCue } from './income-stages';
 import { playIncome, runIncomeSequence, slotAtPoint, useLater } from './play-helpers';
+import { buildReview, streakLine } from './match-log';
 import { ResultScreen } from './ResultScreen';
+import { useMatchLog } from './use-match-log';
 import { Sheet } from './Sheets';
 import { cpuActionCallout } from './slot-actions';
 import { SlotSheet } from './SlotSheet';
@@ -187,15 +189,19 @@ export function Game({
         },
   );
 
+  // 試合の記録（使ったカード・建設・VP の推移）。結果画面の振り返りに使う。
+  const matchLog = useMatchLog(state, balance);
+  // 結果画面に出す連勝の 1 行。終局を記録した時点で決める。
+  const [streakText, setStreakText] = useState<string | null>(null);
+
   const recordIfFinished = (result: GameState) => {
     if (result.phase !== 'finished') return;
     const progress = loadProgress();
     const winner = winnerOf(result, balance);
-    saveProgress({
-      wins: progress.wins + (winner === 'you' ? 1 : 0),
-      losses: progress.losses + (winner === 'cpu' ? 1 : 0),
-      lastDifficulty: difficulty,
-    });
+    const outcome = winner === 'you' ? 'win' : winner === 'cpu' ? 'lose' : 'draw';
+    const next = withResult(progress, outcome, difficulty);
+    saveProgress(next);
+    setStreakText(streakLine(outcome, next.streak, progress.streak));
   };
 
   // CPU の手番の終わり。手番だけを替え、収入は帯を見せてから（下の useEffect が）反映する。
@@ -768,6 +774,7 @@ export function Game({
                     buildings: ownedSlots(state, 'you').length,
                   }}
                   winner={w === 'you' ? 'bottom' : w === 'cpu' ? 'top' : null}
+                  review={buildReview(matchLog(), state, balance, { you: 'あなた', cpu: 'CPU' }, 'you', streakText)}
                   onRestart={onRestart}
                   onExit={onExit}
                 />

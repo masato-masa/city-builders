@@ -1,8 +1,11 @@
 import { animate, motion, useMotionValue, useTransform } from 'motion/react';
 import { useEffect, useMemo } from 'react';
 
+import type { PlayerId } from '@/game/types';
+
 import { hapticTap } from './haptics';
 import { CrownIcon, StarIcon } from './icons';
+import { type ResultReview, type VpPoint, vpChartPaths } from './match-log';
 import { playUiTap } from './sound';
 
 export interface ResultSide {
@@ -24,10 +27,13 @@ export function ResultScreen({
   top,
   bottom,
   winner,
+  review,
   onRestart,
   onExit,
 }: {
   title: string;
+  /** 振り返り（差・勝敗を分けた 1 行・VP の推移・連勝）。 */
+  review?: ResultReview;
   /** 見出しの色。win = 金、lose = 灰青、draw = 白。 */
   tone: 'win' | 'lose' | 'draw';
   top: ResultSide;
@@ -53,6 +59,20 @@ export function ResultScreen({
         {title}
       </motion.h2>
 
+      {/* 連勝の行。出さないときも高さを取る（ある・なしで下の帯の位置が変わらないように）。 */}
+      <div className="result-streak-slot">
+        {review?.streak ? (
+          <motion.span
+            className={`result-streak${tone === 'lose' ? ' is-ended' : ''}`}
+            initial={{ scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 1.15, type: 'spring', stiffness: 520, damping: 18 }}
+          >
+            {review.streak}
+          </motion.span>
+        ) : null}
+      </div>
+
       <div className="result-sides">
         <ResultRibbon side={top} crowned={winner === 'top'} delay={0.3} from={-1} />
         <motion.span
@@ -66,6 +86,19 @@ export function ResultScreen({
         <ResultRibbon side={bottom} crowned={winner === 'bottom'} delay={0.42} from={1} />
       </div>
 
+      {review ? (
+        <motion.div
+          className="result-review"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.2, type: 'spring', stiffness: 420, damping: 32 }}
+        >
+          <p className="result-margin">{review.margin}</p>
+          <p className="result-moment">{review.moment?.text ?? ''}</p>
+          <VpChart points={review.vp} markTurn={review.moment?.turn ?? null} names={{ you: bottom.name, cpu: top.name }} />
+        </motion.div>
+      ) : null}
+
       <motion.div
         className="result-actions"
         initial={{ opacity: 0, y: 24 }}
@@ -73,7 +106,7 @@ export function ResultScreen({
         transition={{ delay: 1.35, type: 'spring', stiffness: 420, damping: 30 }}
       >
         <button
-          className="btn3d btn3d-yellow btn3d-lg"
+          className="btn3d btn3d-yellow btn3d-xl"
           onClick={() => {
             playUiTap();
             hapticTap();
@@ -83,7 +116,7 @@ export function ResultScreen({
           <span className="btn3d-label">もう一度</span>
         </button>
         <button
-          className="btn3d btn3d-blue btn3d-lg"
+          className="btn3d btn3d-blue result-home"
           onClick={() => {
             playUiTap();
             hapticTap();
@@ -136,6 +169,52 @@ function ResultRibbon({
       </span>
       <span className="result-buildings">物件 {side.buildings} 件</span>
     </motion.div>
+  );
+}
+
+/** VP の推移。軸は底の線だけ。勝敗を分けた手番に縦の点線を引く。
+ *  寸法は viewBox で固定し、幅に合わせて縦横同じ比率で伸ばす（高さは幅から決まり、データで変わらない）。 */
+const CHART_W = 300;
+const CHART_H = 56;
+
+function VpChart({
+  points,
+  markTurn,
+  names,
+}: {
+  points: VpPoint[];
+  markTurn: number | null;
+  names: Record<PlayerId, string>;
+}) {
+  const { you, cpu, maxVp, xOf, yOf } = useMemo(() => vpChartPaths(points, CHART_W, CHART_H), [points]);
+  const last = points[points.length - 1];
+  return (
+    <div className="result-chart">
+      <div className="result-chart-legend" aria-hidden="true">
+        <span className="is-you">{names.you}</span>
+        <span className="is-cpu">{names.cpu}</span>
+        <span className="result-chart-max">最大 {maxVp} VP</span>
+      </div>
+      <svg
+        className="result-chart-svg"
+        viewBox={`-4 -4 ${CHART_W + 8} ${CHART_H + 8}`}
+        role="img"
+        aria-label={`VP の推移。${names.you} ${last?.you ?? 0}、${names.cpu} ${last?.cpu ?? 0}`}
+      >
+        <line className="result-chart-axis" x1={0} y1={CHART_H} x2={CHART_W} y2={CHART_H} />
+        {markTurn !== null ? (
+          <line className="result-chart-mark" x1={xOf(markTurn)} y1={0} x2={xOf(markTurn)} y2={CHART_H} />
+        ) : null}
+        <path className="result-chart-line is-cpu" d={cpu} />
+        <path className="result-chart-line is-you" d={you} />
+        {last ? (
+          <>
+            <circle className="result-chart-dot is-cpu" cx={CHART_W} cy={yOf(last.cpu)} r={3} />
+            <circle className="result-chart-dot is-you" cx={CHART_W} cy={yOf(last.you)} r={3} />
+          </>
+        ) : null}
+      </svg>
+    </div>
   );
 }
 

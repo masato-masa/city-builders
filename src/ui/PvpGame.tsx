@@ -28,7 +28,9 @@ import { Hand } from './Hand';
 import { InfoBoard } from './InfoBoard';
 import { playStageCue, stageCallout } from './income-stages';
 import { playIncome, runIncomeSequence, slotAtPoint, useLater } from './play-helpers';
+import { buildReview } from './match-log';
 import { ResultScreen } from './ResultScreen';
+import { useMatchLog } from './use-match-log';
 import { Sheet } from './Sheets';
 import { SlotSheet } from './SlotSheet';
 import { TargetBanner } from './TargetBanner';
@@ -90,6 +92,8 @@ export function PvpGame({
   const [state, setState] = useState<GameState>(() => createGame(seed, balance, 'you'));
   const stateRef = useRef(state);
   stateRef.current = state;
+  // 試合の記録。結果画面の振り返りに使う。
+  const matchLog = useMatchLog(state, balance);
   const later = useLater();
   // 手番の受け渡し中（目隠し画面を出している間）。開始直後も 1 人目に渡す前提で出す。
   const [handoff, setHandoff] = useState(true);
@@ -673,7 +677,7 @@ export function PvpGame({
                 <ResultScreen
                   key="result"
                   title={w === 'you' ? 'あおの勝ち！' : w === 'cpu' ? 'あかの勝ち！' : '引き分け'}
-                  tone={w === null ? 'draw' : 'win'}
+                  tone={w === 'you' || w === 'cpu' ? 'win' : 'draw'}
                   top={{
                     name: 'あか',
                     tone: 'cpu',
@@ -687,6 +691,7 @@ export function PvpGame({
                     buildings: ownedSlots(state, 'you').length,
                   }}
                   winner={w === 'you' ? 'bottom' : w === 'cpu' ? 'top' : null}
+                  review={buildReview(matchLog(), state, balance, { you: 'あお', cpu: 'あか' }, null, null)}
                   onRestart={onRestart}
                   onExit={onExit}
                 />
