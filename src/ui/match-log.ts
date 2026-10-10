@@ -123,6 +123,11 @@ export function recordTransition(
 
 export type Names = Record<PlayerId, string>;
 
+/** 名前に助詞を付ける。英字で終わる名前（CPU）は「CPU が」のように半角空白を挟む（アプリ内の表記に合わせる）。 */
+export function particle(name: string, p: string): string {
+  return /[A-Za-z0-9]$/.test(name) ? ` ${p}` : p;
+}
+
 /** 各プレイヤーにとっての「ターン目」。手番は交互なので、先手・後手どちらでも ceil(turn / 2)。 */
 export function ownTurnOf(turn: number): number {
   return Math.ceil(turn / 2);
@@ -146,7 +151,7 @@ export function marginLine(
       ? `VP は同点、コイン ${coins[loser]} 対 ${coins[winner]} で負け。あと 1 VP で勝てた`
       : `あと ${diff + 1} VP で勝てた`;
   }
-  const subject = viewer === winner ? '' : `${names[winner]}が `;
+  const subject = viewer === winner ? '' : `${names[winner]}${particle(names[winner], 'が')} `;
   return diff === 0
     ? `${subject}VP 同点、コイン ${coins[winner]} 対 ${coins[loser]} で勝利`
     : `${subject}${diff} VP 差で勝利`;
@@ -180,7 +185,8 @@ export function decisiveMoment(
   const slots = log.events.filter((e): e is SlotEvent => e.kind !== 'card');
   if (slots.length === 0) return null;
   const who = (p: PlayerId) => names[p];
-  const at = (e: { turn: number; actor: PlayerId }) => `${who(e.actor)}の ${ownTurnOf(e.turn)} ターン目`;
+  const at = (e: { turn: number; actor: PlayerId }) =>
+    `${who(e.actor)}${particle(who(e.actor), 'の')} ${ownTurnOf(e.turn)} ターン目`;
 
   // 1. 逆転: 勝者から見て差が 0 以下 → 正 になり、その後一度も 0 以下に戻らなかった出来事。
   if (winner !== 'draw') {
@@ -225,12 +231,22 @@ export function decisiveMoment(
   if (bestTurn && bestTurnSwing > best.swing) {
     const e = bestTurn[0]!;
     const builds = bestTurn.filter((x) => x.kind === 'build').length;
-    const what = builds === bestTurn.length ? `${builds} 件建てた` : `${bestTurn.length} 回動かした`;
+    // 建設だけなら「3 件建てた」。混ざっていたら中身を並べる（「建設 2・買収 1」）。
+    const what =
+      builds === bestTurn.length
+        ? `${builds} 件建てた`
+        : (['build', 'acquire', 'upgrade'] as const)
+            .map((k) => [k, bestTurn!.filter((x) => x.kind === k).length] as const)
+            .filter(([, n]) => n > 0)
+            .map(([k, n]) => `${VERB[k]} ${n}`)
+            .join('・');
+    // 数字の前だけ半角空白（「に 3 件建てた」「に建設 1・買収 1」）。
+    const gap = /^\d/.test(what) ? ' ' : '';
     const festival = bestTurn.some((x) => x.festival);
     return {
       text: festival
-        ? `${who(e.actor)}が祝祭のターンに ${what}（差 +${bestTurnSwing} VP）`
-        : `${at(e)}に ${what}（差 +${bestTurnSwing} VP）`,
+        ? `${who(e.actor)}${particle(who(e.actor), 'が')}祝祭のターンに${gap}${what}（差 +${bestTurnSwing} VP）`
+        : `${at(e)}に${gap}${what}（差 +${bestTurnSwing} VP）`,
       turn: e.turn,
       actor: e.actor,
     };

@@ -174,8 +174,17 @@ describe('decisiveMoment（勝敗を分けた 1 行）', () => {
       'cpu',
       NAMES,
     );
-    expect(m?.text).toBe('CPUが祝祭のターンに 3 件建てた（差 +9 VP）');
+    expect(m?.text).toBe('CPU が祝祭のターンに 3 件建てた（差 +9 VP）');
     expect(m?.turn).toBe(7);
+  });
+
+  it('建設と買収が混ざった手番は中身を並べる', () => {
+    const m = decisiveMoment(
+      log([slotEvent(18, 'cpu', 'build', 0, 2), slotEvent(18, 'cpu', 'acquire', 2, 6)]),
+      'cpu',
+      NAMES,
+    );
+    expect(m?.text).toBe('CPU の 9 ターン目に建設 1・買収 1（差 +6 VP）');
   });
 
   it('記録が無ければ null', () => {
