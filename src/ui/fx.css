@@ -568,7 +568,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 22px;
+  gap: 14px;
   padding: 24px 0 calc(24px + env(safe-area-inset-bottom));
   background: radial-gradient(ellipse 80% 60% at 50% 45%, rgb(24 44 74 / 0.82) 0%, rgb(4 8 16 / 0.94) 100%);
   backdrop-filter: blur(3px);
@@ -726,10 +726,186 @@
 
 .result-actions {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   width: min(100% - 64px, 300px);
-  margin-top: 6px;
   z-index: 1;
+}
+
+/* 「もう一度」を一番大きく。「ホームへ」は一段控えめ（押しやすさは保つ 46px）。 */
+.btn3d-xl {
+  min-height: 68px;
+  font-size: 26px;
+  border-radius: 16px;
+}
+
+.result-home {
+  min-height: 46px;
+  font-size: 16px;
+}
+
+/* 連勝の行。空でも高さを取る。 */
+.result-streak-slot {
+  height: 26px;
+  display: grid;
+  place-items: center;
+  z-index: 1;
+}
+
+.result-streak {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 900;
+  color: #3a1e00;
+  background: linear-gradient(to bottom, #ffe45c, #ffb300);
+  box-shadow: 0 2px 0 #8a4f00;
+}
+
+.result-streak.is-ended {
+  color: #d6e4f2;
+  background: rgb(255 255 255 / 0.12);
+  box-shadow: none;
+}
+
+/* 振り返り。中身の長さで高さが変わらないよう、行数を固定する。 */
+.result-review {
+  width: min(100% - 24px, 380px);
+  box-sizing: border-box;
+  padding: 10px 14px 8px;
+  border-radius: 14px;
+  background: rgb(0 0 0 / 0.35);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  z-index: 1;
+}
+
+.result-margin {
+  margin: 0;
+  height: 22px;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 22px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.result-win .result-margin {
+  color: #ffe45c;
+}
+
+.result-moment {
+  margin: 2px 0 6px;
+  height: 36px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+  color: rgb(255 255 255 / 0.85);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.result-chart-legend {
+  display: flex;
+  gap: 12px;
+  height: 16px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 16px;
+  color: rgb(255 255 255 / 0.7);
+}
+
+.result-chart-legend .is-you::before,
+.result-chart-legend .is-cpu::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 3px;
+  margin: 0 4px 3px 0;
+  vertical-align: middle;
+  border-radius: 2px;
+  background: #4fb0ff;
+}
+
+.result-chart-legend .is-cpu::before {
+  background: #ff5a7a;
+}
+
+.result-chart-max {
+  margin-left: auto;
+}
+
+.result-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.result-chart-axis {
+  stroke: rgb(255 255 255 / 0.25);
+  stroke-width: 1;
+}
+
+.result-chart-mark {
+  stroke: #ffe45c;
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+  opacity: 0.8;
+}
+
+.result-chart-line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.result-chart-line.is-you {
+  stroke: #4fb0ff;
+}
+
+.result-chart-line.is-cpu {
+  stroke: #ff5a7a;
+}
+
+.result-chart-dot.is-you {
+  fill: #4fb0ff;
+}
+
+.result-chart-dot.is-cpu {
+  fill: #ff5a7a;
+}
+
+/* 縦の短い画面（iPhone SE など）。帯と間隔を詰めて、スクロールさせない。 */
+@media (max-height: 740px) {
+  .result {
+    gap: 10px;
+    padding-top: 14px;
+  }
+
+  .result-title {
+    font-size: 34px;
+  }
+
+  .result-sides {
+    gap: 4px;
+  }
+
+  .result-ribbon {
+    height: 66px;
+  }
+
+  .result-vs {
+    font-size: 22px;
+  }
+
+  .btn3d-xl {
+    min-height: 60px;
+  }
 }
 
 .confetti {
