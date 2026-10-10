@@ -3,14 +3,12 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { Difficulty } from '@/ai/choose';
 import {
-  BUILDING_NAMES,
-  buildingTextFor,
   CARD_NAMES,
   cardTextFor,
   DEFAULT_BALANCE,
   type Balance,
 } from '@/game/balance';
-import { buildCostFor, canBuild, canUseCard, canUseRoad, cardCostFor, reduce } from '@/game/reducer';
+import { canAcquire, canBuild, canUpgrade, canUseCard, canUseRoad, cardCostFor, reduce } from '@/game/reducer';
 import { createRng, type Rng } from '@/game/rng';
 import { handSlotsOf, ownedSlots, roadUsesRemaining, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
@@ -44,6 +42,8 @@ import { stageCallout, playStageCue } from './income-stages';
 import { playIncome, runIncomeSequence, slotAtPoint, useLater } from './play-helpers';
 import { ResultScreen } from './ResultScreen';
 import { Sheet } from './Sheets';
+import { cpuActionCallout } from './slot-actions';
+import { SlotSheet } from './SlotSheet';
 import { TargetBanner } from './TargetBanner';
 import {
   BUILD_EFFECT_DELAY_MS,
@@ -71,6 +71,8 @@ import {
   playReject,
   playSelect,
   playUiTap,
+  playAcquire,
+  playUpgrade,
   playUseCard,
   playWin,
   playYourTurn,
@@ -297,8 +299,14 @@ export function Game({
           ? { id, kind: 'card', art: CARD_ART[a.card], text: step.log }
           : a.type === 'useRoad'
             ? { id, kind: 'card', art: CARD_ART[a.target], text: step.log }
-            : a.type === 'build'
-              ? { id, kind: 'building', art: BUILDING_ART[state.market[a.slotId]!.buildingId]?.url, text: step.log }
+            : a.type === 'build' || a.type === 'upgrade' || a.type === 'acquire'
+              ? {
+                  id,
+                  kind: 'building',
+                  art: BUILDING_ART[state.market[a.slotId]!.buildingId]?.url,
+                  // アップグレード・買収は「CPU が◯◯を…」と主語から言う（自分の物件が奪われたと分かるように）
+                  text: cpuActionCallout(state, a) ?? step.log,
+                }
               : a.type === 'startTurn'
                 ? { id, kind: 'none', text: step.log }
                 : null,
@@ -309,6 +317,12 @@ export function Game({
     const apply = window.setTimeout(() => {
       if (a.type === 'build') {
         playBuild();
+        setCpuHighlightSlot(a.slotId);
+      } else if (a.type === 'upgrade') {
+        playUpgrade();
+        setCpuHighlightSlot(a.slotId);
+      } else if (a.type === 'acquire') {
+        playAcquire();
         setCpuHighlightSlot(a.slotId);
       } else if (a.type === 'startTurn' && step.stage) {
         playIncome(step.stage.amount);
@@ -398,6 +412,20 @@ export function Game({
     later(BUILD_EFFECT_DELAY_MS, () => {
       playBuild();
       setState(reduce(stateRef.current, { type: 'build', slotId }, balance));
+      setBusy(false);
+    });
+  };
+
+  /** 物件のアップグレード・買収。建設と同じ間合いで、光る／札が移る演出とコインの増減を一緒に出す
+   *  （演出は Board が Lv・持ち主の変化を見て出す。コインの増減は DELTA_POP に乗る）。 */
+  const commitSlotAction = (action: Extract<Action, { type: 'upgrade' | 'acquire' }>) => {
+    hapticBuild();
+    setBusy(true);
+    setSheet(null);
+    later(BUILD_EFFECT_DELAY_MS, () => {
+      if (action.type === 'upgrade') playUpgrade();
+      else playAcquire();
+      setState(reduce(stateRef.current, action, balance));
       setBusy(false);
     });
   };
@@ -514,7 +542,12 @@ export function Game({
             active={!finished && !cpuActing && state.current === 'you'}
             endTurnHint={
               !handSlotsOf(state, 'you').some((c) => c !== null && canUseCard(state, c, balance)) &&
-              !state.market.some((m) => canBuild(state, m.slotId, balance))
+              !state.market.some(
+                (m) =>
+                  canBuild(state, m.slotId, balance) ||
+                  canUpgrade(state, m.slotId, balance) ||
+                  canAcquire(state, m.slotId, balance),
+              )
             }
           />
           <Hand
@@ -559,44 +592,21 @@ export function Game({
       </main>
 
       <AnimatePresence>
-        {sheet?.kind === 'slot'
-          ? (() => {
-              const slot = state.market[sheet.slotId]!;
-              return (
-                <Sheet
-                  key="slot"
-                  title={BUILDING_NAMES[slot.buildingId]}
-                  subtitle={`コスト ${buildCostFor(state, 'you', sheet.slotId, balance)} ・ ${
-                    slot.buildingId === 'cathedral'
-                      ? `自分の他の物件 1 件につき +${balance.cathedralVpPerBuilding} VP`
-                      : `${balance.buildings[slot.buildingId].vp} VP`
-                  }`}
-                  onClose={() => setSheet(null)}
-                >
-                  <p className="sheet-text">{buildingTextFor(slot.buildingId, balance)}</p>
-                  {slot.owner === null && state.players.you.blockedSlot === sheet.slotId ? (
-                    <p className="sheet-text">
-                      相手の封鎖者に封鎖されています。解除されるまで建てられません。
-                    </p>
-                  ) : null}
-                  <button
-                    className="btn3d btn3d-yellow"
-                    disabled={locked || !canBuild(state, sheet.slotId, balance)}
-                    onClick={() => commitBuild(sheet.slotId)}
-                  >
-                    {/* 押せない理由をボタンの上で言う（灰色のボタンだけでは何が足りないか分からない）。 */}
-                    {slot.owner !== null
-                      ? '建設済み'
-                      : state.players['you'].blockedSlot === sheet.slotId
-                        ? '封鎖中'
-                        : canBuild(state, sheet.slotId, balance) || state.current !== 'you'
-                          ? '建てる'
-                          : `あと ${buildCostFor(state, 'you', sheet.slotId, balance) - state.players['you'].coins} コイン`}
-                  </button>
-                </Sheet>
-              );
-            })()
-          : null}
+        {sheet?.kind === 'slot' ? (
+          <SlotSheet
+            key="slot"
+            state={state}
+            slotId={sheet.slotId}
+            viewer={'you'}
+            balance={balance}
+            locked={locked}
+            ownerName={{ you: 'あなた', cpu: 'CPU' }}
+            onBuild={() => commitBuild(sheet.slotId)}
+            onUpgrade={() => commitSlotAction({ type: 'upgrade', slotId: sheet.slotId })}
+            onAcquire={() => commitSlotAction({ type: 'acquire', slotId: sheet.slotId })}
+            onClose={() => setSheet(null)}
+          />
+        ) : null}
       </AnimatePresence>
 
       <AnimatePresence>
@@ -699,6 +709,11 @@ export function Game({
             <p className="sheet-text">
               相手も同じ 10 種を持っています。徴税官でコインを奪われ、封鎖者で区画を 1 つ
               押さえられ、買収者で手札を 1 枚縛られます。衛兵を張るか、城壁を建てて防いでください。
+            </p>
+            <p className="sheet-text">
+              建った物件をタップすると、<b>アップグレード</b>（自分の物件を Lv2 に上げて VP と効果を増やす）と
+              <b>買収</b>（相手の物件を、これまでに払われたコイン＋{balance.acquireMarkup} で奪う。代金は相手に渡る）ができます。
+              どちらも手札は使いません。カードの「買収者」（手札を縛る）とは別の行動です。
             </p>
           </Sheet>
         ) : null}

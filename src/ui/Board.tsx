@@ -153,12 +153,26 @@ function PlotView({
   // 持ち主が付いた（変わった）瞬間だけ着地の演出を出す。描画中に前回の値と
   // 比べて数え上げる（effect で後から立てると、一瞬だけ着地後の絵が出てから
   // 跳ね上がる）。最初の描画では数えないので、画面を開いただけでは降ってこない。
+  // 空き地から建ったときだけ落とす。持ち主が替わった（買収）ときは建物は動かさず、
+  // 札が元の持ち主の側から新しい持ち主の側へ移る演出を出す。
   const [prevOwner, setPrevOwner] = useState(owner);
   const [landing, setLanding] = useState(0);
+  const [acquired, setAcquired] = useState<{ n: number; from: PlayerId; to: PlayerId } | null>(null);
   if (owner !== prevOwner) {
     setPrevOwner(owner);
-    if (owner !== null) setLanding((n) => n + 1);
+    if (owner !== null && prevOwner === null) setLanding((n) => n + 1);
+    else if (owner !== null && prevOwner !== null) {
+      setAcquired((a) => ({ n: (a?.n ?? 0) + 1, from: prevOwner, to: owner }));
+    }
   }
+  // Lv が上がった瞬間だけ「光って少し膨らむ」。最初の描画では出さない。
+  const [prevLevel, setPrevLevel] = useState(slot.level);
+  const [upgraded, setUpgraded] = useState(0);
+  if (slot.level !== prevLevel) {
+    setPrevLevel(slot.level);
+    if (owned && slot.level > prevLevel) setUpgraded((n) => n + 1);
+  }
+  const maxed = owned && slot.level >= 2;
 
   // 封鎖中の空き地。blockedSlot は「押せない」判定のためプレイヤーごとに
   // 持つ値だが、盤面はどちらの操作でも同じ 1 枚を共有しているので、
@@ -178,7 +192,7 @@ function PlotView({
   // 建った区画は plot-art の alt="" で物件名が読み上げに出ないので、
   // ボタン自体に物件名と VP を含む aria-label を付ける。
   const vpText = vpTextFor(state, slotId, balance);
-  const ariaLabel = `${BUILDING_NAMES[slot.buildingId]} ${vpText}${disabled ? ' 効果停止中' : ''}${blocked ? ' 封鎖中' : ''}`;
+  const ariaLabel = `${BUILDING_NAMES[slot.buildingId]}${maxed ? ' Lv2' : ''} ${vpText}${disabled ? ' 効果停止中' : ''}${blocked ? ' 封鎖中' : ''}`;
   const stateClass = [
     blocked ? 'is-blocked' : null,
     disabled ? 'is-disabled' : null,
@@ -202,6 +216,7 @@ function PlotView({
             tint の不透明度で出すので、建った瞬間にふわっと染まる。 */}
         <span className={`plot-base${ownerClass}`} aria-hidden="true">
           <span className="plot-base-tint" />
+          {maxed ? <span className="plot-lv2-rim" /> : null}
         </span>
         {/* 建物の足元の接地影。グローではなく影で台座に置く。 */}
         <span className={`plot-contact${owned ? '' : ' is-unbuilt'}`} aria-hidden="true" />
@@ -254,9 +269,55 @@ function PlotView({
                 opacity: { duration: 0.08 },
               }}
             >
-              <img className={`plot-art${ownerClass}`} src={art.url} alt="" draggable={false} />
+              {/* アップグレードの瞬間だけ少し膨らむ（transform なので区画の矩形は動かない）。 */}
+              <motion.span
+                key={`pulse-${upgraded}`}
+                className="plot-art-pulse"
+                initial={upgraded > 0 ? { scale: 1 } : false}
+                animate={upgraded > 0 ? { scale: [1, 1.16, 0.97, 1] } : { scale: 1 }}
+                transition={{ duration: 0.55, times: [0, 0.35, 0.7, 1], ease: 'easeOut' }}
+              >
+                <img className={`plot-art${ownerClass}`} src={art.url} alt="" draggable={false} />
+              </motion.span>
             </motion.span>
           </AnimatePresence>
+        ) : null}
+        {upgraded > 0 ? (
+          // アップグレードの光。金の輪が広がって消える（収入の光と同じ系統の色）。
+          <motion.span
+            key={`upglow-${upgraded}`}
+            className="plot-upgrade-glow"
+            aria-hidden="true"
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: [0, 1, 0], scale: [0.5, 1.15, 1.45] }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+          />
+        ) : null}
+        {acquired ? (
+          // 買収: 元の持ち主の色の札が、元の持ち主の側（盤面の上か下）から区画を通って
+          // 新しい持ち主の側へ移り、途中で新しい持ち主の色に替わる。
+          <span key={`deed-${acquired.n}`} className="plot-deed-track" aria-hidden="true">
+            {(['from', 'to'] as const).map((which) => {
+              const fromDy = acquired.from === 'cpu' ? -46 : 46;
+              const toDy = -fromDy;
+              const color = which === 'from' ? acquired.from : acquired.to;
+              return (
+                <motion.span
+                  key={which}
+                  className={`plot-deed owner-${color}`}
+                  initial={{ y: fromDy, opacity: 0, scale: 0.7 }}
+                  animate={{
+                    y: [fromDy, 0, 0, toDy * 0.35],
+                    opacity: which === 'from' ? [0, 1, 0, 0] : [0, 0, 1, 0],
+                    scale: [0.7, 1.1, 1.1, 0.9],
+                  }}
+                  transition={{ duration: 1.1, times: [0, 0.35, 0.6, 1], ease: 'easeInOut' }}
+                >
+                  買収
+                </motion.span>
+              );
+            })}
+          </span>
         ) : null}
         {landing > 0 && owned ? (
           <span key={`dust-${landing}`} className="plot-dust" aria-hidden="true">
@@ -276,7 +337,7 @@ function PlotView({
           <motion.span
             key={`flag-${owner}-${landing}`}
             className="plot-flag-wrap"
-            initial={landing > 0 ? { scaleY: 0 } : false}
+            initial={landing > 0 || acquired ? { scaleY: 0 } : false}
             animate={{ scaleY: 1 }}
             transition={{ delay: 0.22, type: 'spring', stiffness: 420, damping: 14 }}
           >
@@ -297,6 +358,14 @@ function PlotView({
       <span className={['plot-labels', ...stateClass].filter(Boolean).join(' ')} style={box} aria-hidden="true">
         {/* 名前は台座の前面に刻む。色は台座の前面（所有者色）が担う。 */}
         <span className="plot-name">{BUILDING_NAMES[slot.buildingId]}</span>
+        {/* Lv2 の印。旗の反対側（左）に金の星を立てる。持ち主の色（台座・旗・VP）は変えない。 */}
+        {maxed ? (
+          <span className="plot-level-badge" title="Lv2">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2.2l2.9 6.1 6.6.8-4.9 4.5 1.3 6.6L12 16.9l-5.9 3.3 1.3-6.6-4.9-4.5 6.6-.8z" />
+            </svg>
+          </span>
+        ) : null}
         <span className="plot-badges">
           {/* 実際にいま払う額を出す。建築家や石切場の割引が効いているターンは
               基準費用と食い違うので、基準費用を出すと画面が嘘の数字を出す。
