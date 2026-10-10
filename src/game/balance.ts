@@ -32,9 +32,6 @@ export const NEW_CARDS_DECK: readonly CardId[] = ALL_CARDS.map((c) =>
  *  残りは初心者でも分かる骨格（稼ぐ・建てる・回す）。抽選は残り 12 種から 6 枚。 */
 export const CORE_CARDS: readonly CardId[] = ['usurer', 'herald', 'miner', 'architect'];
 
-/** 影武者で写せない札。伝令（対象が手札で、写すと手札の並びが崩れる）・影武者自身・
- *  祝祭と衛兵（2 回目は何も起きない: 次の手番の祝祭・守りはもう立っている）。 */
-export const DOUBLE_EXCLUDED: readonly CardId[] = ['herald', 'double', 'festival', 'guard'];
 
 export const CARD_NAMES: Record<CardId, string> = {
   miner: '採掘師',
@@ -88,7 +85,10 @@ export function cardTextFor(card: CardId, balance: Balance): string {
     case 'informer':
       return `相手の「次」の札を見て、相手の山の底へ送る（相手が次に補充する札が 1 枚うしろにずれる）。衛兵で防がれる`;
     case 'double':
-      return `このターン直前に使った人物カードの効果をもう一度（そのカードの元のコストも払う）。対象が要る札は対象を選び直す。伝令・祝祭・衛兵には使えない`;
+      return `このターン直前に使った人物カードの効果をもう一度（そのカードの元のコストも払う）。対象が要る札は対象を選び直す。${balance.doubleExcluded
+        .filter((c) => c !== 'double')
+        .map((c) => CARD_NAMES[c])
+        .join('・')}には使えない`;
     case 'clerk':
       return `このターン コイン +${balance.clerkPerHouse} × 自分の商館の数（最大 ${balance.clerkMaxHouses} 件。効果を止められた商館は数えない）`;
   }
@@ -180,6 +180,9 @@ export interface Balance {
   /** 番頭: 商館 1 件あたりのコインと、数える商館の上限 */
   clerkPerHouse: number;
   clerkMaxHouses: number;
+  /** 影武者で写せない札。伝令（対象が手札で、写すと手札の並びが崩れる）・影武者自身・
+   *  祝祭と衛兵（2 回目は何も起きない: 次の手番の祝祭・守りはもう立っている）が最低限 */
+  doubleExcluded: CardId[];
   buildings: Record<BuildingId, { cost: number; vp: number }>;
   tradingHouseIncome: number;
   factoryDiscount: number;
@@ -279,6 +282,7 @@ export const DEFAULT_BALANCE: Balance = {
   inspectorPaidCut: 5,
   clerkPerHouse: 2,
   clerkMaxHouses: 3,
+  doubleExcluded: ['herald', 'double', 'festival', 'guard'],
   buildings: {
     tradingHouse: { cost: 7, vp: 2 },
     wall: { cost: 10, vp: 2 },

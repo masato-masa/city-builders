@@ -2,6 +2,7 @@
  *
  *   npm run lab            # 既定 400 試合 / 組
  *   npm run lab -- 1200
+ *   npm run lab -- 150 --deck=draw     # 抽選デッキ（試合ごと）。--deck=new・--deck=a,b,... も使える（scripts/deck-arg.ts）
  *
  * scripts/simulate.ts（先手有利や CPU の強さを測る別目的のツール）とは狙いが違う。
  * こちらは「性格の違う CPU を総当たりさせて、誰か 1 つが勝ち越さないか」を測る。
@@ -16,17 +17,23 @@ import { fileURLToPath } from 'node:url';
 
 import { chooseAction, type AiOptions } from '../src/ai/choose';
 import { DEFAULT_WEIGHTS, type Profile, type Weights } from '../src/ai/evaluate';
-import { ALL_CARDS, CARD_NAMES, type Balance } from '../src/game/balance';
+import { CARD_NAMES, type Balance } from '../src/game/balance';
 import { reduce } from '../src/game/reducer';
 import { createRng } from '../src/game/rng';
-import { handOf, opponentOf, winnerOf } from '../src/game/selectors';
+import { doubleSourceOf, handOf, opponentOf, winnerOf } from '../src/game/selectors';
 import { createGame } from '../src/game/setup';
 import type { CardId, GameState, PlayerId } from '../src/game/types';
 
 import { balanceFromEnv } from './balance-override';
+import { deckSpecFromArgs, decksOf } from './deck-arg';
 
 /** BALANCE='{...}' で数値を上書きして試せる（card-value と共通の口） */
 const DEFAULT_BALANCE: Balance = balanceFromEnv();
+
+/** 両者のデッキ（--deck=）。省略時は既定の 10 枚で、今までと同じ試合になる */
+const DECK = deckSpecFromArgs(process.argv.slice(2), DEFAULT_BALANCE);
+/** 表に並べるカード */
+const ALL_CARDS = DECK.cards;
 
 // ---------------------------------------------------------------------------
 // 性格（persona）
@@ -138,6 +145,10 @@ interface GameStats {
   titleMoves: number;
   /** 試合終了時の称号の数（性格 A / B） */
   endTitles: { A: number; B: number };
+  /** この試合のデッキ（両者共通） */
+  deck: readonly CardId[];
+  /** 影武者が写した札の回数 */
+  doubleSources: Partial<Record<CardId, number>>;
 }
 
 /** 先手を強制的に決める。createGame は seed から先手をランダムに決めるが、
@@ -160,8 +171,10 @@ function runOne(
   firstIsA: boolean,
   balance: Balance,
 ): GameStats {
-  let g = createGame(seed, balance);
+  const deck = DECK.deckFor(seed);
+  let g = createGame(seed, balance, undefined, decksOf(deck));
   g = forceFirst(g, firstIsA ? 'you' : 'cpu', balance);
+  const doubleSources: Partial<Record<CardId, number>> = {};
   const firstMover: 'A' | 'B' = firstIsA ? 'A' : 'B';
   // 'you' は常に性格 A、'cpu' は常に性格 B。先手/後手は forceFirst 側で制御する
   const optionsOf: Record<PlayerId, AiOptions> = { you: optionsA, cpu: optionsB };
@@ -229,6 +242,10 @@ function runOne(
       if (action.type === 'useCard') {
         usedAnyCard = true;
         cardUsage[who][action.card]++;
+        if (action.card === 'double') {
+          const src = doubleSourceOf(before, player, balance);
+          if (src) doubleSources[src] = (doubleSources[src] ?? 0) + 1;
+        }
         if (action.card === 'taxman') {
           const foe = opponentOf(player);
           taxmanTotal++;
@@ -305,6 +322,8 @@ function runOne(
       A: g.titles.filter((t) => t === 'you').length,
       B: g.titles.filter((t) => t === 'cpu').length,
     },
+    deck: deck ?? [...g.players.you.hand, ...g.players.you.queue].filter((c): c is CardId => c !== null),
+    doubleSources,
   };
 }
 
@@ -312,7 +331,7 @@ function runOne(
 // 総当たり
 // ---------------------------------------------------------------------------
 
-const GAMES_PER_PAIR = Number(process.argv[2] ?? 400);
+const GAMES_PER_PAIR = Number(process.argv.slice(2).find((a) => /^\d+$/.test(a)) ?? 400);
 const FIRST_HALF = Math.floor(GAMES_PER_PAIR / 2);
 const SECOND_HALF = GAMES_PER_PAIR - FIRST_HALF;
 
@@ -367,6 +386,18 @@ let taxmanWasted = 0;
 let taxmanTotal = 0;
 const globalCardUsage: Record<CardId, number> = emptyCardUsage();
 const deckCycleSamples: number[] = [];
+const doubleSourcesTotal: Partial<Record<CardId, number>> = {};
+/** カードが入っている試合の数・先手の得点・性格ごとの得点と試合数（抽選デッキで、入っている／いないを比べる） */
+const withCard = new Map<CardId, { games: number; first: number; score: number[]; played: number[]; moves: number; acq: number }>();
+const emptyWith = () => ({
+  games: 0,
+  first: 0,
+  score: new Array(N).fill(0) as number[],
+  played: new Array(N).fill(0) as number[],
+  moves: 0,
+  acq: 0,
+});
+let acquiresTotal = 0;
 
 for (let i = 0; i < N; i++) {
   for (let j = i + 1; j < N; j++) {
@@ -404,6 +435,26 @@ for (let i = 0; i < N; i++) {
         gamesMatrix[i]![j]! += 1;
         gamesMatrix[j]![i]! += 1;
 
+        for (const [c, n] of Object.entries(result.doubleSources) as [CardId, number][]) {
+          doubleSourcesTotal[c] = (doubleSourcesTotal[c] ?? 0) + n;
+        }
+        {
+          const firstWon = result.winner === 'draw' ? 0.5 : result.winner === result.firstMover ? 1 : 0;
+          const aScore = result.winner === 'draw' ? 0.5 : result.winner === 'A' ? 1 : 0;
+          for (const c of result.deck) {
+            const w = withCard.get(c) ?? emptyWith();
+            w.games++;
+            w.first += firstWon;
+            w.score[i]! += aScore;
+            w.score[j]! += 1 - aScore;
+            w.played[i]! += 1;
+            w.played[j]! += 1;
+            w.moves += result.titleMoves;
+            w.acq += result.acquires.A + result.acquires.B;
+            withCard.set(c, w);
+          }
+        }
+        acquiresTotal += result.acquires.A + result.acquires.B;
         turnsPerPlayerSum += result.turnsPerPlayer;
         globalTurns += result.totalTurns;
         bankedTurns += result.bankedTurns.A + result.bankedTurns.B;
@@ -474,6 +525,7 @@ const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 const avg = (values: number[]) => values.reduce((s, v) => s + v, 0) / values.length;
 
 console.log(`試合数: ${GAMES_PER_PAIR} / 組 × ${(N * (N - 1)) / 2} 組 = ${totalGames} 試合`);
+console.log(`デッキ: ${DECK.label}`);
 console.log('');
 
 console.log('## 表 1: 総当たりの勝率（行の性格から見た勝率。引き分けは 0.5 勝）');
@@ -656,6 +708,46 @@ for (const card of GUARD_CARDS) {
   );
 }
 console.log('');
+
+const doubleTotal = Object.values(doubleSourcesTotal).reduce((s, v) => s + (v ?? 0), 0);
+if (doubleTotal > 0) {
+  console.log('## 表 7: 影武者が写した札（全試合）');
+  console.log('');
+  console.log('| 写した札 | 回数 | 割合 |');
+  console.log('|---|---|---|');
+  for (const [c, n] of (Object.entries(doubleSourcesTotal) as [CardId, number][]).sort((a, b) => b[1] - a[1])) {
+    console.log(`| ${CARD_NAMES[c]} | ${n} | ${pct(n / doubleTotal)} |`);
+  }
+  console.log('');
+}
+
+if (DECK.kind === 'draw') {
+  console.log('## 表 8: 抽選デッキ — カードが入っている試合 / 入っていない試合');
+  console.log('');
+  console.log(`| カード | 入っている試合 | 先手勝率（入/無） | ${PERSONAS.map((p) => `${p.name}（入/無）`).join(' | ')} | 称号の移動（入/無） | 買収（入/無） |`);
+  console.log(`|---|---|---|${PERSONAS.map(() => '---').join('|')}|---|---|`);
+  const allFirst = firstMoverScore;
+  for (const c of ALL_CARDS) {
+    const w = withCard.get(c) ?? emptyWith();
+    const outGames = totalGames - w.games;
+    const firstIn = w.games > 0 ? w.first / w.games : NaN;
+    const firstOut = outGames > 0 ? (allFirst - w.first) / outGames : NaN;
+    const fmt = (v: number) => (Number.isFinite(v) ? pct(v) : '―');
+    const cells = PERSONAS.map((_, k) => {
+      const totalScore = winsMatrix[k]!.reduce((s, v) => s + v, 0);
+      const totalPlayed = gamesMatrix[k]!.reduce((s, v) => s + v, 0);
+      const inRate = w.played[k]! > 0 ? w.score[k]! / w.played[k]! : NaN;
+      const outPlayed = totalPlayed - w.played[k]!;
+      const outRate = outPlayed > 0 ? (totalScore - w.score[k]!) / outPlayed : NaN;
+      return `${fmt(inRate)} / ${fmt(outRate)}`;
+    });
+    const per = (v: number, n: number) => (n > 0 ? (v / n).toFixed(2) : '―');
+    console.log(
+      `| ${CARD_NAMES[c]} | ${pct(w.games / totalGames)} | ${fmt(firstIn)} / ${fmt(firstOut)} | ${cells.join(' | ')} | ${per(w.moves, w.games)} / ${per(titleMovesTotal - w.moves, outGames)} | ${per(w.acq, w.games)} / ${per(acquiresTotal - w.acq, outGames)} |`,
+    );
+  }
+  console.log('');
+}
 
 console.log('## 合格条件（今の姿を記録する基準線。いまは全部 ❌ でも構わない）');
 console.log('');

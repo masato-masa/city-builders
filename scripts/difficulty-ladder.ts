@@ -3,6 +3,7 @@
  *   npm run ladder              # 既定 200 試合 / 組
  *   npm run ladder -- 400       # 試合数を指定
  *   npm run ladder -- 100 hard  # 名前に「hard」を含む組だけ
+ *   npm run ladder -- 100 --deck=draw  # 抽選デッキ（試合ごと）。--deck=new・--deck=a,b,... も（scripts/deck-arg.ts）
  *
  * ゲーム内の CPU（optionsFor の やさしい・ふつう・つよい）を、
  *   1. 難易度同士
@@ -25,9 +26,13 @@ import { createGame } from '../src/game/setup';
 import type { Action, GameState, PlayerId } from '../src/game/types';
 
 import { balanceFromEnv } from './balance-override';
+import { deckSpecFromArgs, decksOf } from './deck-arg';
 
 /** BALANCE='{...}' で数値を上書きして試せる（lab・card-value と共通の口） */
 const balance = balanceFromEnv();
+
+/** 両者のデッキ（--deck=）。省略時は既定の 10 枚 */
+const DECK = deckSpecFromArgs(process.argv.slice(2), balance);
 
 // ---------------------------------------------------------------------------
 // 対戦相手
@@ -98,7 +103,7 @@ function playTurnOf(state: GameState, p: Player, rng: Rng): GameState {
 
 /** A から見た結果（1 勝 / 0.5 引き分け / 0 負け） */
 function playOne(seed: number, a: Player, b: Player, aFirst: boolean): number {
-  let g = forceFirst(createGame(seed, balance), aFirst ? 'you' : 'cpu');
+  let g = forceFirst(createGame(seed, balance, undefined, decksOf(DECK.deckFor(seed))), aFirst ? 'you' : 'cpu');
   const rng = createRng(seed * 65537 + 11);
   const of: Record<PlayerId, Player> = { you: a, cpu: b };
   for (let guard = 0; g.phase === 'playing' && guard < 100; guard++) {
@@ -114,7 +119,7 @@ function playOne(seed: number, a: Player, b: Player, aFirst: boolean): number {
 
 const args = process.argv.slice(2);
 const GAMES = Number(args.find((x) => /^\d+$/.test(x)) ?? 200);
-const filter = args.find((x) => !/^\d+$/.test(x));
+const filter = args.find((x) => !/^\d+$/.test(x) && !x.startsWith('--'));
 
 interface Pair {
   section: string;
@@ -145,6 +150,7 @@ const PAIRS: Pair[] = [
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 
 console.log(`# 難易度の段差（${GAMES} 試合 / 組、先手 ${Math.floor(GAMES / 2)}・後手 ${GAMES - Math.floor(GAMES / 2)}）\n`);
+console.log(`デッキ: ${DECK.label}\n`);
 console.log('| 区分 | 行 | 相手 | 勝率 | 誤差（±2σ） | 目標 | 判定 |');
 console.log('|---|---|---|---|---|---|---|');
 

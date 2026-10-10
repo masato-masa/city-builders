@@ -35,7 +35,7 @@ export function cardCostFor(
   let base = balance.cards[card].cost;
   // 影武者は写す札の元のコストも払う（城壁・街道・工場の割引は乗らない。写す札は「元のコスト」）
   if (card === 'double') {
-    const source = doubleSourceOf(state, player);
+    const source = doubleSourceOf(state, player, balance);
     if (source) base += balance.cards[source].cost;
   }
   // 物件との連携: 城壁があれば衛兵、街道があれば伝令が安くなる（効果が止められた物件は数えない）
@@ -65,7 +65,7 @@ export function canUseCard(
   if (!handOf(state, player, balance).includes(card)) return false;
   if (p.usedThisTurn.includes(card)) return false;
   // 影武者は写す札（このターン直前に使った札）が無ければ使えない。以下の対象の判定は写す札で行う
-  const eff = effectiveCardOf(state, player, card);
+  const eff = effectiveCardOf(state, player, card, balance);
   if (eff === null) return false;
   // 検査官は相手の物件が 1 件も無ければ撃つ先が無い
   if (eff === 'inspector' && !state.market.some((s) => s.owner !== null && s.owner !== player)) return false;
@@ -263,7 +263,7 @@ function useCard(
   const player = state.current;
   const foe = opponentOf(player);
   // 効果として起きる札（影武者なら写す札）。canUseCard を通っているので null ではない
-  const eff = effectiveCardOf(state, player, action.card)!;
+  const eff = effectiveCardOf(state, player, action.card, balance)!;
 
   // 対象を取るカードは、対象が妥当でなければ何も起きない（影武者は写す札の対象を取り直す）
   if (eff === 'herald') {
@@ -619,7 +619,7 @@ export function legalActions(
   for (const card of hand) {
     if (!canUseCard(state, card, balance)) continue;
     // 影武者は写す札の対象で展開する（伝令は写せない）
-    const eff = effectiveCardOf(state, player, card);
+    const eff = effectiveCardOf(state, player, card, balance);
     if (eff === 'boss') {
       for (const district of bossDistrictsOf(state, player, balance)) out.push({ type: 'useCard', card, district });
     } else if (card === 'herald') {

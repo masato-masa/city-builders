@@ -48,6 +48,7 @@ const FROZEN_BALANCE: Balance = {
   inspectorPaidCut: 5,
   clerkPerHouse: 2,
   clerkMaxHouses: 3,
+  doubleExcluded: ['herald', 'double', 'festival', 'guard'],
   buildings: {
     tradingHouse: { cost: 7, vp: 2 },
     wall: { cost: 10, vp: 2 },

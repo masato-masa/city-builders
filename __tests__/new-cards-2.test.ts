@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { evaluateState, exposedVpOf } from '@/ai/evaluate';
-import { CARD_POOL, cardTextFor, CORE_CARDS, DEFAULT_BALANCE, DOUBLE_EXCLUDED } from '@/game/balance';
+import { CARD_POOL, cardTextFor, CORE_CARDS, DEFAULT_BALANCE } from '@/game/balance';
 import { canUseCard, cardCostFor, legalActions, reduce } from '@/game/reducer';
 import { bossDistrictsOf, clerkGainOf, doubleSourceOf, scoreOf } from '@/game/selectors';
 import { createGame, drawDeck, validateDeck } from '@/game/setup';
@@ -195,7 +195,7 @@ describe('影武者', () => {
   });
 
   it('伝令・祝祭・衛兵は写せない。影武者のあとにもう一度は無い', () => {
-    for (const c of DOUBLE_EXCLUDED) expect(['herald', 'double', 'festival', 'guard']).toContain(c);
+    for (const c of B.doubleExcluded) expect(['herald', 'double', 'festival', 'guard']).toContain(c);
     let g = fixture(['double', 'herald', 'usurer', 'miner'], 20);
     g = reduce(g, { type: 'useCard', card: 'herald', heraldTarget: 'usurer' }, B);
     expect(canUseCard(g, 'double', B)).toBe(false);

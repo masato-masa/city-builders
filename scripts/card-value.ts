@@ -5,6 +5,7 @@
  *   BALANCE='{"spyBindCount":3}' npm run card-value -- 300 spy   # 数値を上書きして試す
  *   npm run card-value -- 400 --deck=new                # 新カード入りのデッキ（NEW_CARDS_DECK）で全カード
  *   npm run card-value -- 400 --deck=miner,banker,...   # デッキを並べて指定（両者同じデッキ）
+ *   npm run card-value -- 400 --deck=draw               # 抽選デッキ。カードごとに「そのカードが入った抽選デッキ」だけで測る（全 16 枚）
  *
  * 同じ性格（均衡）の CPU 同士を戦わせ、片方（A）だけがそのカードに加点・減点をつける。
  *   - 禁止: A はそのカードを使わない。A の勝率が 50% より低いほど、そのカードは価値がある。
@@ -14,14 +15,15 @@
  * 先手・後手は同数ずつ。seed は引数だけから決まるので、同じコマンドは同じ結果になる。 */
 import { chooseAction, type AiOptions } from '../src/ai/choose';
 import { DEFAULT_PROFILE } from '../src/ai/evaluate';
-import { CARD_NAMES, CARD_POOL, DEFAULT_DECK, NEW_CARDS_DECK, type Balance } from '../src/game/balance';
+import { CARD_NAMES, CARD_POOL, type Balance } from '../src/game/balance';
 import { reduce } from '../src/game/reducer';
 import { createRng } from '../src/game/rng';
 import { opponentOf, winnerOf } from '../src/game/selectors';
-import { createGame, validateDeck } from '../src/game/setup';
+import { createGame, drawDeck } from '../src/game/setup';
 import type { CardId, GameState, PlayerId } from '../src/game/types';
 
 import { balanceFromEnv } from './balance-override';
+import { deckSpecFromArgs } from './deck-arg';
 
 /** BALANCE='{"bankerIncome":9,"cards":{"guard":{"cost":1}}}' のように環境変数で数値を上書きして試せる。
  *  中身は scripts/balance-override.ts（lab と共通）。 */
@@ -29,30 +31,30 @@ const DEFAULT_BALANCE: Balance = balanceFromEnv();
 
 const args = process.argv.slice(2);
 const games = Number(args.find((a) => /^\d+$/.test(a)) ?? 200);
-/** 両者が使うデッキ。--deck=new は NEW_CARDS_DECK、--deck=a,b,... は並べたカード。省略時は既定の 10 枚。 */
-function deckFromArgs(): readonly CardId[] {
-  const arg = args.find((a) => a.startsWith('--deck='))?.slice('--deck='.length);
-  if (!arg) return DEFAULT_DECK;
-  if (arg === 'new') return NEW_CARDS_DECK;
-  const list = arg.split(',').map((c) => c.trim()) as CardId[];
-  for (const c of list) if (!(CARD_POOL as readonly string[]).includes(c)) throw new Error(`知らないカード: ${c}`);
-  return list;
+/** 両者が使うデッキ（scripts/deck-arg.ts）。省略時は既定の 10 枚。 */
+const SPEC = deckSpecFromArgs(args, DEFAULT_BALANCE);
+
+/** 抽選のとき、カード card が入った抽選デッキを seed から 1 つ決める（入るまで seed をずらす）。
+ *  固定のデッキならそのまま。 */
+function deckFor(card: CardId, seed: number): readonly CardId[] {
+  if (SPEC.kind !== 'draw') return SPEC.deckFor(seed) ?? SPEC.cards;
+  for (let j = 0; ; j++) {
+    const d = drawDeck(seed * 31 + j, DEFAULT_BALANCE);
+    if (d.includes(card)) return d;
+  }
 }
-const DECK = deckFromArgs();
-const deckError = validateDeck(DECK, DEFAULT_BALANCE);
-if (deckError) throw new Error(deckError);
 
 const named = args.filter((a) => (CARD_POOL as readonly string[]).includes(a)) as CardId[];
-const cards = named.length > 0 ? named : [...DECK];
+const cards = named.length > 0 ? named : [...SPEC.cards];
 
 const BASE: AiOptions = { noise: 0, harassRate: 1, lookahead: false, profile: DEFAULT_PROFILE };
 
 /** 全試合を通した、建設・アップグレード・買収の回数（新ルールが使われているかの目安） */
 const totals = { games: 0, build: 0, upgrade: 0, acquire: 0 };
 
-function play(seed: number, a: AiOptions, aFirst: boolean): 'A' | 'B' | 'draw' {
+function play(seed: number, a: AiOptions, aFirst: boolean, deck: readonly CardId[]): 'A' | 'B' | 'draw' {
   totals.games++;
-  let g: GameState = createGame(seed, DEFAULT_BALANCE, undefined, { you: DECK, cpu: DECK });
+  let g: GameState = createGame(seed, DEFAULT_BALANCE, undefined, { you: deck, cpu: deck });
   if (g.current !== (aFirst ? 'you' : 'cpu')) {
     const first: PlayerId = aFirst ? 'you' : 'cpu';
     const second = opponentOf(first);
@@ -88,7 +90,9 @@ function rate(card: CardId, bonus: number): number {
     const aFirst = k % 2 === 0;
     // CARD_POOL は既定の 10 枚が先頭に同じ順で並ぶので、既定のカードの seed は前と同じ
     const seed = (CARD_POOL.indexOf(card) + 1) * 1_000_000 + (bonus > 0 ? 500_000 : 0) + k;
-    const r = play(seed, { ...BASE, cardBonus: { [card]: bonus } }, aFirst);
+    // 禁止と優先で同じデッキ（抽選なら同じ 10 枚）を使う
+    const deck = deckFor(card, (CARD_POOL.indexOf(card) + 1) * 1_000_000 + k);
+    const r = play(seed, { ...BASE, cardBonus: { [card]: bonus } }, aFirst, deck);
     score += r === 'A' ? 1 : r === 'draw' ? 0.5 : 0;
   }
   return (score / games) * 100;
@@ -97,7 +101,7 @@ function rate(card: CardId, bonus: number): number {
 // 標準誤差の目安: 試合数 n のとき 50% 付近で 50/√n
 const se = (50 / Math.sqrt(games)).toFixed(1);
 console.log(`試合数 ${games}/件（誤差の目安 ±${se}%、2 倍で約 95%）`);
-console.log(`デッキ: ${DECK.map((c) => CARD_NAMES[c]).join('・')}\n`);
+console.log(`デッキ: ${SPEC.label}\n`);
 console.log('| カード | 禁止したときの勝率 | 優先したときの勝率 | 読み取り |');
 console.log('|---|---|---|---|');
 for (const card of cards) {

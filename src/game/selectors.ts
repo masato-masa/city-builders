@@ -2,7 +2,6 @@ import {
   buildingEffect,
   buildingVp,
   DEFAULT_BALANCE,
-  DOUBLE_EXCLUDED,
   type Balance,
   type Level2EffectKey,
 } from './balance';
@@ -343,18 +342,27 @@ export function festivalExtraOf(
 // 2 段目の新カード（顔役・影武者・番頭）
 // ---------------------------------------------------------------------------
 
-/** 影武者がいま写す札（このターン直前に使った人物カード）。写せない札（DOUBLE_EXCLUDED）や、
+/** 影武者がいま写す札（このターン直前に使った人物カード）。写せない札（balance.doubleExcluded）や、
  *  まだ 1 枚も使っていなければ null。 */
-export function doubleSourceOf(state: GameState, player: PlayerId): CardId | null {
+export function doubleSourceOf(
+  state: GameState,
+  player: PlayerId,
+  balance: Balance = DEFAULT_BALANCE,
+): CardId | null {
   const used = state.players[player].usedThisTurn;
   const last = used[used.length - 1];
-  if (!last || DOUBLE_EXCLUDED.includes(last)) return null;
+  if (!last || last === 'double' || balance.doubleExcluded.includes(last)) return null;
   return last;
 }
 
 /** 使う札の効果として実際に起きるカード。影武者は直前の札（写せなければ null）、それ以外はその札。 */
-export function effectiveCardOf(state: GameState, player: PlayerId, card: CardId): CardId | null {
-  return card === 'double' ? doubleSourceOf(state, player) : card;
+export function effectiveCardOf(
+  state: GameState,
+  player: PlayerId,
+  card: CardId,
+  balance: Balance = DEFAULT_BALANCE,
+): CardId | null {
+  return card === 'double' ? doubleSourceOf(state, player, balance) : card;
 }
 
 /** 顔役で称号を取れる地区。件数が自分と相手で同じ（1 件以上）で、称号がまだ自分のものでない地区。 */
