@@ -1,14 +1,41 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import { BUILDING_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { buildCostFor } from '@/game/reducer';
-import { vpOfSlot } from '@/game/selectors';
+import { districtCounts, titleHolder, vpOfSlot } from '@/game/selectors';
 import type { GameState, PlayerId } from '@/game/types';
 
 import { BUILDING_ART } from './art';
-import { PLOTS, PLOT_HEIGHT, PLOT_WIDTH, STREET_JUNCTIONS, STREET_Y, STUBS, rowOf } from './board-layout';
+import {
+  DISTRICT_TAGS,
+  PLOTS,
+  PLOT_HEIGHT,
+  PLOT_WIDTH,
+  STREET_JUNCTIONS,
+  STREET_Y,
+  STUBS,
+  districtBorders,
+  rowOf,
+  type Segment,
+} from './board-layout';
 import { ChainIcon } from './icons';
+import { playTitle } from './sound';
+
+/** 称号の持ち主が替わったら音を鳴らす（盤面に見えた瞬間に合わせるため、盤面が受け取る状態で見る）。
+ *  viewer が取ったら明るく、奪われたら沈む。最初の描画と、誰も持っていない → 持つ、の両方で鳴らす
+ *  （初めて取ったときも称号が動いた瞬間）。 */
+function useTitleCue(state: GameState, viewer: PlayerId) {
+  const prev = useRef(state.titles);
+  useEffect(() => {
+    const before = prev.current;
+    prev.current = state.titles;
+    if (before === state.titles || !before) return;
+    const changed = state.titles.findIndex((t, i) => t !== null && t !== (before[i] ?? null));
+    if (changed < 0) return;
+    playTitle(state.titles[changed] === viewer);
+  }, [state.titles, viewer]);
+}
 
 /** 大聖堂だけ VP が「自分の他の物件 1 件につき +N」で決まるため、未所有だと
  *  vpOfSlot が 0 を返す。未建設のときだけ、その決まり方が分かる表示に変える
@@ -48,7 +75,7 @@ const DUST = Array.from({ length: 10 }, (_, k) => {
 /** 道。通り（横）は中立の石畳色。台座から伸びる縦の道と、同じ持ち主の区画どうしを
  *  つなぐ通りの区間は持ち主の色に塗る（クラロワで陣地ごとに道の色が違うのと同じ）。
  *  座標は viewBox 100×150（盤面 2:3）。 */
-function Roads({ state }: { state: GameState }) {
+function Roads({ state, borders }: { state: GameState; borders: Segment[] }) {
   const owner = (slotId: number) => state.market[slotId]?.owner ?? null;
   const Y = (y: number) => y * 150;
   const X = (x: number) => x * 100;
@@ -105,7 +132,74 @@ function Roads({ state }: { state: GameState }) {
           />
         );
       })}
+      {/* 地区の境界。道の上に細い点線で重ねる（持ち主の色は使わない。識別色は台座・旗・道が持つ）。 */}
+      <g className="district-border">
+        {borders.map((b, k) => (
+          <line key={`d${k}`} x1={X(b.x1)} x2={X(b.x2)} y1={Y(b.y1)} y2={Y(b.y2)} />
+        ))}
+      </g>
     </svg>
+  );
+}
+
+/** 地区の名札と称号の旗。盤面の端（建物の無いところ）に縦書きで置く。
+ *  称号の持ち主が替わった瞬間だけ、名札が弾んで「称号 +N」の札が浮かぶ（どちらも絶対配置で、寸法は動かない）。 */
+function DistrictTag({
+  index,
+  name,
+  holder,
+  counts,
+  titleVp,
+  viewer,
+}: {
+  index: number;
+  name: string;
+  holder: PlayerId | null;
+  counts: Record<PlayerId, number>;
+  titleVp: number;
+  viewer: PlayerId;
+}) {
+  const foe = viewer === 'you' ? 'cpu' : 'you';
+  const pos = DISTRICT_TAGS[Math.min(index, DISTRICT_TAGS.length - 1)]!;
+  const [prev, setPrev] = useState(holder);
+  const [moved, setMoved] = useState(0);
+  if (holder !== prev) {
+    setPrev(holder);
+    if (holder !== null) setMoved((n) => n + 1);
+  }
+  const style: CSSProperties = { top: `${pos.top * 100}%`, [pos.side]: '1.2%' };
+  return (
+    <span
+      className={`district-tag side-${pos.side}${holder ? ` owner-${holder}` : ' is-unclaimed'}`}
+      style={style}
+      data-district={index}
+      aria-label={`${name} ${holder ? `称号 ${holder === viewer ? '自分' : '相手'}` : '称号なし'}（自分 ${counts[viewer]} 件・相手 ${counts[foe]} 件）`}
+    >
+      <motion.span
+        key={`pop-${moved}`}
+        className="district-tag-body"
+        initial={moved > 0 ? { scale: 1 } : false}
+        animate={moved > 0 ? { scale: [1, 1.35, 0.95, 1] } : { scale: 1 }}
+        transition={{ duration: 0.6, times: [0, 0.3, 0.7, 1], ease: 'easeOut' }}
+      >
+        <span className="district-flag" aria-hidden="true">
+          {holder ? <Flag owner={holder} /> : <span className="district-flag-empty" />}
+        </span>
+        <span className="district-name">{name}</span>
+      </motion.span>
+      {moved > 0 && holder ? (
+        <motion.span
+          key={`chip-${moved}`}
+          className={`district-chip owner-${holder}`}
+          aria-hidden="true"
+          initial={{ opacity: 0, y: 6, scale: 0.6 }}
+          animate={{ opacity: [0, 1, 1, 0], y: [6, -4, -10, -18], scale: [0.6, 1.15, 1, 1] }}
+          transition={{ duration: 1.4, times: [0, 0.2, 0.75, 1], ease: 'easeOut' }}
+        >
+          称号 +{titleVp}
+        </motion.span>
+      ) : null}
+    </span>
   );
 }
 
@@ -410,10 +504,27 @@ export function Board({
   flash?: IncomeFlash | null;
   onPick: (slotId: number) => void;
 }) {
+  const districts = balance.districts;
+  const borders = useMemo(
+    () => districtBorders((slotId) => districts.findIndex((d) => d.slots.includes(slotId))),
+    [districts],
+  );
+  useTitleCue(state, viewer);
   // 地（背景）は持たない。画面全体の地（.app-play）がそのまま続いて見える。
   return (
     <div className={`board${dropArmed ? ' is-drop-armed' : ''}`}>
-      <Roads state={state} />
+      <Roads state={state} borders={borders} />
+      {districts.map((d, i) => (
+        <DistrictTag
+          key={`district-${i}`}
+          index={i}
+          name={d.name}
+          holder={titleHolder(state, i)}
+          counts={districtCounts(state, i, balance)}
+          titleVp={balance.districtTitleVp}
+          viewer={viewer}
+        />
+      ))}
       {state.market.map((slot) =>
         PLOTS[slot.slotId] ? (
           <PlotView

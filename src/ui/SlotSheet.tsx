@@ -3,7 +3,7 @@ import { buildCostFor, canBuild } from '@/game/reducer';
 import type { GameState, PlayerId } from '@/game/types';
 
 import { Sheet } from './Sheets';
-import { acquireButton, acquireNote, levelEffects, upgradeButton, type SlotButton } from './slot-actions';
+import { acquireButton, acquireNote, districtNote, levelEffects, upgradeButton, type SlotButton } from './slot-actions';
 
 /** 区画をタップしたときのシート。CPU 戦と 2 人対戦で共有する。
  *  空き地 → 建てる / 自分の物件 → アップグレード / 相手の物件 → 買収。
@@ -38,6 +38,7 @@ export function SlotSheet({
   const { current, next } = levelEffects(state, slotId, balance);
   const owned = slot.owner !== null;
   const disabledByBlockade = owned && state.players[slot.owner!].disabledSlot === slotId;
+  const district = districtNote(state, slotId, viewer, balance, ownerName);
   const subtitle = owned
     ? `${ownerName[slot.owner!]}の物件 ・ Lv${current.level} ・ ${current.vp}`
     : `コスト ${buildCostFor(state, viewer, slotId, balance)} ・ ${current.vp}`;
@@ -68,6 +69,7 @@ export function SlotSheet({
         </p>
       )}
       {disabledByBlockade ? <p className="sheet-text">封鎖者に効果を止められています（VP は残ります）。</p> : null}
+      {district ? <p className="sheet-text district-note">{district}</p> : null}
 
       {!owned ? (
         <>

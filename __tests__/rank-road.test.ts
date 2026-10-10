@@ -144,6 +144,15 @@ describe('実績', () => {
     expect(achievementsMet(ctx({ final }))).not.toContain('level2x4');
   });
 
+  it('3 つの地区の称号を全部持って勝つ（終局の称号で数える）', () => {
+    const final = createGame(1, DEFAULT_BALANCE);
+    final.titles = ['you', 'you', 'you'];
+    expect(achievementsMet(ctx({ final }))).toContain('allTitles');
+    expect(achievementsMet(ctx({ final, outcome: 'lose' }))).not.toContain('allTitles');
+    final.titles = ['you', 'cpu', 'you'];
+    expect(achievementsMet(ctx({ final }))).not.toContain('allTitles');
+  });
+
   it('10 VP 以上離されてからの逆転勝ち', () => {
     const vp = [
       { turn: 1, you: 0, cpu: 0 },

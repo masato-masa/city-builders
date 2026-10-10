@@ -4,7 +4,17 @@
 
 import { BUILDING_NAMES, buildingTextFor, buildingVp, type Balance } from '@/game/balance';
 import { canAcquire, canUpgrade } from '@/game/reducer';
-import { acquireCostFor, opponentOf, slotLocked, upgradePriceOf, vpOfSlot } from '@/game/selectors';
+import {
+  acquireCostFor,
+  districtCounts,
+  districtOfSlot,
+  opponentOf,
+  slotLocked,
+  titleHolder,
+  titleVpSwing,
+  upgradePriceOf,
+  vpOfSlot,
+} from '@/game/selectors';
 import type { Action, GameState, PlayerId } from '@/game/types';
 
 /** Lv の上限。これ以上は上げられない（upgradePriceOf が Infinity を返す）。 */
@@ -95,6 +105,36 @@ export function acquireNote(state: GameState, slotId: number, balance: Balance):
   const discount = state.players[state.current].acquireDiscount;
   const spy = discount > 0 && slot.owner !== state.current ? ` − 買収者 ${discount}` : '';
   return `これまでに払われた ${slot.paid} コイン ＋ ${balance.acquireMarkup}${spy}。代金は相手に渡り、物件と VP が移ります`;
+}
+
+/** 区画のシートに出す地区の 1 行。取れば称号が来る／奪われると称号を失う、を先に言い、
+ *  どちらでもなければ地区の件数と称号の持ち主を言う。names は持ち主の呼び名。 */
+export function districtNote(
+  state: GameState,
+  slotId: number,
+  viewer: PlayerId,
+  balance: Balance,
+  names: Record<PlayerId, string>,
+): string | null {
+  const d = districtOfSlot(slotId, balance);
+  const slot = state.market[slotId];
+  if (d < 0 || !slot || balance.districtTitleVp <= 0) return null;
+  const name = balance.districts[d]!.name;
+  const foe = opponentOf(viewer);
+  const vp = balance.districtTitleVp;
+  if (slot.owner !== viewer) {
+    if (titleVpSwing(state, slotId, viewer, viewer, balance) > 0) {
+      return `${slot.owner === null ? '建てる' : '買収する'}と${name}の称号（+${vp} VP）が${names[viewer]}に来ます`;
+    }
+  } else if (titleVpSwing(state, slotId, foe, viewer, balance) < 0) {
+    return `買収されると${name}の称号（${vp} VP）を失います`;
+  }
+  const counts = districtCounts(state, d, balance);
+  const holder = titleHolder(state, d);
+  const tally = `${names[viewer]} ${counts[viewer]} 件・${names[foe]} ${counts[foe]} 件`;
+  return holder === null
+    ? `${name}: ${tally}。多く持つ側に称号（+${vp} VP）`
+    : `${name}: ${tally}。称号は${names[holder]}`;
 }
 
 export interface LevelEffect {

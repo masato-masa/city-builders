@@ -410,6 +410,22 @@ export function playAcquire(): void {
   });
 }
 
+/** 地区の称号が動いた: 伝令のラッパ（horn）で知らせ、取ったならきらめき（cardBuff）、
+ *  奪われたならコインがこぼれる音（coinLose）を重ねる。専用の音源は持たない（既存の音の組み合わせ）。
+ *  建設・買収の音と同じ瞬間に起きるので、間引きに消されないよう force で鳴らし、少し遅らせて後ろに置く。 */
+export function playTitle(gained: boolean): void {
+  play(true, (c) => {
+    const delay = 0.32;
+    const horn = sample(c, 'horn', 0.03, delay);
+    const after = gained ? sample(c, 'cardBuff', 0.04, delay + 0.12) : sample(c, 'coinLose', 0.05, delay + 0.12);
+    if (horn || after) return;
+    const notes = gained ? [523, 659, 784] : [587, 494, 392];
+    notes.forEach((freq, i) => {
+      tone(c, { freq, duration: 0.16, type: 'triangle', gain: 0.1, delay: delay + i * 0.09 });
+    });
+  });
+}
+
 /** コインが増える。増えた額が大きい（BIG_COIN_DELTA 以上）ときはじゃらっと大きい音。 */
 export function playCoinGain(delta: number): void {
   play(false, (c) => coinGain(c, delta));

@@ -29,7 +29,7 @@ function myCards(c: AchievementContext) {
 function mySlotEvents(c: AchievementContext, kind?: 'build' | 'upgrade' | 'acquire') {
   return c.log.events.filter(
     (e): e is Extract<typeof e, { kind: 'build' | 'upgrade' | 'acquire' }> =>
-      e.kind !== 'card' && e.actor === ME && (kind === undefined || e.kind === kind),
+      e.kind !== 'card' && e.kind !== 'title' && e.actor === ME && (kind === undefined || e.kind === kind),
   );
 }
 
@@ -95,6 +95,12 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
       }
       return [...perTurn.values()].some((n) => n >= 2);
     },
+  },
+  {
+    id: 'allTitles',
+    name: '三地区の主',
+    text: '3 つの地区の称号を全部持って勝つ',
+    test: (c) => won(c) && c.final.titles.length >= 3 && c.final.titles.every((t) => t === ME),
   },
   {
     id: 'comeback',

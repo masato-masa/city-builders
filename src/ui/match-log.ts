@@ -20,8 +20,14 @@ export type MatchEvent =
       marginAfter: number;
       /** 直前の VP 差（行為者から見た値）。 */
       marginBefore: number;
+      /** この出来事で行為者が取った地区の称号の名前（取っていなければ無し）。 */
+      title?: string;
+      /** 相手から奪った称号か（誰も持っていなかった称号を取ったなら false）。 */
+      titleStolen?: boolean;
     }
-  | { kind: 'card'; turn: number; actor: PlayerId; card: CardId };
+  | { kind: 'card'; turn: number; actor: PlayerId; card: CardId }
+  /** 地区の称号の持ち主が替わった（from が null なら初めて取った）。 */
+  | { kind: 'title'; turn: number; actor: PlayerId; district: number; name: string; from: PlayerId | null };
 
 export interface VpPoint {
   turn: number;
@@ -96,13 +102,29 @@ export function recordTransition(
       marginAfter,
     });
   }
+  // 地区の称号: 持ち主が替わった地区。動かした物件の出来事にも、取った称号の名前を付ける
+  const titleEvents: MatchEvent[] = [];
+  next.titles?.forEach((holder, i) => {
+    const was = prev.titles?.[i] ?? null;
+    if (holder === null || holder === was) return;
+    const name = balance.districts[i]?.name ?? '';
+    titleEvents.push({ kind: 'title', turn: next.turn, actor: holder, district: i, name, from: was });
+    const cause = slotEvents.find(
+      (e) => e.kind !== 'card' && e.kind !== 'title' && e.actor === holder && balance.districts[i]?.slots.includes(e.slotId),
+    );
+    if (cause && cause.kind !== 'card' && cause.kind !== 'title') {
+      cause.title = name;
+      cause.titleStolen = was !== null;
+    }
+  });
+
   // 同じ差分に 2 件以上あると swing を分けられないので、件数で割る（まとめて反映されたときだけ）。
   if (slotEvents.length > 1) {
     for (const e of slotEvents) {
-      if (e.kind !== 'card') e.swing = Math.round(e.swing / slotEvents.length);
+      if (e.kind !== 'card' && e.kind !== 'title') e.swing = Math.round(e.swing / slotEvents.length);
     }
   }
-  events.push(...slotEvents);
+  events.push(...slotEvents, ...titleEvents);
 
   const point: VpPoint = { turn: next.turn, you: youAfter, cpu: cpuAfter };
   const last = log.vp[log.vp.length - 1];
@@ -172,6 +194,12 @@ const VERB: Record<'build' | 'upgrade' | 'acquire', string> = {
 
 type SlotEvent = Extract<MatchEvent, { kind: 'build' | 'upgrade' | 'acquire' }>;
 
+/** 出来事が称号を動かしていたら、その一言（「（城下の称号ごと）」）。 */
+function titleSuffix(e: SlotEvent): string {
+  if (!e.title) return '';
+  return e.titleStolen ? `（${e.title}の称号ごと奪取）` : `（${e.title}の称号も獲得）`;
+}
+
 /** 記録から、勝敗を一番動かした出来事を選んで 1 行にする。
  *  1. 勝者が最後に前に出て、そのまま逃げ切った出来事（逆転）
  *  2. 1 手番でまとめて VP を動かした手番（2 件以上で、単発の最大より大きいとき）
@@ -182,7 +210,7 @@ export function decisiveMoment(
   winner: PlayerId | 'draw',
   names: Names,
 ): DecisiveMoment | null {
-  const slots = log.events.filter((e): e is SlotEvent => e.kind !== 'card');
+  const slots = log.events.filter((e): e is SlotEvent => e.kind !== 'card' && e.kind !== 'title');
   if (slots.length === 0) return null;
   const who = (p: PlayerId) => names[p];
   const at = (e: { turn: number; actor: PlayerId }) =>
@@ -201,7 +229,7 @@ export function decisiveMoment(
     if (lastTakeover && lastTakeover.actor === winner && marginBeforeFor(lastTakeover) < 0) {
       const e = lastTakeover;
       return {
-        text: `${at(e)}、${BUILDING_NAMES[e.buildingId]}の${VERB[e.kind]}で逆転`,
+        text: `${at(e)}、${BUILDING_NAMES[e.buildingId]}の${VERB[e.kind]}で逆転${titleSuffix(e)}`,
         turn: e.turn,
         actor: e.actor,
       };
@@ -254,7 +282,13 @@ export function decisiveMoment(
 
   const verb = best.kind === 'build' ? '建てた' : best.kind === 'upgrade' ? 'アップグレードした' : '買収した';
   return {
-    text: `${at(best)}に${BUILDING_NAMES[best.buildingId]}を${verb}${best.swing > 0 ? `（差 +${best.swing} VP）` : ''}`,
+    text: `${at(best)}に${BUILDING_NAMES[best.buildingId]}を${verb}${
+      best.title
+        ? `。${best.title}の称号${best.titleStolen ? 'ごと' : 'も取り'}差 +${best.swing} VP`
+        : best.swing > 0
+          ? `（差 +${best.swing} VP）`
+          : ''
+    }`,
     turn: best.turn,
     actor: best.actor,
   };

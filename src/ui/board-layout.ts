@@ -68,6 +68,89 @@ export const STUBS: readonly Stub[] = PLOTS.flatMap((p, slotId) => {
   return out;
 });
 
+/** 区画の受け持ち範囲（地区の境界を引くため）。段の帯（縦 0.25 ずつ）を、同じ段の区画どうしの
+ *  中間で左右に切った矩形。どの区画もちょうど 1 つの矩形を持ち、盤面を隙間なく覆う。 */
+export interface Cell {
+  slotId: number;
+  x1: number;
+  x2: number;
+  y1: number;
+  y2: number;
+}
+
+export const CELLS: readonly Cell[] = PLOTS.map((p, slotId) => {
+  const row = rowOf(slotId);
+  const xs = PLOTS.filter((_, i) => rowOf(i) === row)
+    .map((q) => q.x)
+    .sort((a, b) => a - b);
+  const k = xs.indexOf(p.x);
+  return {
+    slotId,
+    x1: k === 0 ? 0 : (xs[k - 1]! + p.x) / 2,
+    x2: k === xs.length - 1 ? 1 : (p.x + xs[k + 1]!) / 2,
+    y1: row / ROW_Y.length,
+    y2: (row + 1) / ROW_Y.length,
+  };
+});
+
+export interface Segment {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/** 地区の境界線。隣り合う受け持ち範囲の地区が違うところだけを線にする（盤面の外周は引かない）。
+ *  districtOf は区画番号 → 地区の番号（地区に入っていなければ -1）。 */
+export function districtBorders(districtOf: (slotId: number) => number): Segment[] {
+  const out: Segment[] = [];
+  const rows = ROW_Y.length;
+  const inRow = (r: number) => CELLS.filter((c) => rowOf(c.slotId) === r).sort((a, b) => a.x1 - b.x1);
+  for (let r = 0; r < rows; r++) {
+    const cells = inRow(r);
+    // 同じ段の左右の境目
+    for (let k = 0; k + 1 < cells.length; k++) {
+      if (districtOf(cells[k]!.slotId) !== districtOf(cells[k + 1]!.slotId)) {
+        out.push({ x1: cells[k]!.x2, y1: cells[k]!.y1, x2: cells[k]!.x2, y2: cells[k]!.y2 });
+      }
+    }
+    // 下の段との境目。両段の切れ目で区間に分け、上下で地区が違う区間をつなげて 1 本にする
+    if (r + 1 >= rows) continue;
+    const below = inRow(r + 1);
+    const y = cells[0]!.y2;
+    const cuts = [...new Set([...cells, ...below].flatMap((c) => [c.x1, c.x2]))].sort((a, b) => a - b);
+    let start: number | null = null;
+    for (let k = 0; k + 1 < cuts.length; k++) {
+      const mid = (cuts[k]! + cuts[k + 1]!) / 2;
+      const up = cells.find((c) => c.x1 <= mid && mid < c.x2)!;
+      const down = below.find((c) => c.x1 <= mid && mid < c.x2)!;
+      const differs = districtOf(up.slotId) !== districtOf(down.slotId);
+      if (differs && start === null) start = cuts[k]!;
+      if (!differs && start !== null) {
+        out.push({ x1: start, y1: y, x2: cuts[k]!, y2: y });
+        start = null;
+      }
+    }
+    if (start !== null) out.push({ x1: start, y1: y, x2: 1, y2: y });
+  }
+  return out;
+}
+
+/** 地区の名札の置き場所（盤面の幅・高さに対する割合）。建物の無い盤面の端に縦書きで置く。
+ *  balance.districts の並びに対応する。地区を増やしたらここも足す（足りなければ最後の位置を使う）。 */
+export interface DistrictTagPos {
+  /** 左右どちらの端に寄せるか */
+  side: 'left' | 'right';
+  /** 名札の上端 */
+  top: number;
+}
+
+export const DISTRICT_TAGS: readonly DistrictTagPos[] = [
+  { side: 'left', top: 0.012 },
+  { side: 'right', top: 0.515 },
+  { side: 'left', top: 0.515 },
+];
+
 export interface Junction {
   slotId: number;
   x: number;

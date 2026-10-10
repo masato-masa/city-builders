@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_BALANCE } from '@/game/balance';
+import { reduce } from '@/game/reducer';
 import { createRng } from '@/game/rng';
 import { scoreOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
@@ -59,8 +60,36 @@ describe('recordTransition（差分から記録）', () => {
     // 買収は自分の VP が増え、相手の VP が減るので、建設より大きく差が動く。
     const acquire = log.events[3]!;
     const build = log.events[1]!;
-    if (acquire.kind === 'card' || build.kind === 'card') throw new Error('unexpected');
+    if (acquire.kind === 'card' || build.kind === 'card' || acquire.kind === 'title' || build.kind === 'title') {
+      throw new Error('unexpected');
+    }
     expect(acquire.swing).toBeGreaterThan(build.swing);
+  });
+
+  it('地区の称号の移動を拾い、動かした物件の出来事に称号の名前を付ける', () => {
+    let s0 = createGame(1, B);
+    s0 = { ...s0, current: 'you', turn: 3 };
+    s0.players.you.coins = 50;
+    s0.players.cpu.coins = 50;
+    const slot = B.districts[0]!.slots[0]!;
+    const name = B.districts[0]!.name;
+    let log = createMatchLog(s0, B);
+    const s1 = reduce(s0, { type: 'build', slotId: slot }, B);
+    log = recordTransition(log, s0, s1, B);
+    const s2 = reduce(s1, { type: 'endTurn' }, B);
+    log = recordTransition(log, s1, s2, B);
+    const s3 = reduce(s2, { type: 'acquire', slotId: slot }, B);
+    log = recordTransition(log, s2, s3, B);
+
+    const titles = log.events.filter((e) => e.kind === 'title');
+    expect(titles).toEqual([
+      { kind: 'title', turn: 3, actor: 'you', district: 0, name, from: null },
+      { kind: 'title', turn: 4, actor: 'cpu', district: 0, name, from: 'you' },
+    ]);
+    const acquire = log.events.find((e) => e.kind === 'acquire');
+    expect(acquire && acquire.kind === 'acquire' ? [acquire.title, acquire.titleStolen] : null).toEqual([name, true]);
+    // 勝敗を分けた出来事の文に称号が出る
+    expect(decisiveMoment(log, 'cpu', NAMES)?.text).toContain(`${name}の称号`);
   });
 
   it('同じ状態なら何も足さない（StrictMode で 2 回呼ばれても同じ）', () => {

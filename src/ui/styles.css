@@ -937,6 +937,105 @@
   background: var(--owner-cpu);
 }
 
+/* 地区の境界。道の上の細い点線。持ち主の色は使わない（台座・旗・道の色が識別の情報なので）。
+   viewBox は縦横で伸びるので、線の太さと点線の間隔は画面の px で固定する。 */
+.district-border line {
+  stroke: rgb(255 238 204 / 0.42);
+  stroke-width: 1.5px;
+  stroke-dasharray: 5px 5px;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* 地区の名札。盤面の端（建物の無いところ）に縦書きで置く。上に称号の旗。
+   寸法は固定（旗の有無・持ち主で幅も高さも変わらない）。 */
+.district-tag {
+  position: absolute;
+  z-index: 6;
+  width: 7.5cqw;
+  pointer-events: none;
+}
+
+.district-tag-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8cqw;
+  padding: 1.2cqw 0 1.4cqw;
+  border-radius: 3.6cqw;
+  background: rgb(20 16 12 / 0.5);
+  box-shadow: inset 0 0 0 1px rgb(255 238 204 / 0.18);
+}
+
+.district-tag.owner-you .district-tag-body {
+  box-shadow: inset 0 0 0 1.5px var(--owner-you-glow);
+}
+
+.district-tag.owner-cpu .district-tag-body {
+  box-shadow: inset 0 0 0 1.5px var(--owner-cpu-glow);
+}
+
+.district-flag {
+  display: block;
+  width: 4cqw;
+  height: 6.2cqw;
+}
+
+/* 誰も持っていない地区は、旗竿だけの空の旗 */
+.district-flag-empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-left: 0.5cqw solid rgb(255 238 204 / 0.35);
+  margin-left: 0.4cqw;
+}
+
+.district-name {
+  writing-mode: vertical-rl;
+  color: rgb(255 246 228 / 0.92);
+  font-size: max(9px, 3cqw);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.7);
+}
+
+/* 称号が動いた瞬間に浮かぶ札。名札の横に絶対配置で出す（寸法は動かない）。 */
+.district-chip {
+  position: absolute;
+  top: 0;
+  padding: 0.5cqw 1.6cqw;
+  border-radius: 3cqw;
+  color: #fff;
+  font-size: max(9.5px, 3.2cqw);
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 0.5cqw 0 rgb(0 0 0 / 0.35);
+}
+
+.district-tag.side-left .district-chip {
+  left: 100%;
+  margin-left: 1cqw;
+}
+
+.district-tag.side-right .district-chip {
+  right: 100%;
+  margin-right: 1cqw;
+}
+
+.district-chip.owner-you {
+  background: var(--owner-you);
+}
+
+.district-chip.owner-cpu {
+  background: var(--owner-cpu);
+}
+
+/* 区画のシートの地区の 1 行（取ると称号が来る、など）。本文より少し強く */
+.sheet-text.district-note {
+  font-weight: 700;
+}
+
 /* 自分の情報ボードの見込み表示（2 段目）。「次いくら」が読めることで、
    今建てるか次のターンに回すかを比べられる。 */
 .coinbar-forecast {
