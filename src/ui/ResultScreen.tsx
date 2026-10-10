@@ -2,10 +2,12 @@ import { animate, motion, useMotionValue, useTransform } from 'motion/react';
 import { useEffect, useMemo } from 'react';
 
 import type { PlayerId } from '@/game/types';
+import type { RankChange } from '@/meta/rank';
 
 import { hapticTap } from './haptics';
 import { CrownIcon, StarIcon } from './icons';
 import { type ResultReview, type VpPoint, vpChartPaths } from './match-log';
+import { RankResult } from './RankRoad';
 import { playUiTap } from './sound';
 
 export interface ResultSide {
@@ -28,12 +30,15 @@ export function ResultScreen({
   bottom,
   winner,
   review,
+  rank,
   onRestart,
   onExit,
 }: {
   title: string;
   /** 振り返り（差・勝敗を分けた 1 行・VP の推移・連勝）。 */
   review?: ResultReview;
+  /** 段位の増減と、新しく手に入った実績（CPU 戦のみ。2 人対戦は渡さない）。 */
+  rank?: { change: RankChange; unlocked: string[] };
   /** 見出しの色。win = 金、lose = 灰青、draw = 白。 */
   tone: 'win' | 'lose' | 'draw';
   top: ResultSide;
@@ -72,6 +77,8 @@ export function ResultScreen({
           </motion.span>
         ) : null}
       </div>
+
+      {rank ? <RankResult change={rank.change} unlocked={rank.unlocked} delay={1.45} /> : null}
 
       <div className="result-sides">
         <ResultRibbon side={top} crowned={winner === 'top'} delay={0.3} from={-1} />

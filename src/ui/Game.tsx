@@ -8,6 +8,9 @@ import { createRng, type Rng } from '@/game/rng';
 import { handSlotsOf, ownedSlots, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { Action, CardId, GameState } from '@/game/types';
+import type { RankChange } from '@/meta/rank';
+import { settleMatch } from '@/meta/settle';
+import { loadMeta, saveMeta } from '@/storage/meta';
 import { loadProgress, saveProgress, withResult } from '@/storage/storage';
 
 import { BUILDING_ART, CARD_ART, FIELD_URL } from './art';
@@ -40,7 +43,7 @@ import { Hand } from './Hand';
 import { OpponentStrip } from './OpponentStrip';
 import { stageCallout, playStageCue } from './income-stages';
 import { playIncome, runIncomeSequence, slotAtPoint, useLater } from './play-helpers';
-import { buildReview, streakLine } from './match-log';
+import { buildReview, recordTransition, streakLine } from './match-log';
 import { ResultScreen } from './ResultScreen';
 import { useMatchLog } from './use-match-log';
 import { Sheet } from './Sheets';
@@ -198,6 +201,9 @@ export function Game({
   // 結果画面に出す連勝の 1 行。終局を記録した時点で決める。
   const [streakText, setStreakText] = useState<string | null>(null);
 
+  // 結果画面に出す段位の増減と、新しく手に入った実績。
+  const [rankResult, setRankResult] = useState<{ change: RankChange; unlocked: string[] } | null>(null);
+
   const recordIfFinished = (result: GameState) => {
     if (result.phase !== 'finished') return;
     const progress = loadProgress();
@@ -206,6 +212,11 @@ export function Game({
     const next = withResult(progress, outcome, difficulty);
     saveProgress(next);
     setStreakText(streakLine(outcome, next.streak, progress.streak));
+    // 記録はまだ最後の差分（いま画面にある状態 → 終局）を積んでいないので、ここで足してから判定する。
+    const log = recordTransition(matchLog(), stateRef.current, result, balance);
+    const settled = settleMatch(loadMeta(), { log, final: result, outcome, difficulty, streak: next.streak });
+    saveMeta(settled.meta);
+    setRankResult({ change: settled.rank, unlocked: settled.unlocked });
   };
 
   // CPU の手番の終わり。手番だけを替え、収入は帯を見せてから（下の useEffect が）反映する。
@@ -776,6 +787,7 @@ export function Game({
                   }}
                   winner={w === 'you' ? 'bottom' : w === 'cpu' ? 'top' : null}
                   review={buildReview(matchLog(), state, balance, { you: 'あなた', cpu: 'CPU' }, 'you', streakText)}
+                  rank={rankResult ?? undefined}
                   onRestart={onRestart}
                   onExit={onExit}
                 />
