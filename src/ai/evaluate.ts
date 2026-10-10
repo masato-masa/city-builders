@@ -95,6 +95,20 @@ export function weightsAt(profile: Profile, state: GameState, balance: Balance):
   return result;
 }
 
+/** player にこの先「開始フェーズ」（収入・投資・祝祭・借り・徴税の解決）がまだ 1 回来るなら 1、来ないなら 0。
+ *  投資・祝祭・借り・徴税はどれも次の開始フェーズで初めて効くので、来ない（試合がその前に終わる）なら価値も 0。
+ *  終わり方は endTurn と同じ規則で見る: ターンの上限か、全区画が埋まった手番の終わり。 */
+export function nextStartsOf(
+  state: GameState,
+  player: PlayerId,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
+  if (state.phase !== 'playing') return 0;
+  if (state.market.every((s) => s.owner !== null)) return 0;
+  const nextTurn = state.current === player ? state.turn + 2 : state.turn + 1;
+  return nextTurn <= balance.maxTurnsPerPlayer * 2 ? 1 : 0;
+}
+
 /** いまの所持コインで、このターン中に実際に買えるもの（空き区画の建設・自分の物件の
  *  アップグレード・相手の物件の買収）を、増える VP の高い順に貪欲に買っていったときの、
  *  増えた VP の合計。建築家の割引・石切場の追加割引・すでに建てた件数を buildCostFor と
@@ -107,6 +121,10 @@ export function reachOf(
 ): number {
   const p = state.players[player];
   const foe = opponentOf(player);
+  // 建築家の割引・このターンの建設数は、その手番の中でだけ使える。手番を終えた後（相手の手番）に
+  // 残っている値は次の startTurn で消えるので、次に買うときの値段には乗らない
+  const ownTurn = state.phase === 'playing' && state.current === player;
+  const buildDiscount = ownTurn ? p.buildDiscount : 0;
   const quarryExtra = activeEffectMax(state, player, 'quarry', 'quarryExtraDiscount', balance);
 
   type Candidate = { vp: number; cost: (builds: number) => number; isBuild: boolean };
@@ -120,8 +138,8 @@ export function reachOf(
         vp: b.vp + titleVpSwing(state, s.slotId, player, player, balance),
         isBuild: true,
         cost: (builds) => {
-          let discount = p.buildDiscount;
-          if (p.buildDiscount > 0 && builds >= 1) discount += quarryExtra;
+          let discount = buildDiscount;
+          if (buildDiscount > 0 && builds >= 1) discount += quarryExtra;
           return Math.max(0, b.cost - discount);
         },
       });
@@ -146,7 +164,7 @@ export function reachOf(
   candidates.sort((a, b) => b.vp - a.vp);
 
   let coins = p.coins;
-  let builds = p.buildsThisTurn;
+  let builds = ownTurn ? p.buildsThisTurn : 0;
   let totalVp = 0;
 
   for (const c of candidates) {
@@ -211,6 +229,8 @@ export function evaluateState(
   const p = state.players[player];
   const foeState = state.players[foe];
   const late = lateness(state, balance);
+  const myNext = nextStartsOf(state, player, balance);
+  const foeNext = nextStartsOf(state, foe, balance);
 
   const incomePerTurn = incomePerTurnOf(state, player, balance);
   const opponentIncome = incomePerTurnOf(state, foe, balance);
@@ -239,18 +259,19 @@ export function evaluateState(
     foeState.coins * weights.opponentCoin +
     stuck * weights.stuck +
     opponentStuck * weights.opponentStuck +
-    p.pendingIncome.length * weights.pendingIncome * 4 +
+    // 投資・祝祭・借り・徴税は次の開始フェーズで解決する。それが来なければ（試合の最後の手番）価値は 0
+    myNext * p.pendingIncome.length * weights.pendingIncome * 4 +
     // 祝祭は次の収入に 1 度だけ上乗せされる（毎ターンの収入ではない）。投資カードと同じ物差しで数える
-    festivalExtraOf(state, player, balance) * weights.pendingIncome +
-    festivalExtraOf(state, foe, balance) * weights.opponentCoin +
+    myNext * festivalExtraOf(state, player, balance) * weights.pendingIncome +
+    foeNext * festivalExtraOf(state, foe, balance) * weights.opponentCoin +
     incomePerTurn * weights.incomePerTurn * (1 - late) +
     opponentIncome * weights.opponentIncome +
     ownedSlots(state, player).length * 2 +
     reach * weights.reach +
     opponentReach * weights.opponentReach +
-    p.pendingDebt * weights.debt +
+    myNext * p.pendingDebt * weights.debt +
     // 徴税官で相手に課した徴収は、自分の借りの裏返しとして得になる
-    (foeState.pendingTax - p.pendingTax) * -weights.debt +
+    (foeNext * foeState.pendingTax - myNext * p.pendingTax) * -weights.debt +
     guarded * weights.guarded +
     exposed * weights.exposed * (0.5 + late)
   );
