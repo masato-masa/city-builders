@@ -16,7 +16,7 @@
     "audit-art": "node scripts/audit-art.mjs",
     "optimize-art": "node scripts/optimize-art.mjs",
     "audit-contrast": "node scripts/audit-contrast.mjs",
-    "deploy": "npm run build && node scripts/deploy.mjs",
+    "deploy": "npm test && npm run build && node scripts/deploy.mjs",
     "ladder": "tsx scripts/difficulty-ladder.ts"
   },
   "dependencies": {
