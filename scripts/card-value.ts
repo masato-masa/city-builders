@@ -12,23 +12,18 @@
  * 先手・後手は同数ずつ。seed は引数だけから決まるので、同じコマンドは同じ結果になる。 */
 import { chooseAction, type AiOptions } from '../src/ai/choose';
 import { DEFAULT_PROFILE } from '../src/ai/evaluate';
-import { ALL_CARDS, CARD_NAMES, DEFAULT_BALANCE as BASE_BALANCE, type Balance } from '../src/game/balance';
+import { ALL_CARDS, CARD_NAMES, type Balance } from '../src/game/balance';
 import { reduce } from '../src/game/reducer';
 import { createRng } from '../src/game/rng';
 import { opponentOf, winnerOf } from '../src/game/selectors';
 import { createGame } from '../src/game/setup';
 import type { CardId, GameState, PlayerId } from '../src/game/types';
 
+import { balanceFromEnv } from './balance-override';
+
 /** BALANCE='{"bankerIncome":9,"cards":{"guard":{"cost":1}}}' のように環境変数で数値を上書きして試せる。
- *  ソースを書き換えずに、数値を振った結果を比べるための口。cards は 1 枚ずつ重ねる。 */
-const override = JSON.parse(process.env.BALANCE ?? '{}') as Partial<Balance> & {
-  cards?: Record<string, { cost: number }>;
-};
-const DEFAULT_BALANCE: Balance = {
-  ...BASE_BALANCE,
-  ...override,
-  cards: { ...BASE_BALANCE.cards, ...(override.cards as Balance['cards'] | undefined) },
-};
+ *  中身は scripts/balance-override.ts（lab と共通）。 */
+const DEFAULT_BALANCE: Balance = balanceFromEnv();
 
 const args = process.argv.slice(2);
 const games = Number(args.find((a) => /^\d+$/.test(a)) ?? 200);
@@ -37,7 +32,11 @@ const cards = named.length > 0 ? named : [...ALL_CARDS];
 
 const BASE: AiOptions = { noise: 0, harassRate: 1, lookahead: false, profile: DEFAULT_PROFILE };
 
+/** 全試合を通した、建設・アップグレード・買収の回数（新ルールが使われているかの目安） */
+const totals = { games: 0, build: 0, upgrade: 0, acquire: 0 };
+
 function play(seed: number, a: AiOptions, aFirst: boolean): 'A' | 'B' | 'draw' {
+  totals.games++;
   let g: GameState = createGame(seed, DEFAULT_BALANCE);
   if (g.current !== (aFirst ? 'you' : 'cpu')) {
     const first: PlayerId = aFirst ? 'you' : 'cpu';
@@ -57,6 +56,9 @@ function play(seed: number, a: AiOptions, aFirst: boolean): 'A' | 'B' | 'draw' {
       if (action.type === 'endTurn') break;
       const applied = reduce(next, action, DEFAULT_BALANCE);
       if (applied === next) break;
+      if (action.type === 'acquire') totals.acquire++;
+      if (action.type === 'upgrade') totals.upgrade++;
+      if (action.type === 'build') totals.build++;
       next = applied;
     }
     g = reduce(next, { type: 'endTurn' }, DEFAULT_BALANCE);
@@ -90,3 +92,9 @@ for (const card of cards) {
   const note2 = push > 50 + lim ? ' / 優先すると勝つ＝CPU が使い足りない' : push < 50 - lim ? ' / 優先すると負ける' : '';
   console.log(`| ${CARD_NAMES[card]} | ${ban.toFixed(1)}% | ${push.toFixed(1)}% | ${note}${note2} |`);
 }
+
+const per = (n: number) => (n / totals.games).toFixed(2);
+console.log('');
+console.log(
+  `1 試合あたり（両者合計）: 建設 ${per(totals.build)} / アップグレード ${per(totals.upgrade)} / 買収 ${per(totals.acquire)}（${totals.games} 試合）`,
+);

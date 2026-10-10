@@ -28,6 +28,14 @@ export interface BuildingSlot {
   buildingId: BuildingId;
   /** null なら未建設 */
   owner: PlayerId | null;
+  /** この物件に払われたコインの合計（建設・アップグレード・買収で払った実額）。未建設は 0。
+   *  買収の価格は paid + acquireMarkup。買収されると、買った側が払った額に置き換わる。 */
+  paid: number;
+  /** 物件のレベル。未建設と建てた直後は 1。アップグレードで 2（最大）。買収されても保つ */
+  level: number;
+  /** 最後に建設・アップグレード・買収されたターン（GameState.turn）。0 は一度も無い。
+   *  同じ区画は 1 ターンに 1 回しか動かせない（建てたその手でアップグレード、などを防ぐ） */
+  touchedTurn: number;
 }
 
 export interface PlayerState {
@@ -84,5 +92,9 @@ export type Action =
   | { type: 'startTurn' }
   | { type: 'useCard'; card: CardId; heraldTarget?: CardId; blockadeSlot?: number }
   | { type: 'build'; slotId: number }
+  /** 自分の物件を 1 段上げる。手札は使わない */
+  | { type: 'upgrade'; slotId: number }
+  /** 相手の物件を paid + acquireMarkup で買い取る。代金は元の持ち主に入る。手札は使わない */
+  | { type: 'acquire'; slotId: number }
   | { type: 'useRoad'; target: CardId }
   | { type: 'endTurn' };

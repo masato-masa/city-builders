@@ -45,6 +45,9 @@ export function createGame(
     slotId,
     buildingId,
     owner: null,
+    paid: 0,
+    level: 1,
+    touchedTurn: 0,
   }));
 
   const players = {

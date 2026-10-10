@@ -84,13 +84,20 @@ describe('重み付き評価関数', () => {
     );
   });
 
-  it('guarded: 衛兵が張れていて、かつ守るものが多いほど評価が高い', () => {
-    const guardedRich = createGame(3);
+  // 衛兵の価値は、買収を導入してから「相手に奪われうる物件（exposed）を守る」で測る。
+  // 一律の加点（guarded 重み）は 0 にした（card-value で衛兵を禁止したほうが勝っていたため）。
+  it('guarded: 相手が買収できる物件を持っているとき、衛兵が張れているほうが評価が高い', () => {
+    const own = (g: ReturnType<typeof createGame>) => {
+      const wall = g.market.find((s) => s.buildingId === 'wall')!;
+      wall.owner = 'you';
+      wall.paid = 10;
+      g.players.cpu.coins = 30;
+      return g;
+    };
+    const guardedRich = own(createGame(3));
     guardedRich.players.you.guarded = true;
-    guardedRich.players.you.coins = 30;
-    const unguardedRich = createGame(3);
+    const unguardedRich = own(createGame(3));
     unguardedRich.players.you.guarded = false;
-    unguardedRich.players.you.coins = 30;
     expect(evaluateState(guardedRich, 'you', DEFAULT_BALANCE)).toBeGreaterThan(
       evaluateState(unguardedRich, 'you', DEFAULT_BALANCE),
     );

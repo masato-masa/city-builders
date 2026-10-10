@@ -16,12 +16,17 @@ import { fileURLToPath } from 'node:url';
 
 import { chooseAction, type AiOptions } from '../src/ai/choose';
 import { DEFAULT_WEIGHTS, type Profile, type Weights } from '../src/ai/evaluate';
-import { ALL_CARDS, CARD_NAMES, DEFAULT_BALANCE, type Balance } from '../src/game/balance';
+import { ALL_CARDS, CARD_NAMES, type Balance } from '../src/game/balance';
 import { reduce } from '../src/game/reducer';
 import { createRng } from '../src/game/rng';
 import { handOf, opponentOf, winnerOf } from '../src/game/selectors';
 import { createGame } from '../src/game/setup';
 import type { CardId, GameState, PlayerId } from '../src/game/types';
+
+import { balanceFromEnv } from './balance-override';
+
+/** BALANCE='{...}' で数値を上書きして試せる（card-value と共通の口） */
+const DEFAULT_BALANCE: Balance = balanceFromEnv();
 
 // ---------------------------------------------------------------------------
 // 性格（persona）
@@ -122,6 +127,12 @@ interface GameStats {
   buildsCount: { A: number; B: number };
   /** そのうち、試合の前半（自分のターン数の半分まで）に建てた件数 */
   firstHalfBuilds: { A: number; B: number };
+  /** アップグレード・買収の回数 */
+  upgrades: { A: number; B: number };
+  acquires: { A: number; B: number };
+  /** 試合終了時に Lv2 だった物件の数と、建っていた物件の数 */
+  endLevel2: number;
+  endBuilt: number;
 }
 
 /** 先手を強制的に決める。createGame は seed から先手をランダムに決めるが、
@@ -161,6 +172,8 @@ function runOne(
   let taxmanTotal = 0;
   const deckCycleSamples: { A: number[]; B: number[] } = { A: [], B: [] };
   const buildsCount = { A: 0, B: 0 };
+  const upgrades = { A: 0, B: 0 };
+  const acquires = { A: 0, B: 0 };
   // 建てたときの「自分の何ターン目か」（1 始まり）を記録し、試合が終わったあとに
   // 前半・後半を判定する（前半かどうかは自分の最終ターン数が分からないと決まらないため）
   const buildTurns: { A: number[]; B: number[] } = { A: [], B: [] };
@@ -213,6 +226,10 @@ function runOne(
         buildsCount[who]++;
         // このターンはまだ ownTurnCount[player] に加算されていないので +1 して「何ターン目か」にする
         buildTurns[who].push(ownTurnCount[player] + 1);
+      } else if (action.type === 'upgrade') {
+        upgrades[who]++;
+      } else if (action.type === 'acquire') {
+        acquires[who]++;
       }
       next = applied;
     }
@@ -264,6 +281,10 @@ function runOne(
     deckCycleSamples,
     buildsCount,
     firstHalfBuilds,
+    upgrades,
+    acquires,
+    endLevel2: g.market.filter((s) => s.owner !== null && s.level >= 2).length,
+    endBuilt: g.market.filter((s) => s.owner !== null).length,
   };
 }
 
@@ -303,6 +324,11 @@ const personaCardUsageByOpp: Record<CardId, number>[][] = Array.from({ length: N
 const personaTurnsByOpp: number[][] = Array.from({ length: N }, () => new Array(N).fill(0) as number[]);
 
 let totalGames = 0;
+const personaUpgrades: number[] = new Array(N).fill(0) as number[];
+const personaAcquires: number[] = new Array(N).fill(0) as number[];
+let endLevel2 = 0;
+let endBuilt = 0;
+let gamesWithAcquire = 0;
 let draws = 0;
 let firstMoverScore = 0;
 let turnsPerPlayerSum = 0;
@@ -365,6 +391,13 @@ for (let i = 0; i < N; i++) {
         personaGames[i]! += 1;
         personaGames[j]! += 1;
         personaBuilds[i]! += result.buildsCount.A;
+        personaUpgrades[i]! += result.upgrades.A;
+        personaUpgrades[j]! += result.upgrades.B;
+        personaAcquires[i]! += result.acquires.A;
+        personaAcquires[j]! += result.acquires.B;
+        endLevel2 += result.endLevel2;
+        endBuilt += result.endBuilt;
+        if (result.acquires.A + result.acquires.B > 0) gamesWithAcquire++;
         personaBuilds[j]! += result.buildsCount.B;
         personaFirstHalfBuilds[i]! += result.firstHalfBuilds.A;
         personaFirstHalfBuilds[j]! += result.firstHalfBuilds.B;
@@ -516,6 +549,22 @@ console.log(
   `| デッキ 1 周のターン数 | ${Number.isFinite(deckCycleAvg) ? deckCycleAvg.toFixed(2) : '(サンプル無し)'} |`,
 );
 console.log(`| 手札詰まり率 | ${pct(stuckRate)} |`);
+console.log('');
+
+console.log('## 表 6: アップグレードと買収');
+console.log('');
+console.log(`| 項目 | ${PERSONAS.map((p) => p.name).join(' | ')} | 全体 |`);
+console.log(`|---|${PERSONAS.map(() => '---').join('|')}|---|`);
+{
+  const totalUp = personaUpgrades.reduce((s, v) => s + v, 0);
+  const totalAcq = personaAcquires.reduce((s, v) => s + v, 0);
+  const up = PERSONAS.map((_, i) => (personaUpgrades[i]! / personaGames[i]!).toFixed(2));
+  const acq = PERSONAS.map((_, i) => (personaAcquires[i]! / personaGames[i]!).toFixed(2));
+  console.log(`| 1 試合のアップグレード（1 人） | ${up.join(' | ')} | ${(totalUp / totalGames).toFixed(2)}（両者合計） |`);
+  console.log(`| 1 試合の買収（1 人） | ${acq.join(' | ')} | ${(totalAcq / totalGames).toFixed(2)}（両者合計） |`);
+}
+console.log(`| 買収が 1 回以上あった試合 | ${PERSONAS.map(() => '').join(' | ')} | ${pct(gamesWithAcquire / totalGames)} |`);
+console.log(`| 終了時に Lv2 の物件の割合 | ${PERSONAS.map(() => '').join(' | ')} | ${pct(endLevel2 / Math.max(1, endBuilt))} |`);
 console.log('');
 
 console.log('## 表 4: 徴税官の状況判断');

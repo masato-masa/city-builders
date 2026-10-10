@@ -1,5 +1,16 @@
 import { DEFAULT_BALANCE, type Balance } from './balance';
-import { activeOwnedSlots, handOf, opponentOf, ownedSlots } from './selectors';
+import {
+  acquirePriceOf,
+  activeEffectMax,
+  activeEffectSum,
+  activeOwnedSlots,
+  handOf,
+  opponentOf,
+  ownedSlots,
+  roadUsesRemaining,
+  slotLocked,
+  upgradePriceOf,
+} from './selectors';
 import { createRng, shuffle } from './rng';
 import type { Action, BuildingId, CardId, GameState, PlayerId, PlayerState } from './types';
 
@@ -7,11 +18,6 @@ import type { Action, BuildingId, CardId, GameState, PlayerId, PlayerState } fro
  *  封鎖者に止められている 1 件は「持っていない」扱いになる。 */
 function hasActiveBuilding(state: GameState, player: PlayerId, id: BuildingId): boolean {
   return activeOwnedSlots(state, player).some((s) => s.buildingId === id);
-}
-
-/** 効果が生きている自分の物件のうち、指定した種類の件数。 */
-function countActiveBuilding(state: GameState, player: PlayerId, id: BuildingId): number {
-  return activeOwnedSlots(state, player).filter((s) => s.buildingId === id).length;
 }
 
 /** 工場の割引を織り込んだ、いま実際に払う額。 */
@@ -24,9 +30,8 @@ export function cardCostFor(
   const base = balance.cards[card].cost;
   const p = state.players[player];
   if (!p.usedAnyCardThisTurn && hasActiveBuilding(state, player, 'factory')) {
-    const discount = p.festivalActive
-      ? balance.factoryDiscount * balance.festivalMultiplier
-      : balance.factoryDiscount;
+    const once = activeEffectMax(state, player, 'factory', 'factoryDiscount', balance);
+    const discount = p.festivalActive ? once * balance.festivalMultiplier : once;
     return Math.max(0, base - discount);
   }
   return base;
@@ -74,6 +79,10 @@ export function reduce(
       return useCard(state, action, balance);
     case 'build':
       return build(state, action, balance);
+    case 'upgrade':
+      return upgrade(state, action, balance);
+    case 'acquire':
+      return acquire(state, action, balance);
     case 'useRoad':
       return useRoad(state, action, balance);
     case 'endTurn':
@@ -101,8 +110,8 @@ export function buildCostFor(
   const base = balance.buildings[slot.buildingId].cost;
   const p = state.players[player];
   let discount = p.buildDiscount;
-  if (p.buildDiscount > 0 && p.buildsThisTurn >= 1 && hasActiveBuilding(state, player, 'quarry')) {
-    discount += balance.quarryExtraDiscount;
+  if (p.buildDiscount > 0 && p.buildsThisTurn >= 1) {
+    discount += activeEffectMax(state, player, 'quarry', 'quarryExtraDiscount', balance);
   }
   return Math.max(0, base - discount);
 }
@@ -129,19 +138,93 @@ function build(
   const next = structuredClone(state);
   const player = next.current;
   const foe = opponentOf(player);
-  next.players[player].coins -= buildCostFor(state, player, action.slotId, balance);
-  next.market[action.slotId]!.owner = player;
+  const cost = buildCostFor(state, player, action.slotId, balance);
+  next.players[player].coins -= cost;
+  const slot = next.market[action.slotId]!;
+  slot.owner = player;
+  // 買収の価格の元になるのは、実際に払った額（建築家・石切場で安く建てた物件は安く買われる）
+  slot.paid = cost;
+  slot.level = 1;
+  slot.touchedTurn = next.turn;
   next.players[player].buildsThisTurn += 1;
 
   // 城塞の通行料: 建てたのが自分でも、相手が城塞を持っていれば相手に入る。
   // 自分が城塞を持っていて自分で建てても、自分には入らない。
-  const foeFortresses = countActiveBuilding(next, foe, 'fortress');
-  if (foeFortresses > 0) {
-    let toll = foeFortresses * balance.fortressToll;
+  const foeToll = activeEffectSum(next, foe, 'fortress', 'fortressToll', balance);
+  if (foeToll > 0) {
+    let toll = foeToll;
     if (next.players[foe].festivalActive) toll *= balance.festivalMultiplier;
     next.players[foe].coins += toll;
   }
 
+  return next;
+}
+
+/** 自分の物件を 1 段上げられるか。手札は使わない。建築家・石切場の割引は乗らない（建設ではないため）。 */
+export function canUpgrade(
+  state: GameState,
+  slotId: number,
+  balance: Balance = DEFAULT_BALANCE,
+): boolean {
+  if (state.phase !== 'playing') return false;
+  const slot = state.market[slotId];
+  if (!slot || slot.owner !== state.current) return false;
+  if (slotLocked(state, slot, balance)) return false;
+  return state.players[state.current].coins >= upgradePriceOf(slot, balance);
+}
+
+function upgrade(
+  state: GameState,
+  action: Extract<Action, { type: 'upgrade' }>,
+  balance: Balance,
+): GameState {
+  if (!canUpgrade(state, action.slotId, balance)) return state;
+  const next = structuredClone(state);
+  const slot = next.market[action.slotId]!;
+  const price = upgradePriceOf(slot, balance);
+  next.players[next.current].coins -= price;
+  slot.paid += price;
+  slot.level += 1;
+  slot.touchedTurn = next.turn;
+  return next;
+}
+
+/** 相手の物件を買収できるか。価格は paid + acquireMarkup。
+ *  相手が衛兵で守られていれば買えない。城壁は防がない。封鎖者で止められた物件も買える。 */
+export function canAcquire(
+  state: GameState,
+  slotId: number,
+  balance: Balance = DEFAULT_BALANCE,
+): boolean {
+  if (state.phase !== 'playing') return false;
+  const player = state.current;
+  const foe = opponentOf(player);
+  const slot = state.market[slotId];
+  if (!slot || slot.owner !== foe) return false;
+  if (state.players[foe].guarded) return false;
+  if (slotLocked(state, slot, balance)) return false;
+  return state.players[player].coins >= acquirePriceOf(slot, balance);
+}
+
+function acquire(
+  state: GameState,
+  action: Extract<Action, { type: 'acquire' }>,
+  balance: Balance,
+): GameState {
+  if (!canAcquire(state, action.slotId, balance)) return state;
+  const next = structuredClone(state);
+  const player = next.current;
+  const foe = opponentOf(player);
+  const slot = next.market[action.slotId]!;
+  const price = acquirePriceOf(slot, balance);
+  // コインの総量は変わらない。買収は VP と効果の移動
+  next.players[player].coins -= price;
+  next.players[foe].coins += price;
+  slot.owner = player;
+  slot.paid = price;
+  slot.touchedTurn = next.turn;
+  // 封鎖者の disabledSlot は「その区画を持つ側」に掛かっている。持ち主が変われば外れ、
+  // 買い戻されればまた効く（区画に対する永続の封鎖、という既存の意味のまま）
   return next;
 }
 
@@ -233,7 +316,7 @@ function incomeOf(
   balance: Balance,
 ): number {
   const p = state.players[player];
-  let bonus = hasActiveBuilding(state, player, 'exchange') ? balance.exchangeBonus : 0;
+  let bonus = activeEffectMax(state, player, 'exchange', 'exchangeBonus', balance);
   if (p.festivalActive) bonus *= balance.festivalMultiplier;
   switch (card) {
     case 'miner':
@@ -289,7 +372,7 @@ function computeIncomeStages(state: GameState, balance: Balance): IncomeStage[] 
 
   // 建物収入（商館）。祝祭中は 2 倍。
   const houses = activeOwnedSlots(state, player).filter((s) => s.buildingId === 'tradingHouse');
-  const houseOnce = houses.length * balance.tradingHouseIncome;
+  const houseOnce = activeEffectSum(state, player, 'tradingHouse', 'tradingHouseIncome', balance);
   const houseIncome = festival ? houseOnce * balance.festivalMultiplier : houseOnce;
   if (houseIncome !== 0) {
     stages.push({
@@ -405,8 +488,7 @@ export function canUseRoad(
   if (state.phase !== 'playing') return false;
   const player = state.current;
   if (!hasActiveBuilding(state, player, 'road')) return false;
-  const limit = state.players[player].festivalActive ? balance.festivalMultiplier : 1;
-  if (state.players[player].roadUsesThisTurn >= limit) return false;
+  if (roadUsesRemaining(state, player, balance) <= 0) return false;
   return handOf(state, player, balance).includes(target);
 }
 
@@ -477,6 +559,12 @@ export function legalActions(
 
   for (const slot of state.market) {
     if (canBuild(state, slot.slotId, balance)) out.push({ type: 'build', slotId: slot.slotId });
+  }
+  for (const slot of state.market) {
+    if (canUpgrade(state, slot.slotId, balance)) out.push({ type: 'upgrade', slotId: slot.slotId });
+  }
+  for (const slot of state.market) {
+    if (canAcquire(state, slot.slotId, balance)) out.push({ type: 'acquire', slotId: slot.slotId });
   }
 
   for (const card of hand) {

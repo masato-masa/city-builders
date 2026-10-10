@@ -1,4 +1,10 @@
-import { DEFAULT_BALANCE, type Balance } from './balance';
+import {
+  buildingEffect,
+  buildingVp,
+  DEFAULT_BALANCE,
+  type Balance,
+  type Level2EffectKey,
+} from './balance';
 import type { BuildingId, BuildingSlot, CardId, GameState, PlayerId } from './types';
 
 /** 勝者。まだ終わっていなければ null。 */
@@ -54,6 +60,60 @@ export function activeOwnedSlots(state: GameState, player: PlayerId): BuildingSl
   return ownedSlots(state, player).filter((s) => s.slotId !== disabled);
 }
 
+/** 効果が生きている自分の物件のうち、指定した種類の効果値の合計（レベルを見る）。
+ *  商館・城塞のように件数で積み上がる効果に使う。 */
+export function activeEffectSum(
+  state: GameState,
+  player: PlayerId,
+  id: BuildingId,
+  key: Level2EffectKey,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
+  return activeOwnedSlots(state, player)
+    .filter((s) => s.buildingId === id)
+    .reduce((n, s) => n + buildingEffect(balance, key, s.level), 0);
+}
+
+/** 効果が生きている自分の物件のうち、指定した種類の効果値の最大（持っていなければ 0）。
+ *  工場・取引所・石切場・街道のように「持っているか」で効く効果に使う（重ねても増えない）。 */
+export function activeEffectMax(
+  state: GameState,
+  player: PlayerId,
+  id: BuildingId,
+  key: Level2EffectKey,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
+  return activeOwnedSlots(state, player)
+    .filter((s) => s.buildingId === id)
+    .reduce((n, s) => Math.max(n, buildingEffect(balance, key, s.level)), 0);
+}
+
+/** 区画を買収するときの価格。未建設なら Infinity。 */
+export function acquirePriceOf(slot: BuildingSlot, balance: Balance = DEFAULT_BALANCE): number {
+  if (slot.owner === null) return Number.POSITIVE_INFINITY;
+  return slot.paid + balance.acquireMarkup;
+}
+
+/** 区画をアップグレードするときの価格。最大レベル（Lv2）なら Infinity。 */
+export function upgradePriceOf(slot: BuildingSlot, balance: Balance = DEFAULT_BALANCE): number {
+  if (slot.owner === null || slot.level >= 2) return Number.POSITIVE_INFINITY;
+  return balance.upgrades[slot.buildingId].cost;
+}
+
+/** 区画がまだ動かせない（アップグレード・買収できない）か。
+ *  最後に建設・アップグレード・買収されたターンから slotLockTurns ターン（1 人の手番を 1 と数える）
+ *  経つまで動かせない。1 なら「同じ区画は 1 ターンに 1 回まで」、2 なら「相手の直後の手番でも動かせない」。
+ *  atTurn を渡すと、そのターンの時点で判定する（CPU が相手の次の手番を見積もるため）。 */
+export function slotLocked(
+  state: GameState,
+  slot: BuildingSlot,
+  balance: Balance = DEFAULT_BALANCE,
+  atTurn: number = state.turn,
+): boolean {
+  if (slot.touchedTurn <= 0) return false;
+  return atTurn - slot.touchedTurn < balance.slotLockTurns;
+}
+
 export function countBuilding(state: GameState, player: PlayerId, id: BuildingId): number {
   return state.market.filter((s) => s.owner === player && s.buildingId === id).length;
 }
@@ -71,9 +131,12 @@ export function vpOfSlot(
 ): number {
   if (slot.owner === null) return 0;
   if (slot.buildingId === 'cathedral') {
-    return (ownedSlots(state, slot.owner).length - 1) * balance.cathedralVpPerBuilding;
+    return (
+      (ownedSlots(state, slot.owner).length - 1) *
+      buildingEffect(balance, 'cathedralVpPerBuilding', slot.level)
+    );
   }
-  return balance.buildings[slot.buildingId].vp;
+  return buildingVp(balance, slot.buildingId, slot.level);
 }
 
 /** 終了時の VP。 */
@@ -103,7 +166,9 @@ export function roadUsesRemaining(
   balance: Balance = DEFAULT_BALANCE,
 ): number {
   const p = state.players[player];
-  const limit = p.festivalActive ? balance.festivalMultiplier : 1;
+  // 街道を持っていないときは Lv1 の回数を返す（表示側は街道を持つときだけ出す。従来の振る舞いを保つ）
+  const base = activeEffectMax(state, player, 'road', 'roadUses', balance) || balance.roadUses;
+  const limit = p.festivalActive ? base * balance.festivalMultiplier : base;
   return Math.max(0, limit - p.roadUsesThisTurn);
 }
 
@@ -118,15 +183,11 @@ export function incomePerTurnOf(
   balance: Balance = DEFAULT_BALANCE,
 ): number {
   const p = state.players[player];
-  const active = activeOwnedSlots(state, player);
-  const houseCount = active.filter((s) => s.buildingId === 'tradingHouse').length;
-  const fortressCount = active.filter((s) => s.buildingId === 'fortress').length;
+  const houseIncome = activeEffectSum(state, player, 'tradingHouse', 'tradingHouseIncome', balance);
+  const fortressToll = activeEffectSum(state, player, 'fortress', 'fortressToll', balance);
   const unbuiltCount = state.market.filter((s) => s.owner === null).length;
 
-  let income =
-    balance.baseIncome +
-    houseCount * balance.tradingHouseIncome +
-    fortressCount * balance.fortressToll * (unbuiltCount / 2);
+  let income = balance.baseIncome + houseIncome + fortressToll * (unbuiltCount / 2);
 
   if (p.festivalQueued || p.festivalActive) {
     income = income * balance.festivalMultiplier + balance.festivalIncomeBonus;
