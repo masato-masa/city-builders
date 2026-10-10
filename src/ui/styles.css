@@ -1339,7 +1339,8 @@
 /* 押せない理由の 1 行。中身が無くても 1 行ぶんの高さを取る（ボタンが上下しない）。 */
 .slot-reason {
   min-height: 1.5em;
-  margin: 0 0 6px;
+  /* シートは flex の gap 12px で並ぶ。理由の行はボタンに寄せて、空のときの隙間を詰める */
+  margin: -8px 0 -6px;
   font-size: 12px;
   font-weight: 700;
   line-height: 1.5;

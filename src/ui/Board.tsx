@@ -203,6 +203,34 @@ function PlotView({
   // 下の段ほど手前に描く。建物の屋根が上の段の足元に掛かっても自然に見える。
   const z = 10 + rowOf(slotId) * 10;
 
+  // 買収: 元の持ち主の色の札が、元の持ち主の側（盤面の上か下）から区画へ来て、
+  // 新しい持ち主の色に替わり、新しい持ち主の側へ抜ける。下の段の区画に隠れないよう、
+  // 名前・VP と同じ手前の層（plot-labels）に描く。
+  const deed = acquired ? (
+    <span key={`deed-${acquired.n}`} className="plot-deed-track">
+      {(['from', 'to'] as const).map((which) => {
+        const fromDy = acquired.from === 'cpu' ? -44 : 44;
+        const toDy = -fromDy;
+        const color = which === 'from' ? acquired.from : acquired.to;
+        return (
+          <motion.span
+            key={which}
+            className={`plot-deed owner-${color}`}
+            initial={{ y: fromDy, opacity: 0, scale: 0.7 }}
+            animate={{
+              y: [fromDy, 0, 0, 0, toDy * 0.5, toDy * 0.6],
+              opacity: which === 'from' ? [0, 1, 1, 0, 0, 0] : [0, 0, 0, 1, 1, 0],
+              scale: [0.7, 1.15, 1.15, 1.15, 1, 0.9],
+            }}
+            transition={{ duration: 1.4, times: [0, 0.3, 0.45, 0.6, 0.85, 1], ease: 'easeInOut' }}
+          >
+            買収
+          </motion.span>
+        );
+      })}
+    </span>
+  ) : null;
+
   return (
     <>
       <button
@@ -293,32 +321,6 @@ function PlotView({
             transition={{ duration: 0.8, ease: 'easeOut' }}
           />
         ) : null}
-        {acquired ? (
-          // 買収: 元の持ち主の色の札が、元の持ち主の側（盤面の上か下）から区画を通って
-          // 新しい持ち主の側へ移り、途中で新しい持ち主の色に替わる。
-          <span key={`deed-${acquired.n}`} className="plot-deed-track" aria-hidden="true">
-            {(['from', 'to'] as const).map((which) => {
-              const fromDy = acquired.from === 'cpu' ? -46 : 46;
-              const toDy = -fromDy;
-              const color = which === 'from' ? acquired.from : acquired.to;
-              return (
-                <motion.span
-                  key={which}
-                  className={`plot-deed owner-${color}`}
-                  initial={{ y: fromDy, opacity: 0, scale: 0.7 }}
-                  animate={{
-                    y: [fromDy, 0, 0, toDy * 0.35],
-                    opacity: which === 'from' ? [0, 1, 0, 0] : [0, 0, 1, 0],
-                    scale: [0.7, 1.1, 1.1, 0.9],
-                  }}
-                  transition={{ duration: 1.1, times: [0, 0.35, 0.6, 1], ease: 'easeInOut' }}
-                >
-                  買収
-                </motion.span>
-              );
-            })}
-          </span>
-        ) : null}
         {landing > 0 && owned ? (
           <span key={`dust-${landing}`} className="plot-dust" aria-hidden="true">
             {DUST.map((d, k) => (
@@ -358,6 +360,7 @@ function PlotView({
       <span className={['plot-labels', ...stateClass].filter(Boolean).join(' ')} style={box} aria-hidden="true">
         {/* 名前は台座の前面に刻む。色は台座の前面（所有者色）が担う。 */}
         <span className="plot-name">{BUILDING_NAMES[slot.buildingId]}</span>
+        {deed}
         {/* Lv2 の印。旗の反対側（左）に金の星を立てる。持ち主の色（台座・旗・VP）は変えない。 */}
         {maxed ? (
           <span className="plot-level-badge" title="Lv2">
