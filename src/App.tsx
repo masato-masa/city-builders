@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { Difficulty } from '@/ai/choose';
 import { dailyFor } from '@/meta/daily';
 
-import { loadBalance } from './ui/balance-store';
+import { loadBalance, testDeckCards } from './ui/balance-store';
 import { Game } from './ui/Game';
 import { Home } from './ui/Home';
 import { PvpGame } from './ui/PvpGame';
@@ -40,6 +40,7 @@ export function App() {
         key={session.seed}
         seed={session.seed}
         balance={loadBalance()}
+        deck={testDeckCards()}
         onExit={() => setSession(null)}
         onRestart={() => setSession({ mode: 'pvp', seed: newSeed() })}
       />
@@ -71,6 +72,7 @@ export function App() {
       seed={session.seed}
       difficulty={session.difficulty}
       balance={loadBalance()}
+      deck={testDeckCards()}
       onExit={() => setSession(null)}
       onRestart={() => setSession({ mode: 'cpu', seed: newSeed(), difficulty: session.difficulty })}
     />

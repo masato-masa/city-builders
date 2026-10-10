@@ -7,6 +7,7 @@
 // 対象が要るカードは、離した場所で対象を決める:
 // - 伝令: 手札の別のカードの上 → その札を山の底へ。盤面の上 → 対象選び（手札をタップ）へ。
 // - 封鎖者: 区画の上 → その区画。盤面の空いたところ → 対象選び（区画をタップ）へ。
+// - 検査官: 相手の物件の上 → その物件。盤面の空いたところ → 対象選び（相手の物件をタップ）へ。
 
 import type { Action, CardId, GameState, PlayerId } from '@/game/types';
 
@@ -38,11 +39,14 @@ export interface DropHit {
   handCard: CardId | null;
 }
 
+/** 対象選びの種類。伝令は手札、封鎖者は自分のもの以外の区画、検査官は相手の物件。 */
+export type TargetMode = 'herald' | 'blockade' | 'inspect';
+
 export type DropResult =
   /** そのまま使う */
   | { kind: 'use'; action: Extract<Action, { type: 'useCard' }> }
   /** 対象選びのモードへ（盤面の上で離したが、対象の上ではなかった） */
-  | { kind: 'target'; mode: 'herald' | 'blockade' }
+  | { kind: 'target'; mode: TargetMode }
   /** 使えない場所・対象（はじく音を鳴らす） */
   | { kind: 'reject'; reason: string }
   /** 何もしない（盤面の外で離した＝やめた） */
@@ -66,14 +70,35 @@ export function resolveDrop(state: GameState, viewer: PlayerId, card: CardId, hi
     if (hit.onBoard) return { kind: 'target', mode: 'blockade' };
     return { kind: 'cancel' };
   }
+  if (card === 'inspector') {
+    if (hit.slotId !== null) {
+      const r = inspectPick(state, viewer, hit.slotId);
+      return r.ok ? { kind: 'use', action: r.action } : { kind: 'reject', reason: r.reason };
+    }
+    if (hit.onBoard) return { kind: 'target', mode: 'inspect' };
+    return { kind: 'cancel' };
+  }
   if (hit.onBoard) return { kind: 'use', action: { type: 'useCard', card } };
   return { kind: 'cancel' };
+}
+
+/** 検査官の対象に区画を選んだとき（ドロップ・対象選びのタップで共通）。相手の物件だけが対象。 */
+export function inspectPick(
+  state: GameState,
+  viewer: PlayerId,
+  slotId: number,
+): { ok: true; action: Extract<Action, { type: 'useCard' }> } | { ok: false; reason: string } {
+  const slot = state.market[slotId];
+  if (!slot || slot.owner === null) return { ok: false, reason: '検査官は相手の物件に使います（空き地には使えません）' };
+  if (slot.owner === viewer) return { ok: false, reason: '自分の物件には使えません' };
+  return { ok: true, action: { type: 'useCard', card: 'inspector', inspectSlot: slotId } };
 }
 
 /** ドラッグ中に盤面の上端に出す案内（どこで離せばよいか）。 */
 export function dragGuide(card: CardId): string {
   if (card === 'herald') return '伝令: 山の底へ送る札の上で離す';
   if (card === 'blockader') return '封鎖者: 相手の区画か空き地の上で離す';
+  if (card === 'inspector') return '検査官: 相手の物件の上で離す';
   return '盤面の上で離すと使う';
 }
 

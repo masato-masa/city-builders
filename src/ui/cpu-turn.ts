@@ -20,6 +20,10 @@ export interface CpuStep {
 /** 1 手を短い日本語の実況文にする。表示専用で、ゲームの判定には使わない。 */
 export function describeAction(before: GameState, action: Action): string {
   if (action.type === 'useCard') {
+    if (action.inspectSlot !== undefined) {
+      const slot = before.market[action.inspectSlot];
+      return slot ? `${CARD_NAMES[action.card]}であなたの${BUILDING_NAMES[slot.buildingId]}を検査` : `${CARD_NAMES[action.card]}を使った`;
+    }
     return action.heraldTarget
       ? `${CARD_NAMES[action.card]}で${CARD_NAMES[action.heraldTarget]}を山の底へ`
       : `${CARD_NAMES[action.card]}を使った`;

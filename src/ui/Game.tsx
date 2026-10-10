@@ -15,9 +15,9 @@ import { loadDaily, saveDaily, withDailyResult } from '@/storage/daily';
 import { loadMeta, saveMeta } from '@/storage/meta';
 import { loadProgress, saveProgress, withResult } from '@/storage/storage';
 
-import { BUILDING_ART, CARD_ART, FIELD_URL } from './art';
+import { BUILDING_ART, cardArtOf, FIELD_URL } from './art';
 import { Board, type IncomeFlash } from './Board';
-import { dragGuide, resolveDrop } from './card-input';
+import { dragGuide, inspectPick, resolveDrop, type TargetMode } from './card-input';
 import { CoinBar } from './CoinBar';
 import { type CpuStep, playTurnSteps } from './cpu-turn';
 import { cardAftermath, cardSequence, TARGET_LABEL } from './feel';
@@ -78,10 +78,18 @@ import {
   playYourTurn,
 } from './sound';
 
+/** 対象選びの種類 → 開くモード。 */
+const TARGET_SHEET: Record<TargetMode, 'heraldTarget' | 'blockadeTarget' | 'inspectTarget'> = {
+  herald: 'heraldTarget',
+  blockade: 'blockadeTarget',
+  inspect: 'inspectTarget',
+};
+
 type Pending =
   | { kind: 'slot'; slotId: number }
   | { kind: 'heraldTarget' }
   | { kind: 'blockadeTarget' }
+  | { kind: 'inspectTarget' }
   | { kind: 'menu' }
   | { kind: 'confirmExit' }
   | { kind: 'help' }
@@ -94,6 +102,7 @@ export function Game({
   balance = DEFAULT_BALANCE,
   first,
   daily,
+  deck,
   onExit,
   onRestart,
 }: {
@@ -104,6 +113,8 @@ export function Game({
   first?: PlayerId;
   /** 日替わりの一戦。段位・勝敗・連勝は動かさず、その日の自己ベスト（VP 差）だけを記録する。 */
   daily?: { dateKey: string; label: string };
+  /** 両者のデッキ（テスト用メニューで新しいカード入りを試す）。省略時は既定の 10 枚。 */
+  deck?: readonly CardId[];
   onExit: () => void;
   onRestart: () => void;
 }) {
@@ -111,7 +122,7 @@ export function Game({
   const [state, setState] = useState<GameState>(() => {
     // 開始処理（収入）はここでは済ませない。手番の帯を見せてから、下の useEffect が反映する。
     // 後手（CPU が先手）のときも同じで、CPU の手番は収入から 1 手ずつ出す。
-    return createGame(seed, balance, first);
+    return createGame(seed, balance, first, deck ? { you: deck, cpu: deck } : {});
   });
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -166,12 +177,12 @@ export function Game({
   const { flights, fly } = useCardFlights();
   /** 手札の札の絵を盤面の中央へ飛ばす（使った手応え）。札が手札から消える前に呼ぶ。 */
   const flyCard = (card: CardId) =>
-    fly(document.querySelector(`.hand [data-card="${card}"]`), CARD_ART[card], boardAreaRef.current);
+    fly(document.querySelector(`.hand [data-card="${card}"]`), cardArtOf(card), boardAreaRef.current);
   /** 山の底へ送る札（伝令の対象・街道）を「次」の札へ小さくなって飛ばす（捨てる演出）。 */
   const flyDiscard = (card: CardId) =>
     fly(
       document.querySelector(`.hand [data-card="${card}"]`),
-      CARD_ART[card],
+      cardArtOf(card),
       document.querySelector('.next-card'),
       'discard',
     );
@@ -318,7 +329,7 @@ export function Game({
           setCpuCallout({
             id: cpuCalloutSeq.current,
             kind: 'card',
-            art: CARD_ART[heraldTarget],
+            art: cardArtOf(heraldTarget),
             text: `${CARD_NAMES[heraldTarget]}を山の底へ`,
           });
           playEndTurn();
@@ -335,9 +346,9 @@ export function Game({
       const id = cpuCalloutSeq.current;
       setCpuCallout(
         a.type === 'useCard'
-          ? { id, kind: 'card', art: CARD_ART[a.card], text: step.log }
+          ? { id, kind: 'card', art: cardArtOf(a.card), text: step.log }
           : a.type === 'useRoad'
-            ? { id, kind: 'card', art: CARD_ART[a.target], text: step.log }
+            ? { id, kind: 'card', art: cardArtOf(a.target), text: step.log }
             : a.type === 'build' || a.type === 'upgrade' || a.type === 'acquire'
               ? {
                   id,
@@ -367,6 +378,9 @@ export function Game({
         setCpuHighlightSlot(a.slotId);
       } else if (a.type === 'startTurn' && step.stage) {
         playIncome(step.stage.amount);
+      } else if (a.type === 'useCard' && a.inspectSlot !== undefined) {
+        // 検査官で Lv を下げられた区画を指し示す（どれが下がったか読めるように）
+        setCpuHighlightSlot(a.inspectSlot);
       }
       if (isLast) {
         finishCpuTurn(step.state);
@@ -493,7 +507,7 @@ export function Game({
       hapticReject();
       return;
     }
-    if (r.kind === 'target') return setSheet({ kind: r.mode === 'herald' ? 'heraldTarget' : 'blockadeTarget' });
+    if (r.kind === 'target') return setSheet({ kind: TARGET_SHEET[r.mode] });
     commitCard(card, r.action);
   };
 
@@ -540,7 +554,11 @@ export function Game({
               state={feel.boardState}
               balance={balance}
               highlightSlot={cpuHighlightSlot}
-              targeting={sheet?.kind === 'blockadeTarget' || dragCard === 'blockader'}
+              targeting={
+                sheet?.kind === 'inspectTarget' || dragCard === 'inspector'
+                  ? 'foe'
+                  : sheet?.kind === 'blockadeTarget' || dragCard === 'blockader'
+              }
               dropArmed={dragCard !== null}
               flash={incomeFlash}
               onPick={(slotId) => {
@@ -555,6 +573,17 @@ export function Game({
                     return;
                   }
                   commitCard('blockader', { type: 'useCard', card: 'blockader', blockadeSlot: slotId });
+                  return;
+                }
+                // 検査官の対象選び: 相手の物件だけ
+                if (sheet?.kind === 'inspectTarget') {
+                  const r = inspectPick(state, 'you', slotId);
+                  if (!r.ok) {
+                    playReject();
+                    hapticReject();
+                    return;
+                  }
+                  commitCard('inspector', r.action);
                   return;
                 }
                 const slot = state.market[slotId];
@@ -582,6 +611,9 @@ export function Game({
               {dragCard ? <TargetBanner key={`drag-${dragCard}`} label={dragGuide(dragCard)} /> : null}
               {sheet?.kind === 'blockadeTarget' ? (
                 <TargetBanner key="blockadeTarget" onCancel={() => setSheet(null)} />
+              ) : null}
+              {sheet?.kind === 'inspectTarget' ? (
+                <TargetBanner key="inspectTarget" label={TARGET_LABEL.inspect} onCancel={() => setSheet(null)} />
               ) : null}
               {sheet?.kind === 'heraldTarget' ? (
                 <TargetBanner

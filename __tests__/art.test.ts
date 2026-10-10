@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_BALANCE } from '@/game/balance';
+import { DEFAULT_BALANCE, DEFAULT_DECK } from '@/game/balance';
 import type { CardId } from '@/game/types';
-import { BUILDING_ART, CARD_ART, FIELD_URL } from '@/ui/art';
+import { BUILDING_ART, CARD_ART, CARD_PLACEHOLDER, cardArtOf, FIELD_URL, hasCardArt } from '@/ui/art';
 
 describe('素材の対応表', () => {
   it('盤面の地の URL がある', () => {
@@ -43,10 +43,23 @@ describe('素材の対応表', () => {
     }
   });
 
-  it('人物カード 10 種すべての絵がそろっている', () => {
-    for (const id of Object.keys(DEFAULT_BALANCE.cards) as CardId[]) {
+  it('既定のデッキの 10 種はすべて本物の絵がそろっている', () => {
+    for (const id of DEFAULT_DECK) {
       expect(CARD_ART[id], id).toBeTruthy();
+      expect(cardArtOf(id), id).toBe(CARD_ART[id]);
     }
-    expect(Object.keys(CARD_ART).length).toBe(Object.keys(DEFAULT_BALANCE.cards).length);
+  });
+
+  it('絵がまだ無いカードは、文字と色だけの仮の面（SVG）で必ず何か出る', () => {
+    for (const id of Object.keys(DEFAULT_BALANCE.cards) as CardId[]) {
+      const url = cardArtOf(id);
+      expect(url, id).toBeTruthy();
+      if (!hasCardArt(id)) {
+        expect(url.startsWith('data:image/svg+xml'), id).toBe(true);
+        expect(decodeURIComponent(url), id).toContain(CARD_PLACEHOLDER[id]?.mark ?? '');
+      }
+    }
+    expect(hasCardArt('craftsman')).toBe(false);
+    expect(hasCardArt('inspector')).toBe(false);
   });
 });

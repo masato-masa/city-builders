@@ -14,6 +14,7 @@ import {
   slotLocked,
   titleHolder,
   titleVpSwing,
+  upgradeCostFor,
   upgradePriceOf,
   vpOfSlot,
 } from '@/game/selectors';
@@ -51,7 +52,9 @@ export function plotFigures(
     : slot.owner === viewer
       ? acquirePriceOf(slot, balance)
       : acquireCostFor(state, viewer, slot, balance);
-  return { kind: 'built', value, upgrade: Number.isFinite(up) ? up : null };
+  // 自分の物件のアップグレード費は、このターンの職人の割引込み
+  const upNow = slot.owner === viewer ? upgradeCostFor(state, viewer, slot, balance) : up;
+  return { kind: 'built', value, upgrade: Number.isFinite(upNow) ? upNow : null };
 }
 
 export interface SlotButton {
@@ -81,7 +84,8 @@ export function upgradeButton(
 ): SlotButton | null {
   const slot = state.market[slotId];
   if (!slot || slot.owner !== viewer) return null;
-  const price = upgradePriceOf(slot, balance);
+  // 職人を使ったターンは割引後の額（相手の手番中は割引なし。割引は手番の終わりで消える）
+  const price = upgradeCostFor(state, viewer, slot, balance);
   if (!Number.isFinite(price)) return null;
   const myTurn = state.phase === 'playing' && state.current === viewer;
   const enabled = myTurn && canUpgrade(state, slotId, balance);

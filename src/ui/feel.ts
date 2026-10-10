@@ -138,7 +138,20 @@ export function cardAftermath(
     if (f1.blockedSlot !== f0.blockedSlot) return { text: '区画を封鎖', tone: 'hit' };
     return { text: '防がれた', tone: 'blocked' };
   }
+  if (card === 'inspector') {
+    // どの区画が変わったか（Lv が下がった／払われた額が減った）を前後の盤面から探す
+    for (const slot of next.market) {
+      const before = prev.market[slot.slotId];
+      if (!before || before.owner !== foe) continue;
+      if (slot.level < before.level) return { text: `Lv${before.level} → Lv${slot.level}`, tone: 'hit' };
+      if (slot.paid < before.paid) return { text: `買収価格 ${sign(slot.paid - before.paid)}`, tone: 'hit' };
+    }
+    return f1.guarded ? { text: '防がれた', tone: 'blocked' } : { text: 'もう下げられない', tone: 'blocked' };
+  }
   if (card === 'guard' && a1.guarded && !a0.guarded) return { text: '守りを固めた', tone: 'guard' };
+  if (a1.upgradeDiscount > a0.upgradeDiscount) {
+    return { text: `アップグレード費 ${sign(a0.upgradeDiscount - a1.upgradeDiscount)}`, tone: 'gain' };
+  }
   if (a1.buildDiscount > a0.buildDiscount) return { text: `建設費 ${sign(a0.buildDiscount - a1.buildDiscount)}`, tone: 'gain' };
   if (a1.acquireDiscount > a0.acquireDiscount) {
     return { text: `買収価格 ${sign(a0.acquireDiscount - a1.acquireDiscount)}`, tone: 'gain' };
@@ -177,5 +190,6 @@ export function roadReason(hasRoad: boolean, usesLeft: number, myTurn: boolean):
 /** 対象選択モードの案内（右上の時計と重ならないよう短く）。 */
 export const TARGET_LABEL = {
   blockade: '封鎖: 相手の区画をタップ',
+  inspect: '検査: 相手の物件をタップ',
   herald: '伝令: 山の底へ送る札をタップ',
 } as const;

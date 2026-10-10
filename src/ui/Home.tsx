@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
 
 import type { Difficulty } from '@/ai/choose';
-import { ALL_CARDS, BUILDING_NAMES, CARD_NAMES, type Balance } from '@/game/balance';
+import { BUILDING_NAMES, CARD_NAMES, CARD_POOL, NEW_CARDS, type Balance } from '@/game/balance';
 import { dailyFor, formatScore, localDateKey } from '@/meta/daily';
 import { stepInfo } from '@/meta/rank';
 import { clearDaily, loadDaily } from '@/storage/daily';
@@ -10,7 +10,7 @@ import { clearMeta, loadMeta } from '@/storage/meta';
 import { clearProgress, loadProgress } from '@/storage/storage';
 
 import { FIELD_URL } from './art';
-import { loadBalance, resetBalance, saveBalance } from './balance-store';
+import { loadBalance, loadTestDeck, resetBalance, saveBalance, saveTestDeck, type TestDeck } from './balance-store';
 import { hapticTap } from './haptics';
 import { CalendarIcon, CityEmblem, SwordIcon, VersusIcon } from './icons';
 import { RankSheet, RankStars } from './RankRoad';
@@ -78,6 +78,7 @@ export function Home({
   // 初回に一度だけ決める。以後の再描画で値が変わって動きがちらつかないようにする。
   const [animateEntrance] = useState(shouldAnimateEntrance);
   const [balance, setBalance] = useState<Balance>(() => loadBalance());
+  const [testDeck, setTestDeck] = useState<TestDeck>(loadTestDeck);
 
   const put = (next: Balance) => {
     setBalance(next);
@@ -224,6 +225,24 @@ export function Home({
             <a className="dev-link" href={REVIEW_BOARD_URL} target="_blank" rel="noopener noreferrer">
               レビュー記録表を開く（遊んだ感想を書く）
             </a>
+            <div className="dev-section-title">デッキ（CPU 戦・2 人対戦。日替わりは既定のまま）</div>
+            <div className="dev-deck-row">
+              <span>
+                新カード入り（祝祭・徴税官 → {NEW_CARDS.map((c) => CARD_NAMES[c]).join('・')}）
+              </span>
+              <button
+                className="switch"
+                role="switch"
+                aria-checked={testDeck === 'newCards'}
+                aria-label="新カード入りのデッキ"
+                onClick={() => {
+                  const next: TestDeck = testDeck === 'newCards' ? 'default' : 'newCards';
+                  setTestDeck(next);
+                  saveTestDeck(next);
+                  playUiTap();
+                }}
+              />
+            </div>
             <div className="dev-section-title">基本</div>
             <label>
               基本収入
@@ -287,7 +306,7 @@ export function Home({
             </label>
 
             <div className="dev-section-title">カード: コスト</div>
-            {ALL_CARDS.map((id) => (
+            {CARD_POOL.map((id) => (
               <label key={id}>
                 {CARD_NAMES[id]} コスト
                 <input
@@ -368,6 +387,22 @@ export function Home({
                 type="number"
                 value={balance.usurerDebt}
                 onChange={(e) => put({ ...balance, usurerDebt: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              {CARD_NAMES.craftsman}: アップグレード費の割引
+              <input
+                type="number"
+                value={balance.craftsmanDiscount}
+                onChange={(e) => put({ ...balance, craftsmanDiscount: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              {CARD_NAMES.inspector}: Lv1 の払われた額を減らす
+              <input
+                type="number"
+                value={balance.inspectorPaidCut}
+                onChange={(e) => put({ ...balance, inspectorPaidCut: Number(e.target.value) })}
               />
             </label>
             <label>

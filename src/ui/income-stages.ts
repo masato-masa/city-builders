@@ -1,7 +1,7 @@
 import type { Balance } from '@/game/balance';
 import type { IncomeStage } from '@/game/reducer';
 
-import { BUILDING_ART, CARD_ART, COIN_URL } from './art';
+import { BUILDING_ART, cardArtOf, COIN_URL } from './art';
 import type { CpuCalloutInfo } from './Fx';
 import { stageText } from './income-text';
 import { playUseCard } from './sound';
@@ -19,14 +19,14 @@ export function stageCallout(
       return { id, tone, kind: 'coin', art: COIN_URL, text };
     case 'building':
       return stage.festival
-        ? { id, tone, kind: 'card', art: CARD_ART.festival, text }
+        ? { id, tone, kind: 'card', art: cardArtOf('festival'), text }
         : { id, tone, kind: 'building', art: BUILDING_ART.tradingHouse?.url, text };
     case 'invest':
-      return { id, tone, kind: 'card', art: CARD_ART[stage.cards[0] ?? 'miner'], text };
+      return { id, tone, kind: 'card', art: cardArtOf(stage.cards[0] ?? 'miner'), text };
     case 'debt':
-      return { id, tone, kind: 'card', art: CARD_ART.usurer, text };
+      return { id, tone, kind: 'card', art: cardArtOf('usurer'), text };
     case 'tax':
-      return { id, tone, kind: 'card', art: CARD_ART.taxman, text };
+      return { id, tone, kind: 'card', art: cardArtOf('taxman'), text };
   }
 }
 

@@ -6,7 +6,7 @@ import { cardCostFor } from '@/game/reducer';
 import { handSlotsOf, nextCardOf } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
-import { CARD_ART } from './art';
+import { cardArtOf } from './art';
 import { classifyPress, LONG_PRESS_MS, TAP_HINT, type PressKind } from './card-input';
 import { hapticTap } from './haptics';
 import { MenuIcon } from './icons';
@@ -52,7 +52,7 @@ export function Hand({
 }) {
   const hand = handSlotsOf(state, viewer);
   const next = nextCardOf(state, viewer, balance);
-  const nextArt = next ? CARD_ART[next] : undefined;
+  const nextArt = next ? cardArtOf(next) : undefined;
   // 長押しで出している説明の札（離すと閉じる）。
   const [peek, setPeek] = useState<CardId | null>(null);
   // ドラッグ中の札（伝令なら、他の札を「ここへ落とせる」と光らせる）。
@@ -150,7 +150,7 @@ function CardPeek({
   viewer: PlayerId;
   balance: Balance;
 }) {
-  const art = CARD_ART[card];
+  const art = cardArtOf(card);
   return (
     <motion.div
       className="card-peek"
@@ -174,7 +174,9 @@ function CardPeek({
             ? '使うとき: 山の底へ送る札の上へドラッグ'
             : card === 'blockader'
               ? '使うとき: 相手の区画か空き地の上へドラッグ'
-              : '使うとき: 盤面へドラッグ'}
+              : card === 'inspector'
+                ? '使うとき: 相手の物件の上へドラッグ'
+                : '使うとき: 盤面へドラッグ'}
         </p>
       </div>
     </motion.div>
@@ -218,7 +220,7 @@ function CardButton({
   onPeek: (card: CardId | null) => void;
   onTap: () => void;
 }) {
-  const art = CARD_ART[card];
+  const art = cardArtOf(card);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const press = useRef<Press | null>(null);

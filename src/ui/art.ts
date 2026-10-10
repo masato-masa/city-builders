@@ -1,3 +1,4 @@
+import { CARD_NAMES } from '@/game/balance';
 import type { BuildingId, CardId } from '@/game/types';
 
 import fieldUrl from '@/assets/art/field.webp';
@@ -61,3 +62,61 @@ export const CARD_ART: Partial<Record<CardId, string>> = {
   taxman: taxmanUrl,
   blockader: blockaderUrl,
 };
+
+/** 絵がまだ無いカードの仮の面（文字と色だけ）。上下 2 色のグラデーションに、名前の 1 文字を大きく置く。
+ *  絵ができたら CARD_ART に登録すれば、こちらは使われなくなる（ここから消してよい）。 */
+export interface CardPlaceholder {
+  /** 大きく出す 1 文字 */
+  mark: string;
+  /** グラデーションの上の色・下の色 */
+  top: string;
+  bottom: string;
+}
+
+export const CARD_PLACEHOLDER: Partial<Record<CardId, CardPlaceholder>> = {
+  // 職人: 上げて固める（建物側の色。建築家の暖色に寄せた銅色）
+  craftsman: { mark: '職', top: '#d39a4a', bottom: '#6a3d14' },
+  // 検査官: 相手を削る（妨害側の色。徴税官・封鎖者の寒色に寄せた藍）
+  inspector: { mark: '検', top: '#5c7fbf', bottom: '#1d2a50' },
+};
+
+/** 仮の面の既定（CARD_PLACEHOLDER にも無いカード）。名前の頭の 1 文字を灰色の地に置く。 */
+function placeholderOf(card: CardId): CardPlaceholder {
+  return CARD_PLACEHOLDER[card] ?? { mark: (CARD_NAMES[card] ?? '?').slice(0, 1), top: '#7d8796', bottom: '#2e3542' };
+}
+
+/** 仮の面を SVG の data URL にする。手札・「次」・長押しの説明・飛ぶ札・CPU の吹き出しは
+ *  どれも <img src> で絵を出すので、URL にしておけばどの場所の寸法も絵のあるカードと同じになる。
+ *  縦横比はカードと同じ 68:84。下の 1/4 は名前の帯が重なるので、文字はやや上に置く。 */
+export function placeholderCardUrl(p: CardPlaceholder): string {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 68 84" width="136" height="168">` +
+    `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0" stop-color="${p.top}"/><stop offset="1" stop-color="${p.bottom}"/></linearGradient></defs>` +
+    `<rect width="68" height="84" fill="url(#g)"/>` +
+    `<rect x="4" y="4" width="60" height="76" rx="5" fill="none" stroke="#ffffff" stroke-opacity="0.28" stroke-width="1.2"/>` +
+    `<circle cx="34" cy="35" r="19" fill="#000000" fill-opacity="0.18"/>` +
+    `<text x="34" y="35" text-anchor="middle" dominant-baseline="central" font-size="26" font-weight="800" ` +
+    `font-family="'Hiragino Sans','Yu Gothic','Noto Sans JP',sans-serif" fill="#ffffff" fill-opacity="0.92">${p.mark}</text>` +
+    `</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+const placeholderUrls = new Map<CardId, string>();
+
+/** カードの絵の URL。絵がまだ無いカードは仮の面（文字と色だけ）を返すので、必ず何か出る。 */
+export function cardArtOf(card: CardId): string {
+  const art = CARD_ART[card];
+  if (art) return art;
+  let url = placeholderUrls.get(card);
+  if (!url) {
+    url = placeholderCardUrl(placeholderOf(card));
+    placeholderUrls.set(card, url);
+  }
+  return url;
+}
+
+/** 本物の絵があるか（仮の面ではないか）。 */
+export function hasCardArt(card: CardId): boolean {
+  return !!CARD_ART[card];
+}

@@ -1530,6 +1530,21 @@
   color: var(--title);
 }
 
+/* テスト用のデッキの切り替え。label と同じ並び（左に文言、右にスイッチ）。 */
+.dev-deck-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: var(--hit);
+  font-size: 13px;
+  color: var(--title);
+}
+
+.dev-deck-row .switch {
+  flex: none;
+}
+
 .dev-grid input {
   width: 72px;
   min-height: var(--hit);

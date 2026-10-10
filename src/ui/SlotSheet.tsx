@@ -3,7 +3,7 @@ import { buildCostFor, canBuild, canUseRoad } from '@/game/reducer';
 import { handSlotsOf, roadUsesRemaining } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
-import { CARD_ART } from './art';
+import { cardArtOf } from './art';
 import { roadReason } from './feel';
 import { Sheet } from './Sheets';
 import {
@@ -157,7 +157,7 @@ function RoadPicker({
               disabled={locked || !canUseRoad(state, card, balance)}
               onClick={() => onRoad(card)}
             >
-              {CARD_ART[card] ? <img src={CARD_ART[card]} alt="" draggable={false} /> : null}
+              <img src={cardArtOf(card)} alt="" draggable={false} />
               <span className="road-pick-name">{CARD_NAMES[card]}</span>
             </button>
           ) : (

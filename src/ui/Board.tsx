@@ -245,7 +245,7 @@ function PlotView({
   highlighted: boolean;
   /** 収入の段でこの区画が元になっているとき、その光（無ければ null）。 */
   flash: IncomeFlash | null;
-  targeting: boolean;
+  targeting: Targeting;
   onPick: (slotId: number) => void;
 }) {
   const slot = state.market[slotId]!;
@@ -291,8 +291,9 @@ function PlotView({
   // 同じ 1 枚を共有しているため）。
   const disabled = owned && state.players[owner].disabledSlot === slotId;
   // 封鎖者の対象選択中は、自分の区画以外がタップできる対象になる。
-  const targetable = targeting && owner !== viewer;
-  const targetInvalid = targeting && owner === viewer;
+  // 検査官（'foe'）は相手の物件だけ。空き地・自分の物件は沈める
+  const targetable = targeting === 'foe' ? owned && owner !== viewer : targeting && owner !== viewer;
+  const targetInvalid = !!targeting && !targetable;
   const art = BUILDING_ART[slot.buildingId];
   // 建った区画は plot-art の alt="" で物件名が読み上げに出ないので、
   // ボタン自体に物件名と VP を含む aria-label を付ける。
@@ -509,6 +510,9 @@ function PlotView({
   );
 }
 
+/** 区画の対象選び。true は封鎖者（自分の区画以外）、'foe' は検査官（相手の物件だけ）。 */
+export type Targeting = boolean | 'foe';
+
 export function Board({
   state,
   balance = DEFAULT_BALANCE,
@@ -530,7 +534,7 @@ export function Board({
    *  以外をタップ可能な対象として光らせ、自分の区画は選べないことが見えるよう
    *  沈める。実際にどう振る舞うか（対象を決定する／リジェクト音を出す）は
    *  呼び出し側の onPick が決める。 */
-  targeting?: boolean;
+  targeting?: Targeting;
   /** 手札をドラッグ中か。true の間は盤面全体を「ここへ落とすと使う」と分かる見た目にする。 */
   dropArmed?: boolean;
   /** 収入の段で光らせる区画。 */

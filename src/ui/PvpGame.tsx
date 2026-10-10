@@ -7,9 +7,9 @@ import { handSlotsOf, opponentOf, ownedSlots, scoreOf, turnsRemaining, winnerOf 
 import { createGame } from '@/game/setup';
 import type { Action, CardId, GameState } from '@/game/types';
 
-import { CARD_ART, FIELD_URL } from './art';
+import { cardArtOf, FIELD_URL } from './art';
 import { Board, type IncomeFlash } from './Board';
-import { dragGuide, resolveDrop } from './card-input';
+import { dragGuide, inspectPick, resolveDrop, type TargetMode } from './card-input';
 import { CoinBar, forecast } from './CoinBar';
 import { cardAftermath, cardSequence, TARGET_LABEL } from './feel';
 import {
@@ -60,10 +60,18 @@ import {
   playYourTurn,
 } from './sound';
 
+/** 対象選びの種類 → 開くモード。 */
+const TARGET_SHEET: Record<TargetMode, 'heraldTarget' | 'blockadeTarget' | 'inspectTarget'> = {
+  herald: 'heraldTarget',
+  blockade: 'blockadeTarget',
+  inspect: 'inspectTarget',
+};
+
 type Pending =
   | { kind: 'slot'; slotId: number }
   | { kind: 'heraldTarget' }
   | { kind: 'blockadeTarget' }
+  | { kind: 'inspectTarget' }
   | { kind: 'menu' }
   | { kind: 'confirmExit' }
   | { kind: 'help' }
@@ -77,17 +85,20 @@ const SWAP_DURATION_S = SWAP_DURATION_MS / 1000;
 export function PvpGame({
   seed,
   balance = DEFAULT_BALANCE,
+  deck,
   onExit,
   onRestart,
 }: {
   seed: number;
   balance?: Balance;
+  /** 両者のデッキ（テスト用メニューで新しいカード入りを試す）。省略時は既定の 10 枚。 */
+  deck?: readonly CardId[];
   onExit: () => void;
   onRestart: () => void;
 }) {
   // PvP は常に 'you' を先手にする（対 CPU モードの乱数先手とは別扱い）。
   // 開始処理（収入）はここでは済ませない。目隠しを開けて手番の帯を見せてから反映する。
-  const [state, setState] = useState<GameState>(() => createGame(seed, balance, 'you'));
+  const [state, setState] = useState<GameState>(() => createGame(seed, balance, 'you', deck ? { you: deck, cpu: deck } : {}));
   const stateRef = useRef(state);
   stateRef.current = state;
   // 試合の記録。結果画面の振り返りに使う。
@@ -135,12 +146,12 @@ export function PvpGame({
   const { flights, fly } = useCardFlights();
   /** 手札の札の絵を盤面の中央へ飛ばす（使った手応え）。札が手札から消える前に呼ぶ。 */
   const flyCard = (card: CardId) =>
-    fly(document.querySelector(`.hand [data-card="${card}"]`), CARD_ART[card], boardAreaRef.current);
+    fly(document.querySelector(`.hand [data-card="${card}"]`), cardArtOf(card), boardAreaRef.current);
   /** 山の底へ送る札（伝令の対象・街道）を「次」の札へ小さくなって飛ばす（捨てる演出）。 */
   const flyDiscard = (card: CardId) =>
     fly(
       document.querySelector(`.hand [data-card="${card}"]`),
-      CARD_ART[card],
+      cardArtOf(card),
       document.querySelector('.next-card'),
       'discard',
     );
@@ -291,7 +302,7 @@ export function PvpGame({
       hapticReject();
       return;
     }
-    if (r.kind === 'target') return setSheet({ kind: r.mode === 'herald' ? 'heraldTarget' : 'blockadeTarget' });
+    if (r.kind === 'target') return setSheet({ kind: TARGET_SHEET[r.mode] });
     commitCard(card, r.action);
   };
 
@@ -362,7 +373,11 @@ export function PvpGame({
               state={feel.boardState}
               balance={balance}
               viewer={active}
-              targeting={sheet?.kind === 'blockadeTarget' || dragCard === 'blockader'}
+              targeting={
+                sheet?.kind === 'inspectTarget' || dragCard === 'inspector'
+                  ? 'foe'
+                  : sheet?.kind === 'blockadeTarget' || dragCard === 'blockader'
+              }
               dropArmed={dragCard !== null}
               flash={incomeFlash}
               onPick={(slotId) => {
@@ -377,6 +392,17 @@ export function PvpGame({
                     return;
                   }
                   commitCard('blockader', { type: 'useCard', card: 'blockader', blockadeSlot: slotId });
+                  return;
+                }
+                // 検査官の対象選び: 相手の物件だけ
+                if (sheet?.kind === 'inspectTarget') {
+                  const r = inspectPick(state, active, slotId);
+                  if (!r.ok) {
+                    playReject();
+                    hapticReject();
+                    return;
+                  }
+                  commitCard('inspector', r.action);
                   return;
                 }
                 const slot = state.market[slotId];
@@ -403,6 +429,9 @@ export function PvpGame({
               {dragCard ? <TargetBanner key={`drag-${dragCard}`} label={dragGuide(dragCard)} /> : null}
               {sheet?.kind === 'blockadeTarget' ? (
                 <TargetBanner key="blockadeTarget" onCancel={() => setSheet(null)} />
+              ) : null}
+              {sheet?.kind === 'inspectTarget' ? (
+                <TargetBanner key="inspectTarget" label={TARGET_LABEL.inspect} onCancel={() => setSheet(null)} />
               ) : null}
               {sheet?.kind === 'heraldTarget' ? (
                 <TargetBanner
