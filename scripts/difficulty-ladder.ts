@@ -18,14 +18,16 @@ import { performance } from 'node:perf_hooks';
 
 import { chooseAction, optionsFor, type AiOptions, type Difficulty } from '../src/ai/choose';
 import type { Profile } from '../src/ai/evaluate';
-import { DEFAULT_BALANCE } from '../src/game/balance';
 import { reduce } from '../src/game/reducer';
 import { createRng, type Rng } from '../src/game/rng';
 import { opponentOf, winnerOf } from '../src/game/selectors';
 import { createGame } from '../src/game/setup';
 import type { Action, GameState, PlayerId } from '../src/game/types';
 
-const balance = DEFAULT_BALANCE;
+import { balanceFromEnv } from './balance-override';
+
+/** BALANCE='{...}' で数値を上書きして試せる（lab・card-value と共通の口） */
+const balance = balanceFromEnv();
 
 // ---------------------------------------------------------------------------
 // 対戦相手

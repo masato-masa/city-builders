@@ -183,7 +183,7 @@ describe('行動選択', () => {
 describe('AiOptions への分解', () => {
   it('optionsFor は難易度ごとの値をそのまま写している（3 段とも CPU_PROFILE）', () => {
     expect(optionsFor('easy')).toEqual({
-      noise: 20,
+      noise: 26,
       harassRate: 0.5,
       lookahead: false,
       profile: CPU_PROFILE,
@@ -277,7 +277,7 @@ describe('難易度の順序（つよい > ふつう > やさしい > パスだ�
   // 本番の目安は 70〜85%（npm run ladder、200 試合/組）。ここは少ない試合数で順序だけを見る。
   // 試合の seed は固定なので、結果も毎回同じ（揺れて落ちることはない）。
   it('ふつうは、やさしいに勝ち越す', () => {
-    expect(winsOf('normal', 'easy', 30, 0)).toBeGreaterThan(18);
+    expect(winsOf('normal', 'easy', 40, 0)).toBeGreaterThan(24);
   });
 
   it('つよいは、ふつうに勝ち越す', () => {
