@@ -13,6 +13,8 @@ import type { RankChange } from '@/meta/rank';
 import { settleMatch } from '@/meta/settle';
 import { loadDaily, saveDaily, withDailyResult } from '@/storage/daily';
 import { loadMeta, saveMeta } from '@/storage/meta';
+import { nextTip, type TipId, tipClosedBy, tipsActive, withFinished, withSeen } from '@/meta/onboarding';
+import { loadOnboarding, saveOnboarding } from '@/storage/onboarding';
 import { loadProgress, saveProgress, withResult } from '@/storage/storage';
 
 import { BUILDING_ART, cardArtOf, FIELD_URL } from './art';
@@ -52,6 +54,7 @@ import { Sheet } from './Sheets';
 import { cpuActionCallout } from './slot-actions';
 import { SlotSheet } from './SlotSheet';
 import { TargetBanner } from './TargetBanner';
+import { TipBubble } from './TipBubble';
 import { HelpText } from './HelpText';
 import { SpeedRow } from './SpeedRow';
 import { RESULT_DELAY_MS, tempo } from './tempo';
@@ -77,6 +80,9 @@ import {
   playWin,
   playYourTurn,
 } from './sound';
+
+/** 手引きを出すまでの間（自分が操作できるようになってから）。 */
+const TIP_DELAY_MS = 700;
 
 type Pending =
   | { kind: 'slot'; slotId: number }
@@ -154,6 +160,15 @@ export function Game({
   const locked = cpuActing || introPending || busy;
 
   const finished = state.phase === 'finished';
+
+  // 最初の 1 戦の手引き（初回だけ）。場面の判定は meta/onboarding の純粋関数。
+  // 自分が操作できる間（演出・シート・ドラッグの最中でない）に、まだ見ていないものを 1 つずつ出す。
+  const [tipsOn] = useState(() => {
+    const p = loadProgress();
+    return tipsActive(loadOnboarding(), p.wins + p.losses);
+  });
+  const [tipsSeen, setTipsSeen] = useState<TipId[]>(() => loadOnboarding().seen);
+  const [tip, setTip] = useState<TipId | null>(null);
   // 結果画面は、最後の 1 手（建物の着地・数字の弾み）を見せてから出す。
   const [resultReady, setResultReady] = useState(false);
   useEffect(() => {
@@ -161,6 +176,23 @@ export function Game({
     const t = window.setTimeout(() => setResultReady(true), RESULT_DELAY_MS);
     return () => window.clearTimeout(t);
   }, [finished]);
+
+  const tipReady = tipsOn && !locked && !finished && sheet === null && dragCard === null;
+  const tipCandidate = tipsOn ? nextTip(state, tipsSeen, tipReady, balance) : null;
+  useEffect(() => {
+    if (tip !== null || tipCandidate === null) return;
+    // 収入や着地の動きが落ち着いてから出す（出た瞬間に盤面が動くと読めない）。
+    const t = window.setTimeout(() => setTip(tipCandidate), TIP_DELAY_MS);
+    return () => window.clearTimeout(t);
+  }, [tip, tipCandidate]);
+  /** 出ている手引きを閉じて「見た」にする。only を渡すと、その操作で閉じる手引きのときだけ閉じる。 */
+  const closeTip = (only?: Action['type']) => {
+    if (tip === null || (only !== undefined && !tipClosedBy(tip, only))) return;
+    const onb = withSeen(loadOnboarding(), tip);
+    saveOnboarding(onb);
+    setTipsSeen(onb.seen);
+    setTip(null);
+  };
 
   const boardAreaRef = useRef<HTMLDivElement>(null);
   // 衝撃（ヒットストップ・盤面の揺れ）と決着の静止。盤面にだけ 1 手前を一瞬見せる。
@@ -216,6 +248,9 @@ export function Game({
 
   const recordIfFinished = (result: GameState) => {
     if (result.phase !== 'finished') return;
+    // 手引きつきの 1 戦を最後まで終えたら、次からは出さない。
+    if (tipsOn) saveOnboarding(withFinished(loadOnboarding()));
+    setTip(null);
     if (daily) {
       // 日替わりは通常の CPU 戦と分ける: 勝敗・連勝・段位・実績は動かさない。
       const score = dailyScore(scoreOf(result, 'you', balance), scoreOf(result, 'cpu', balance));
@@ -272,6 +307,7 @@ export function Game({
   }, [introPending]);
 
   const endTurn = () => {
+    closeTip();
     playEndTurn();
     const next = reduce(state, { type: 'endTurn' }, balance);
     recordIfFinished(next);
@@ -425,6 +461,7 @@ export function Game({
   const commitCard = (card: CardId, action: Action) => {
     const discard = action.type === 'useCard' ? action.heraldTarget : undefined;
     const timing = cardSequence(discard !== undefined);
+    closeTip('useCard');
     // 影武者は写した札の音で鳴らす（何が起きたか耳で分かる）
     playUseCard(effectiveCardOf(stateRef.current, stateRef.current.current, card) ?? card);
     hapticUseCard();
@@ -465,6 +502,7 @@ export function Game({
 
   /** 物件を建てる。指示のあと少し置いて、着地とコインの減りを一緒に出す。 */
   const commitBuild = (slotId: number) => {
+    closeTip('build');
     hapticBuild();
     setBusy(true);
     setSheet(null);
@@ -479,6 +517,7 @@ export function Game({
    *  （演出は Board が Lv・持ち主の変化を見て出す。コインの増減は DELTA_POP に乗る。
    *  買収の衝撃（ヒットストップ・揺れ・触覚）は useBoardFeel が状態の変化を見て出す）。 */
   const commitSlotAction = (action: Extract<Action, { type: 'upgrade' | 'acquire' }>) => {
+    closeTip(action.type);
     hapticBuild();
     setBusy(true);
     setSheet(null);
@@ -543,7 +582,14 @@ export function Game({
             log={cpuLog}
             active={!finished && (cpuActing || state.current === 'cpu')}
             // CPU の 1 手は相手の情報ボードの右側（行動ログの上）に出す。盤面の中央に出すと建物を隠す。
-            overlay={<CpuCallout info={cpuCallout?.tone === 'you' ? null : cpuCallout} placement="strip" />}
+            overlay={
+              <>
+                <CpuCallout info={cpuCallout?.tone === 'you' ? null : cpuCallout} placement="strip" />
+                <AnimatePresence mode="wait">
+                  {tip !== null ? <TipBubble key={tip} tip={tip} balance={balance} onClose={() => closeTip()} /> : null}
+                </AnimatePresence>
+              </>
+            }
           />
           <div className={`board-area${dragCard ? ' is-drop-armed' : ''}`} ref={boardAreaRef}>
             <Board

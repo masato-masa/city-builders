@@ -7,6 +7,8 @@ import { dailyFor, formatScore, localDateKey } from '@/meta/daily';
 import { stepInfo } from '@/meta/rank';
 import { clearDaily, loadDaily } from '@/storage/daily';
 import { clearMeta, loadMeta } from '@/storage/meta';
+import { recommendedDifficulty } from '@/meta/onboarding';
+import { loadOnboarding, replayOnboarding } from '@/storage/onboarding';
 import { clearProgress, loadProgress } from '@/storage/storage';
 
 import { FIELD_URL } from './art';
@@ -86,6 +88,9 @@ export function Home({
   };
 
   const hasPlayed = progress.wins > 0 || progress.losses > 0;
+  // はじめての人には「やさしい」を強調して勧める（ほかの難易度もそのまま押せる）。
+  const [onboarding, setOnboarding] = useState(loadOnboarding);
+  const recommended = recommendedDifficulty(progress.lastDifficulty, progress.wins + progress.losses, onboarding);
 
   return (
     <div className="app app-home" style={{ backgroundImage: `url(${FIELD_URL})` }}>
@@ -113,7 +118,7 @@ export function Home({
           animate={{ opacity: 1, y: 0, transition: { ...SPRING, delay: ENTER[1].delay } }}
         >
           {(['easy', 'normal', 'hard'] as const).map((d) => {
-            const primary = d === progress.lastDifficulty;
+            const primary = d === recommended.difficulty;
             return (
               <button
                 key={d}
@@ -136,7 +141,7 @@ export function Home({
                   <span className="btn3d-label home-mode-label">{LABELS[d]}</span>
                   <span className="home-mode-desc">{DESCRIPTIONS[d]}</span>
                 </span>
-                {primary ? <span className="home-mode-tag">前回</span> : null}
+                {primary ? <span className="home-mode-tag">{recommended.tag}</span> : null}
               </button>
             );
           })}
@@ -544,6 +549,16 @@ export function Home({
             }}
           >
             数値を既定に戻す
+          </button>
+          <button
+            className="sheet-row"
+            onClick={() => {
+              replayOnboarding();
+              setOnboarding(loadOnboarding());
+              playUiTap();
+            }}
+          >
+            {onboarding.replay && onboarding.seen.length === 0 ? '手引きは次の CPU 戦で出ます' : '最初の 1 戦の手引きをもう一度'}
           </button>
           <button
             className="sheet-row"

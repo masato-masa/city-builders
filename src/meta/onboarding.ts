@@ -92,22 +92,22 @@ export function tipClosedBy(tip: TipId, action: Action['type']): boolean {
 export function tipText(id: TipId, balance: Balance = DEFAULT_BALANCE): { title: string; body: string } {
   switch (id) {
     case 'drag':
-      return { title: 'カードの使い方', body: 'カードは盤面へドラッグして使う。長押しで説明が見られる' };
+      return { title: 'カードの使い方', body: 'カードは盤面へドラッグして使う。長押しで説明' };
     case 'build':
-      return { title: '建てられる！', body: 'コインが足りる空き地がある。空き地をタップして建てよう' };
+      return { title: '建てられる！', body: 'コインが足りた。空き地をタップして建てよう' };
     case 'invest':
-      return { title: '次の収入', body: 'このコインは今ではなく、自分の次のターンの始めに入る' };
+      return { title: '次の収入に入る', body: 'このコインは次の自分のターンの始めに入る' };
     case 'acquire':
-      return { title: '買収できる', body: '相手の物件もタップで買える。袋の数字が買収に要るコイン' };
+      return { title: '買収できる', body: '相手の物件もタップで買える。袋の数字が要るコイン' };
     case 'district':
       return {
         title: '地区の称号',
-        body: `端の名札は地区の件数（自分 対 相手）。多いほうに +${balance.districtTitleVp}VP`,
+        body: `名札の数字は件数（自分 対 相手）。多いほうに +${balance.districtTitleVp}VP`,
       };
     case 'upgrade':
       return {
         title: 'アップグレード',
-        body: `自分の物件はタップで上げられる。Lv${balance.maxLevel} まで上げると買収されない`,
+        body: `自分の物件はタップで上げられる。Lv${balance.maxLevel} は買収されない`,
       };
   }
 }

@@ -90,8 +90,8 @@ describe('手引き: 場面の判定', () => {
     expect(tipClosedBy('upgrade', 'upgrade')).toBe(true);
   });
 
-  it('文は短い（1 つ 40 字以内）・数字は balance から', () => {
-    for (const id of TIP_ORDER) expect(tipText(id, B).body.length).toBeLessThanOrEqual(40);
+  it('文は短い（1 つ 30 字以内）・数字は balance から', () => {
+    for (const id of TIP_ORDER) expect(tipText(id, B).body.length).toBeLessThanOrEqual(30);
     expect(tipText('district', { ...B, districtTitleVp: 4 }).body).toContain('+4VP');
   });
 });
