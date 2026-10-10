@@ -153,13 +153,95 @@ export function vpOfSlot(
   return buildingVp(balance, slot.buildingId, slot.level);
 }
 
-/** 終了時の VP。 */
+/** 終了時の VP。物件の VP と、持っている地区の称号の VP。 */
 export function scoreOf(
   state: GameState,
   player: PlayerId,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
-  return ownedSlots(state, player).reduce((n, slot) => n + vpOfSlot(state, slot, balance), 0);
+  return (
+    ownedSlots(state, player).reduce((n, slot) => n + vpOfSlot(state, slot, balance), 0) +
+    titleVpOf(state, player, balance)
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 地区の称号
+// ---------------------------------------------------------------------------
+
+/** 区画が属する地区の番号。どの地区にも入っていなければ -1。 */
+export function districtOfSlot(slotId: number, balance: Balance = DEFAULT_BALANCE): number {
+  return balance.districts.findIndex((d) => d.slots.includes(slotId));
+}
+
+/** 地区の中で、称号の件数に数える物件の数。owners を渡すと、その持ち主の並び（区画番号 → 持ち主）で数える。 */
+export function districtCounts(
+  state: GameState,
+  district: number,
+  balance: Balance = DEFAULT_BALANCE,
+  ownerOf: (slotId: number) => PlayerId | null = (id) => state.market[id]?.owner ?? null,
+): Record<PlayerId, number> {
+  const counts: Record<PlayerId, number> = { you: 0, cpu: 0 };
+  for (const id of balance.districts[district]?.slots ?? []) {
+    const owner = ownerOf(id);
+    if (owner === null) continue;
+    if (!balance.districtCountsDisabled && state.players[owner].disabledSlot === id) continue;
+    counts[owner] += 1;
+  }
+  return counts;
+}
+
+/** 件数から決まる称号の持ち主。相手より多く、かつ minCount 件以上ある側が持つ。
+ *  どちらも満たさなければ（同数など）今の持ち主（current）のまま。 */
+export function holderFrom(
+  counts: Record<PlayerId, number>,
+  current: PlayerId | null,
+  minCount = 1,
+): PlayerId | null {
+  if (counts.you > counts.cpu && counts.you >= minCount) return 'you';
+  if (counts.cpu > counts.you && counts.cpu >= minCount) return 'cpu';
+  return current;
+}
+
+/** 盤面に合わせて称号を引き直した並び。今の持ち主は state.titles を見る（同数で保持するため）。 */
+export function nextTitles(state: GameState, balance: Balance = DEFAULT_BALANCE): (PlayerId | null)[] {
+  return balance.districts.map((_, i) =>
+    holderFrom(districtCounts(state, i, balance), state.titles?.[i] ?? null, balance.districtMinCount),
+  );
+}
+
+/** 地区 i の称号の持ち主。 */
+export function titleHolder(state: GameState, district: number): PlayerId | null {
+  return state.titles?.[district] ?? null;
+}
+
+/** 持っている称号の数。 */
+export function titleCountOf(state: GameState, player: PlayerId): number {
+  return (state.titles ?? []).filter((t) => t === player).length;
+}
+
+/** 称号の VP の合計。 */
+export function titleVpOf(state: GameState, player: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
+  return titleCountOf(state, player) * balance.districtTitleVp;
+}
+
+/** 区画 slotId の持ち主が newOwner に替わったら、player の称号の VP がいくら動くか（CPU の見積もり用）。
+ *  その区画の地区だけを引き直す。 */
+export function titleVpSwing(
+  state: GameState,
+  slotId: number,
+  newOwner: PlayerId,
+  player: PlayerId,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
+  const d = districtOfSlot(slotId, balance);
+  if (d < 0) return 0;
+  const current = titleHolder(state, d);
+  const counts = districtCounts(state, d, balance, (id) =>
+    id === slotId ? newOwner : (state.market[id]?.owner ?? null),
+  );
+  const after = holderFrom(counts, current, balance.districtMinCount);
+  return ((after === player ? 1 : 0) - (current === player ? 1 : 0)) * balance.districtTitleVp;
 }
 
 /** 強制終了までの残りターン数（両者合計、いま進行中の 1 手を含む）。

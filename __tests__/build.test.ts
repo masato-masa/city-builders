@@ -35,7 +35,8 @@ describe('建設', () => {
     const after = reduce(g, { type: 'build', slotId: slot }, DEFAULT_BALANCE);
     expect(after.players.you.coins).toBe(10 - DEFAULT_BALANCE.buildings.tradingHouse.cost);
     expect(after.market[slot]!.owner).toBe('you');
-    expect(scoreOf(after, 'you')).toBe(DEFAULT_BALANCE.buildings.tradingHouse.vp);
+    // 地区で最初の 1 件なので、その地区の称号も付く
+    expect(scoreOf(after, 'you')).toBe(DEFAULT_BALANCE.buildings.tradingHouse.vp + DEFAULT_BALANCE.districtTitleVp);
   });
 
   it('コインが足りなければ建てられない', () => {

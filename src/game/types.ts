@@ -83,6 +83,9 @@ export interface GameState {
   players: Record<PlayerId, PlayerState>;
   /** 長さ 10。順番は固定 */
   market: BuildingSlot[];
+  /** 地区（balance.districts）ごとの称号の持ち主。誰も持たなければ null。
+   *  同数なら今の持ち主が保持するので、盤面から毎回計算せず状態として持つ */
+  titles: (PlayerId | null)[];
   phase: 'playing' | 'finished';
 }
 

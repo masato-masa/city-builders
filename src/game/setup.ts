@@ -62,6 +62,7 @@ export function createGame(
     current: first,
     players,
     market,
+    titles: balance.districts.map(() => null),
     phase: 'playing',
   };
 }

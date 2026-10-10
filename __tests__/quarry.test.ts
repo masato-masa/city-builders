@@ -127,6 +127,8 @@ describe('石切場', () => {
 });
 
 describe('reach（まとめ買い）', () => {
+  // 物件の VP だけの合計と比べるので、地区の称号の VP は外す（称号込みの reach は districts.test.ts）
+  const NO_TITLE = { ...DEFAULT_BALANCE, districtTitleVp: 0 };
   it('まとめ買いできるときに合計 VP を返し、建築家あり・なしで値が変わる', () => {
     // 全部は買えないが、建築家の割引があれば買える件数が増える額を選ぶ
     const withoutArchitect = fixture(100);
@@ -136,8 +138,8 @@ describe('reach（まとめ買い）', () => {
       DEFAULT_BALANCE,
     );
 
-    const reachWithout = reachOf(withoutArchitect, 'you', DEFAULT_BALANCE);
-    const reachWith = reachOf(withArchitect, 'you', DEFAULT_BALANCE);
+    const reachWithout = reachOf(withoutArchitect, 'you', NO_TITLE);
+    const reachWith = reachOf(withArchitect, 'you', NO_TITLE);
 
     // 貪欲に VP 降順で買った合計と一致することを手計算で確かめる
     const affordableSum = (state: GameState) => {
@@ -166,7 +168,7 @@ describe('reach（まとめ買い）', () => {
     const g = fixture(0);
     // 最安の商館ぴったりのコインにする
     g.players.you.coins = DEFAULT_BALANCE.buildings.tradingHouse.cost;
-    const reach = reachOf(g, 'you', DEFAULT_BALANCE);
+    const reach = reachOf(g, 'you', NO_TITLE);
     expect(reach).toBe(DEFAULT_BALANCE.buildings.tradingHouse.vp);
   });
 });

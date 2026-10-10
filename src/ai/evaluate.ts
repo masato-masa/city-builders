@@ -11,6 +11,7 @@ import {
   ownedSlots,
   scoreOf,
   slotLocked,
+  titleVpSwing,
   upgradePriceOf,
   vpOfSlot,
 } from '@/game/selectors';
@@ -115,7 +116,8 @@ export function reachOf(
       if (s.slotId === p.blockedSlot) continue;
       const b = balance.buildings[s.buildingId];
       candidates.push({
-        vp: b.vp,
+        // 建てると地区の称号が取れるなら、その VP も込みで測る（あと 1 件で取れる）
+        vp: b.vp + titleVpSwing(state, s.slotId, player, player, balance),
         isBuild: true,
         cost: (builds) => {
           let discount = p.buildDiscount;
@@ -134,7 +136,11 @@ export function reachOf(
     } else if (s.owner === foe && !state.players[foe].guarded) {
       // 買収者を使ったターンは割引が乗る
       const price = acquireCostFor(state, player, s, balance);
-      candidates.push({ vp: vpOfSlot(state, s, balance), isBuild: false, cost: () => price });
+      candidates.push({
+        vp: vpOfSlot(state, s, balance) + titleVpSwing(state, s.slotId, player, player, balance),
+        isBuild: false,
+        cost: () => price,
+      });
     }
   }
   candidates.sort((a, b) => b.vp - a.vp);
@@ -180,7 +186,11 @@ export function exposedVpOf(
   const foeTurn = state.current === foe ? state.turn : state.turn + 1;
   const mine = ownedSlots(state, player)
     .filter((s) => !slotLocked(state, s, balance, foeTurn))
-    .map((s) => ({ vp: vpOfSlot(state, s, balance), price: acquirePriceOf(s, balance, discount) }))
+    .map((s) => ({
+      // 奪われると地区の称号も失うなら、その VP も込みで測る（あと 1 件で奪われる）
+      vp: vpOfSlot(state, s, balance) - titleVpSwing(state, s.slotId, foe, player, balance),
+      price: acquirePriceOf(s, balance, discount),
+    }))
     .sort((a, b) => b.vp - a.vp);
   let total = 0;
   for (const m of mine) {

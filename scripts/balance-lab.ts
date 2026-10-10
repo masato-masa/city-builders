@@ -132,6 +132,10 @@ interface GameStats {
   /** 試合終了時に Lv2 だった物件の数と、建っていた物件の数 */
   endLevel2: number;
   endBuilt: number;
+  /** 地区の称号が持ち主から相手へ移った回数（誰も持たない → 取得は数えない） */
+  titleMoves: number;
+  /** 試合終了時の称号の数（性格 A / B） */
+  endTitles: { A: number; B: number };
 }
 
 /** 先手を強制的に決める。createGame は seed から先手をランダムに決めるが、
@@ -183,6 +187,14 @@ function runOne(
   // ターン（何も使わなかった等）を「1 周」に数えないよう、変化した時だけサンプルを取る
   const prevFront: Record<PlayerId, CardId | undefined> = { you: undefined, cpu: undefined };
 
+  let titleMoves = 0;
+  const countMoves = (before: GameState, after: GameState) => {
+    after.titles.forEach((t, i) => {
+      const was = before.titles[i] ?? null;
+      if (was !== null && t !== null && was !== t) titleMoves++;
+    });
+  };
+
   let guard = 0;
   // maxTurnsPerPlayer * 2 （既定 40）が本来の上限。guard はその安全網
   while (g.phase === 'playing' && guard < 100) {
@@ -210,6 +222,7 @@ function runOne(
       const before = next;
       const applied = reduce(next, action, balance);
       if (applied === before) break;
+      countMoves(before, applied);
 
       if (action.type === 'useCard') {
         usedAnyCard = true;
@@ -284,6 +297,11 @@ function runOne(
     acquires,
     endLevel2: g.market.filter((s) => s.owner !== null && s.level >= 2).length,
     endBuilt: g.market.filter((s) => s.owner !== null).length,
+    titleMoves,
+    endTitles: {
+      A: g.titles.filter((t) => t === 'you').length,
+      B: g.titles.filter((t) => t === 'cpu').length,
+    },
   };
 }
 
@@ -328,6 +346,12 @@ const personaAcquires: number[] = new Array(N).fill(0) as number[];
 let endLevel2 = 0;
 let endBuilt = 0;
 let gamesWithAcquire = 0;
+let titleMovesTotal = 0;
+const titleMovesHist: number[] = [];
+let sweepWins = 0;
+let sweepGames = 0;
+let titleHolderWins = 0;
+let titleDecided = 0;
 let draws = 0;
 let firstMoverScore = 0;
 let turnsPerPlayerSum = 0;
@@ -397,6 +421,19 @@ for (let i = 0; i < N; i++) {
         endLevel2 += result.endLevel2;
         endBuilt += result.endBuilt;
         if (result.acquires.A + result.acquires.B > 0) gamesWithAcquire++;
+        titleMovesTotal += result.titleMoves;
+        titleMovesHist[result.titleMoves] = (titleMovesHist[result.titleMoves] ?? 0) + 1;
+        for (const side of ['A', 'B'] as const) {
+          if (result.endTitles[side] === 3) {
+            sweepGames++;
+            if (result.winner === side) sweepWins++;
+          }
+        }
+        if (result.endTitles.A !== result.endTitles.B && result.winner !== 'draw') {
+          titleDecided++;
+          const more = result.endTitles.A > result.endTitles.B ? 'A' : 'B';
+          if (result.winner === more) titleHolderWins++;
+        }
         personaBuilds[j]! += result.buildsCount.B;
         personaFirstHalfBuilds[i]! += result.firstHalfBuilds.A;
         personaFirstHalfBuilds[j]! += result.firstHalfBuilds.B;
@@ -563,6 +600,15 @@ console.log(`|---|${PERSONAS.map(() => '---').join('|')}|---|`);
   console.log(`| 1 試合の買収（1 人） | ${acq.join(' | ')} | ${(totalAcq / totalGames).toFixed(2)}（両者合計） |`);
 }
 console.log(`| 買収が 1 回以上あった試合 | ${PERSONAS.map(() => '').join(' | ')} | ${pct(gamesWithAcquire / totalGames)} |`);
+console.log(`| 称号の移動（1 試合） | ${PERSONAS.map(() => '').join(' | ')} | ${(titleMovesTotal / totalGames).toFixed(2)} |`);
+console.log(
+  `| 称号の移動の分布（0/1/2/3/4/5+ 回） | ${PERSONAS.map(() => '').join(' | ')} | ${[0, 1, 2, 3, 4]
+    .map((k) => pct((titleMovesHist[k] ?? 0) / totalGames))
+    .concat(pct(titleMovesHist.slice(5).reduce((s, v) => s + (v ?? 0), 0) / totalGames))
+    .join(' / ')} |`,
+);
+console.log(`| 称号の多い側の勝率 | ${PERSONAS.map(() => '').join(' | ')} | ${titleDecided > 0 ? pct(titleHolderWins / titleDecided) : '-'} |`);
+console.log(`| 3 つ全部持って終えた試合 / その勝率 | ${PERSONAS.map(() => '').join(' | ')} | ${pct(sweepGames / totalGames)} / ${sweepGames > 0 ? pct(sweepWins / sweepGames) : '-'} |`);
 console.log(`| 終了時に Lv2 の物件の割合 | ${PERSONAS.map(() => '').join(' | ')} | ${pct(endLevel2 / Math.max(1, endBuilt))} |`);
 console.log('');
 

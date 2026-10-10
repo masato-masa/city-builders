@@ -92,6 +92,11 @@ const FROZEN_BALANCE: Balance = {
     'fortress',
     'exchange',
   ],
+  // 地区の称号は当時なかった（地区なし = 称号なし）
+  districts: [],
+  districtTitleVp: 0,
+  districtMinCount: 1,
+  districtCountsDisabled: true,
 };
 
 /** テスト用の最小プレイヤー状態。setup.ts の emptyPlayer と同じ形を手で作る。
@@ -142,6 +147,7 @@ function scenario(cpuFirstCard: CardId): GameState {
     current: 'you',
     phase: 'playing',
     market,
+    titles: DEFAULT_BALANCE.districts.map(() => null),
     players: {
       you: player(10, ['miner', 'banker', 'architect', 'usurer']),
       cpu: player(CPU_COINS, [cpuFirstCard, 'banker', 'banker', 'banker']),

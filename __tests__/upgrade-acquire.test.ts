@@ -43,7 +43,7 @@ describe('アップグレード', () => {
     expect(g.players.you.coins).toBe(before - B.upgrades.wall.cost);
     expect(g.market[wall]!.level).toBe(2);
     expect(g.market[wall]!.paid).toBe(B.buildings.wall.cost + B.upgrades.wall.cost);
-    expect(scoreOf(g, 'you')).toBe(B.upgrades.wall.vp);
+    expect(scoreOf(g, 'you')).toBe(B.upgrades.wall.vp + B.districtTitleVp);
   });
 
   it('Lv2 より上には上げられない。相手の物件・未建設は上げられない', () => {
@@ -85,7 +85,8 @@ describe('買収', () => {
     expect(g.players.cpu.coins).toBe(30 - 11);
     expect(g.players.you.coins).toBe(11);
     expect(totalCoins(g)).toBe(coins);
-    expect(scoreOf(g, 'cpu')).toBe(B.buildings.wall.vp);
+    // 買収で地区の称号も一緒に移る
+    expect(scoreOf(g, 'cpu')).toBe(B.buildings.wall.vp + B.districtTitleVp);
     expect(scoreOf(g, 'you')).toBe(0);
     g = pass(g);
 
@@ -116,7 +117,7 @@ describe('買収', () => {
     expect(g.market[wall]!.level).toBe(2);
     expect(g.market[wall]!.paid).toBe(21);
     expect(g.players.you.coins).toBe(21);
-    expect(scoreOf(g, 'cpu')).toBe(B.upgrades.wall.vp);
+    expect(scoreOf(g, 'cpu')).toBe(B.upgrades.wall.vp + B.districtTitleVp);
   });
 
   it('安く建てた物件は安く買われる（払った実額が基準）', () => {

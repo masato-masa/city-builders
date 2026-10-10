@@ -5,6 +5,7 @@ import {
   activeEffectSum,
   activeOwnedSlots,
   handOf,
+  nextTitles,
   opponentOf,
   ownedSlots,
   roadUsesRemaining,
@@ -152,6 +153,7 @@ function build(
   slot.level = 1;
   slot.touchedTurn = next.turn;
   next.players[player].buildsThisTurn += 1;
+  next.titles = nextTitles(next, balance);
 
   // 城塞の通行料: 建てたのが自分でも、相手が城塞を持っていれば相手に入る。
   // 自分が城塞を持っていて自分で建てても、自分には入らない。
@@ -231,6 +233,7 @@ function acquire(
   slot.touchedTurn = next.turn;
   // 封鎖者の disabledSlot は「その区画を持つ側」に掛かっている。持ち主が変われば外れ、
   // 買い戻されればまた効く（区画に対する永続の封鎖、という既存の意味のまま）
+  next.titles = nextTitles(next, balance);
   return next;
 }
 
@@ -300,6 +303,8 @@ function useCard(
     } else {
       next.players[foe].disabledSlot = slotId;
     }
+    // 止めた物件を称号の件数に数えない設定なら、ここで称号が動く
+    next.titles = nextTitles(next, balance);
   }
   if (action.card === 'herald') {
     // 対象を先に処理し、伝令自身をそのあとに処理する。

@@ -161,6 +161,19 @@ export interface Balance {
   slotLockTurns: number;
   /** 市場のスロット順。長さ 10 */
   market: BuildingId[];
+  /** 市場を分けた地区。slots は区画の番号。地区ごとに物件の数が相手より多い側が称号を持つ */
+  districts: District[];
+  /** 称号 1 つの VP */
+  districtTitleVp: number;
+  /** 称号を取るのに要る最少の件数（相手より多いことに加えて） */
+  districtMinCount: number;
+  /** 封鎖者に効果を止められた物件も、称号の件数に数えるか */
+  districtCountsDisabled: boolean;
+}
+
+export interface District {
+  name: string;
+  slots: number[];
 }
 
 /** 全数値はここに集約する。ロジックに数値リテラルを書かないこと。
@@ -245,4 +258,13 @@ export const DEFAULT_BALANCE: Balance = {
     'fortress',
     'exchange',
   ],
+  // 盤面の段（2/3/2/3）を通りで区切った形。上の段＋2 段目の左 / 2 段目の中・右＋3 段目の右 / 3 段目の左＋最下段
+  districts: [
+    { name: '商人街', slots: [0, 1, 2] },
+    { name: '職人街', slots: [3, 4, 6] },
+    { name: '城下', slots: [5, 7, 8, 9] },
+  ],
+  districtTitleVp: 2,
+  districtMinCount: 1,
+  districtCountsDisabled: true,
 };
