@@ -282,6 +282,31 @@ export function playBuild(): void {
   });
 }
 
+/** 物件をアップグレードする: 建設の据わる音にきらめき（cardBuff）を重ねる。
+ *  専用の音源は持たない（既存の音の流用。無ければ上がっていく合成音）。 */
+export function playUpgrade(): void {
+  play(false, (c) => {
+    const built = sample(c, 'build', 0.03);
+    const shine = sample(c, 'cardBuff', 0.04, 0.08);
+    if (built || shine) return;
+    [660, 880, 1180].forEach((freq, i) => {
+      tone(c, { freq, freqEnd: freq * 1.25, duration: 0.16, type: 'sine', gain: 0.1, delay: i * 0.07 });
+    });
+  });
+}
+
+/** 物件を買収する（した・された）: 一撃（cardAttack）のあとにコインが相手へ渡る音。
+ *  カードの「買収者」とは別の行動だが、相手から奪う手触りは同じ系統にそろえる。 */
+export function playAcquire(): void {
+  play(false, (c) => {
+    const hit = sample(c, 'cardAttack', 0.04);
+    const coins = sample(c, 'coinBig', 0.05, 0.2);
+    if (hit || coins) return;
+    tone(c, { freq: 340, freqEnd: 200, duration: 0.18, type: 'triangle', gain: 0.14 });
+    synthCoinGain(c, 10, 0.2);
+  });
+}
+
 /** コインが増える。増えた額が大きい（BIG_COIN_DELTA 以上）ときはじゃらっと大きい音。 */
 export function playCoinGain(delta: number): void {
   play(false, (c) => coinGain(c, delta));
