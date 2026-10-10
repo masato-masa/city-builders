@@ -231,19 +231,19 @@ describe('easy / normal の振る舞いは変えていない', () => {
     };
 
     const easy0 = finish('easy', 0);
-    expect(easy0.players.you.coins).toBe(0);
-    expect(easy0.players.cpu.coins).toBe(5);
+    expect(easy0.players.you.coins).toBe(1);
+    expect(easy0.players.cpu.coins).toBe(1);
 
     const easy5 = finish('easy', 5);
-    expect(easy5.players.you.coins).toBe(1);
-    expect(easy5.players.cpu.coins).toBe(3);
+    expect(easy5.players.you.coins).toBe(4);
+    expect(easy5.players.cpu.coins).toBe(1);
 
     const normal0 = finish('normal', 0);
     expect(normal0.players.you.coins).toBe(2);
-    expect(normal0.players.cpu.coins).toBe(7);
+    expect(normal0.players.cpu.coins).toBe(4);
 
     const normal5 = finish('normal', 5);
-    expect(normal5.players.you.coins).toBe(3);
-    expect(normal5.players.cpu.coins).toBe(0);
+    expect(normal5.players.you.coins).toBe(2);
+    expect(normal5.players.cpu.coins).toBe(6);
   });
 });

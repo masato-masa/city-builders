@@ -211,7 +211,7 @@ export const DEFAULT_BALANCE: Balance = {
   fortressToll: 2,
   quarryExtraDiscount: 4,
   roadUses: 1,
-  secondPlayerFirstTurnBonus: 0,
+  secondPlayerFirstTurnBonus: 1,
   upgrades: {
     tradingHouse: { cost: 7, vp: 4 },
     wall: { cost: 10, vp: 4 },
