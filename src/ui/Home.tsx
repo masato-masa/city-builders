@@ -419,6 +419,22 @@ export function Home({
                 onChange={(e) => put({ ...balance, quarryExtraDiscount: Number(e.target.value) })}
               />
             </label>
+            <label>
+              物件の買収: 上乗せ
+              <input
+                type="number"
+                value={balance.acquireMarkup}
+                onChange={(e) => put({ ...balance, acquireMarkup: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              区画を動かせないターン数
+              <input
+                type="number"
+                value={balance.slotLockTurns}
+                onChange={(e) => put({ ...balance, slotLockTurns: Number(e.target.value) })}
+              />
+            </label>
           </div>
           <button
             className="sheet-row"

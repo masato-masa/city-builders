@@ -569,6 +569,91 @@
     inset 0 0.35cqw 0 rgb(255 255 255 / 0.3);
 }
 
+/* Lv2 の縁取り。持ち主の色（tint）の上に金の細い縁だけを重ね、地の色は変えない
+   （青・赤の識別色の輝度差はそのまま）。 */
+.plot-lv2-rim {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 0.55cqw #ffd34d,
+    0 0 1.6cqw rgb(255 211 77 / 0.55);
+  pointer-events: none;
+}
+
+/* Lv2 の星。旗（右）の反対側、台座の左手前に立てる。区画の箱に対して絶対配置。 */
+.plot-level-badge {
+  position: absolute;
+  left: 5%;
+  top: 55%;
+  width: 6.2cqw;
+  height: 6.2cqw;
+  pointer-events: none;
+}
+
+.plot-level-badge svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: #ffd34d;
+  stroke: #5a3b00;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0.4cqw 0.5cqw rgb(0 0 0 / 0.5));
+}
+
+/* アップグレードの光。収入の光（.plot-income-glow）と同じ金の系統。 */
+.plot-upgrade-glow {
+  position: absolute;
+  left: -6%;
+  right: -6%;
+  top: 6%;
+  height: 76%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 236 150 / 0.95) 0%, rgb(255 200 61 / 0.5) 45%, rgb(255 200 61 / 0) 100%);
+  pointer-events: none;
+}
+
+.plot-art-pulse {
+  display: block;
+  transform-origin: 50% 100%;
+}
+
+/* 買収の札。区画の中央に重ね、上下（持ち主の側）へ動かす。transform だけで動くので
+   区画の矩形は変わらない。 */
+.plot-deed-track {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.plot-deed {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -50%;
+  padding: 0.6cqw 2cqw;
+  border-radius: 1.2cqw;
+  border: 0.5cqw solid #fff;
+  color: #fff;
+  font-size: max(10px, 3.4cqw);
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 0.8cqw 1.4cqw rgb(0 0 0 / 0.45);
+}
+
+.plot-deed.owner-you {
+  background: var(--owner-you);
+}
+
+.plot-deed.owner-cpu {
+  background: var(--owner-cpu);
+}
+
 /* 所有者の色。上に重ねて不透明度で出すので、建った瞬間に台座が染まる。 */
 .plot-base-tint {
   position: absolute;
@@ -1196,6 +1281,70 @@
   font-size: 13px;
   color: var(--muted);
   line-height: 1.6;
+}
+
+/* 区画のシート: いまの Lv と上げたあとの Lv を左右に並べる。列の幅は 1fr ずつ固定で、
+   文の長さでボタンの位置が左右にずれない。 */
+.level-compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 6px;
+  margin: 10px 0 12px;
+}
+
+.level-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.06);
+}
+
+.level-col.is-next {
+  background: rgb(255 200 61 / 0.2);
+  box-shadow: inset 0 0 0 1.5px rgb(214 150 20 / 0.55);
+}
+
+.level-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.level-vp {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.level-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.level-arrow {
+  align-self: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.level-max {
+  margin-right: 6px;
+  color: #a86f00;
+}
+
+/* 押せない理由の 1 行。中身が無くても 1 行ぶんの高さを取る（ボタンが上下しない）。 */
+.slot-reason {
+  min-height: 1.5em;
+  /* シートは flex の gap 12px で並ぶ。理由の行はボタンに寄せて、空のときの隙間を詰める */
+  margin: -8px 0 -6px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #b2401f;
 }
 
 .dev-grid {

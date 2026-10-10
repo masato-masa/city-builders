@@ -1,5 +1,5 @@
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
-import { activeOwnedSlots, ownedSlots, scoreOf } from '@/game/selectors';
+import { activeEffectMax, activeEffectSum, ownedSlots, scoreOf } from '@/game/selectors';
 import type { GameState, PlayerId } from '@/game/types';
 
 import { hapticTap } from './haptics';
@@ -17,15 +17,14 @@ import { InfoBoard } from './InfoBoard';
 export function forecast(state: GameState, viewer: PlayerId, balance: Balance): number {
   const p = state.players[viewer];
   const festivalNext = p.festivalQueued;
-  const active = activeOwnedSlots(state, viewer);
-
-  let bonus = active.some((s) => s.buildingId === 'exchange') ? balance.exchangeBonus : 0;
+  // Lv2 の物件は効果値が上がるので、件数 × Lv1 の値ではなくレベルを見る集計を使う
+  let bonus = activeEffectMax(state, viewer, 'exchange', 'exchangeBonus', balance);
   if (festivalNext) bonus *= balance.festivalMultiplier;
 
   let total = balance.baseIncome;
   if (festivalNext) total += balance.festivalIncomeBonus;
 
-  let houseIncome = active.filter((s) => s.buildingId === 'tradingHouse').length * balance.tradingHouseIncome;
+  let houseIncome = activeEffectSum(state, viewer, 'tradingHouse', 'tradingHouseIncome', balance);
   if (festivalNext) houseIncome *= balance.festivalMultiplier;
   total += houseIncome;
 
