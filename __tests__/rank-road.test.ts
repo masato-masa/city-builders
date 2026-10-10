@@ -19,24 +19,24 @@ describe('段位ロード', () => {
 
   it('難易度が高いほど勝ちの星が多い', () => {
     expect(winStarsFor('easy', 1).stars).toBe(1);
-    expect(winStarsFor('normal', 1).stars).toBe(2);
-    expect(winStarsFor('hard', 1).stars).toBe(3);
+    expect(winStarsFor('normal', 1).stars).toBe(3);
+    expect(winStarsFor('hard', 1).stars).toBe(4);
   });
 
   it('3 連勝目から星が倍になる', () => {
-    expect(winStarsFor('normal', 2)).toEqual({ stars: 2, bonus: false });
-    expect(winStarsFor('normal', 3)).toEqual({ stars: 4, bonus: true });
-    expect(winStarsFor('hard', 7)).toEqual({ stars: 6, bonus: true });
+    expect(winStarsFor('normal', 2)).toEqual({ stars: 3, bonus: false });
+    expect(winStarsFor('normal', 3)).toEqual({ stars: 6, bonus: true });
+    expect(winStarsFor('hard', 7)).toEqual({ stars: 8, bonus: true });
   });
 
   it('星が貯まると位が上がり、余りは持ち越す（複数段も一度に上がる）', () => {
     const c = applyMatch({ step: 0, stars: 2 }, 'win', 'normal', 1);
-    expect(c.after).toEqual({ step: 1, stars: 1 });
+    expect(c.after).toEqual({ step: 1, stars: 2 });
     expect(c.promoted).toBe(true);
     expect(c.tierUp).toBe(false);
     // 村 3（あと 1）で 6 星: 村3 → 町1（残り 5）→ 町2（残り 1）
     const d = applyMatch({ step: 2, stars: 2 }, 'win', 'hard', 5);
-    expect(d.after).toEqual({ step: 4, stars: 1 });
+    expect(d.after).toEqual({ step: 4, stars: 3 });
     expect(d.tierUp).toBe(true);
   });
 
@@ -60,7 +60,7 @@ describe('段位ロード', () => {
   });
 
   it('王都では星が上限なく積み上がる。引き分けは動かない', () => {
-    expect(applyMatch({ step: TOP_STEP, stars: 30 }, 'win', 'hard', 1).after).toEqual({ step: TOP_STEP, stars: 33 });
+    expect(applyMatch({ step: TOP_STEP, stars: 30 }, 'win', 'hard', 1).after).toEqual({ step: TOP_STEP, stars: 34 });
     expect(applyMatch({ step: TOP_STEP, stars: 0 }, 'lose', 'hard', 0).floor).toBe(true);
     const d = applyMatch({ step: 5, stars: 1 }, 'draw', 'hard', 4);
     expect(d.after).toEqual({ step: 5, stars: 1 });
@@ -166,7 +166,7 @@ describe('段位と実績の保存', () => {
 
   it('試合の結果を反映して保存し、読み戻せる', () => {
     const s = settleMatch(emptyMeta(), ctx({ difficulty: 'hard' }));
-    expect(s.rank.after).toEqual({ step: 1, stars: 0 });
+    expect(s.rank.after).toEqual({ step: 1, stars: 1 });
     expect(s.unlocked).toEqual(['firstWin', 'normalWin', 'hardWin']);
     expect(s.meta.bestStep).toBe(1);
     saveMeta(s.meta);

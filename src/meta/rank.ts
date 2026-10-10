@@ -17,7 +17,7 @@ export const RANK_RULES = {
     // 最上段は 1 位だけ。星は上限なく積み上がる（stars は表示の区切り）。
     { name: '王都', levels: 1, stars: 10 },
   ],
-  winStars: { easy: 1, normal: 2, hard: 3 } as Record<Difficulty, number>,
+  winStars: { easy: 1, normal: 3, hard: 4 } as Record<Difficulty, number>,
   lossStars: 1,
   /** この連勝数（その試合を含む）から星が倍になる。 */
   bonusFromStreak: 3,
