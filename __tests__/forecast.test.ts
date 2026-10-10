@@ -80,6 +80,19 @@ describe('次ターン収入の見込み（forecast）', () => {
     expect(forecast(g, 'you', DEFAULT_BALANCE)).toBe(actualNextTurnDelta(g));
   });
 
+  it('Lv2 の商館・取引所は、上がった効果値で見込む', () => {
+    let g = fixture(10);
+    g.players.you.hand = ['miner', 'usurer', 'banker', 'architect'];
+    for (const s of g.market) {
+      if (s.buildingId === 'tradingHouse' || s.buildingId === 'exchange') {
+        s.owner = 'you';
+        s.level = 2;
+      }
+    }
+    g = reduce(g, { type: 'useCard', card: 'miner' }, DEFAULT_BALANCE);
+    expect(forecast(g, 'you', DEFAULT_BALANCE)).toBe(actualNextTurnDelta(g));
+  });
+
   it('封鎖者に効果を止められている物件は、商館収入の見込みから除外される', () => {
     const g = fixture(0);
     const house = g.market.find((s) => s.buildingId === 'tradingHouse')!;
