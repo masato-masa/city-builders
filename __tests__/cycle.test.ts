@@ -100,7 +100,8 @@ describe('循環', () => {
   it('工場の割引でコストは 0 未満にならない', () => {
     const g = fixture(ORDER, 20);
     g.market.find((s) => s.buildingId === 'factory')!.owner = 'you';
-    expect(cardCostFor(g, 'you', 'miner', DEFAULT_BALANCE)).toBe(0);
+    // 建築家（コスト 2）に工場の割引 2 → 0。それ以上は引かない
+    expect(cardCostFor(g, 'you', 'architect', DEFAULT_BALANCE)).toBe(0);
   });
 
   it('元の状態を書き換えない', () => {

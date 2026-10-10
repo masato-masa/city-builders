@@ -311,7 +311,8 @@ describe('easy / normal の決定性', () => {
   // 実際に確認した最終局面のコイン残高。数値は凍結した FROZEN_BALANCE で回すので、
   // DEFAULT_BALANCE の調整では動かない。ここが動いたら easy / normal の指し手（AI）が変わったということなので、
   // 意図的な変更でない限り疑うこと。祝祭を「毎ターンの収入」でなく 1 度きりの上乗せとして評価するよう直したとき、
-  // 手番の後の建築家の割引・試合の終わりの投資/借りを数えないよう直したとき、最終段階の物件を買収不可にしたときに更新した。
+  // 手番の後の建築家の割引・試合の終わりの投資/借りを数えないよう直したとき、最終段階の物件を買収不可にしたとき、
+  // 重みの再探索と揺らぎの変更（20/6 → 40/10）のときに更新した。
   it('seed 0 / 5 の最終コイン残高が既知の値と一致する（回帰検知用）', () => {
     const finish = (difficulty: 'easy' | 'normal', seed: number) => {
       let g = createGame(seed, FROZEN_BALANCE);
@@ -330,6 +331,6 @@ describe('easy / normal の決定性', () => {
       easy5: coins(finish('easy', 5)),
       normal0: coins(finish('normal', 0)),
       normal5: coins(finish('normal', 5)),
-    }).toEqual({ easy0: [0, 22], easy5: [5, -3], normal0: [3, 8], normal5: [14, 4] });
+    }).toEqual({ easy0: [20, 0], easy5: [23, 21], normal0: [28, 38], normal5: [26, 28] });
   });
 });

@@ -10,9 +10,10 @@ export type Difficulty = 'easy' | 'normal' | 'hard';
 
 /** 難易度ごとの揺らぎ。3 段とも同じ重み（CPU_PROFILE）を使い、段差はここと下の 2 つで付ける。
  *  値は scripts/difficulty-ladder.ts（npm run ladder）で測って決めた:
- *  ふつう→やさしい、つよい→ふつう がそれぞれ 70〜85% になるように（200 試合/組で 78.5% / 76.5%。
- *  ふつうの揺らぎ 8 では つよい→ふつう が 69.5% で下に外れた）。 */
-const NOISE: Record<Difficulty, number> = { easy: 20, normal: 6, hard: 0 };
+ *  ふつう→やさしい、つよい→ふつう がそれぞれ 70〜85% になるように。
+ *  2026-10-11 に重みを探し直したら 20/6 では 59% / 69% に縮んだ。ふつう対やさしい（200 試合）:
+ *  10/40 で 74.8%、6/40 で 81.0%、10/80 で 89.0%。つよい対ふつう（150 試合）: 6 で 73.3%、10 で 76.0%、15 で 82.0%。 */
+const NOISE: Record<Difficulty, number> = { easy: 40, normal: 10, hard: 0 };
 
 /** 妨害カードを検討する確率。easy は妨害をあまり撃たない。 */
 const HARASS_RATE: Record<Difficulty, number> = { easy: 0.5, normal: 0.8, hard: 1 };

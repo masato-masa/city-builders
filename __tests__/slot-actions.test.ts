@@ -28,11 +28,11 @@ function board(): GameState {
 }
 
 describe('upgradeButton', () => {
-  it('空き地・相手の物件・Lv2 では出さない', () => {
+  it('空き地・相手の物件・最大レベルでは出さない', () => {
     const s = board();
     expect(upgradeButton(s, 1, 'you', B)).toBeNull();
     expect(upgradeButton(s, 7, 'you', B)).toBeNull();
-    s.market[0]!.level = 2;
+    s.market[0]!.level = B.maxLevel;
     expect(upgradeButton(s, 0, 'you', B)).toBeNull();
   });
 
@@ -133,11 +133,11 @@ describe('levelEffects', () => {
     expect(next).toEqual({ level: 2, vp: '4 VP', text: '毎ターン開始時 コイン +2' });
   });
 
-  it('Lv2 は next を出さない。未建設も出さない', () => {
+  it('最大レベルは next を出さない。未建設も出さない', () => {
     const s = board();
-    s.market[0]!.level = 2;
+    s.market[0]!.level = B.maxLevel;
     expect(levelEffects(s, 0, B).next).toBeNull();
-    expect(levelEffects(s, 0, B).current.vp).toBe('4 VP');
+    expect(levelEffects(s, 0, B).current.vp).toBe(`${B.upgrades3.tradingHouse.vp} VP`);
     expect(levelEffects(s, 1, B).next).toBeNull();
   });
 

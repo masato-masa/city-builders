@@ -32,8 +32,12 @@ export const DAILY_RULES: readonly DailyRule[] = [
   },
   {
     id: 'income',
-    label: (b) => `基礎収入 +1（${b.baseIncome + 1}）`,
-    patch: (b) => ({ baseIncome: b.baseIncome + 1 }),
+    label: (b) => `基礎収入 +1（${b.baseIncome + 1}）・後手の初手 +1`,
+    // 基礎収入だけ +1 だと先手 59.7%（開始資金 1 の後、lab 150）。後手の 1 ターン目の補正も +1 して 52.4%
+    patch: (b) => ({
+      baseIncome: b.baseIncome + 1,
+      secondPlayerFirstTurnBonus: b.secondPlayerFirstTurnBonus + 1,
+    }),
   },
   {
     id: 'festival3',

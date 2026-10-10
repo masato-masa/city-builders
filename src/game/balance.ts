@@ -189,10 +189,12 @@ export interface District {
 export const DEFAULT_BALANCE: Balance = {
   handSize: 4,
   baseIncome: 2,
-  startingCoins: { first: 0, second: 0 },
+  // 開始資金は両者 1。CPU の評価の盲点（手番後の建築家の割引・最後の手番の投資）を直して重みを探し直したら
+  // 先手 42〜44% に下がった。先手だけ +1 は 60%、両者 +1 で 49.3%（lab 150）
+  startingCoins: { first: 1, second: 1 },
   maxTurnsPerPlayer: 20,
   cards: {
-    miner: { cost: 2 },
+    miner: { cost: 3 },
     banker: { cost: 5 },
     architect: { cost: 2 },
     herald: { cost: 1 },
@@ -204,7 +206,9 @@ export const DEFAULT_BALANCE: Balance = {
     blockader: { cost: 5 },
   },
   minerIncome: 3,
-  bankerIncome: 5,
+  // 銀行家 5 → 4・採掘師のコスト 2 → 3: 盲点を直した後の回転（ゲーム内 CPU）は銀行家・採掘師を禁止すると
+  // 勝率が 10〜12 点落ちた（投資の利回り頼み）。lab 150 で回転 63.9% → 50.3%
+  bankerIncome: 4,
   bankerPerBuilding: 1,
   architectDiscount: 6,
   taxmanAmount: 5,

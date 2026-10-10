@@ -79,14 +79,14 @@ describe('初期状態', () => {
     expect(seen).toContain('cpu');
   });
 
-  it('先手と後手の初期コインはどちらも 0', () => {
+  it('先手と後手の初期コインは同額', () => {
     const g = createGame(5);
     const first = g.players[g.current].coins;
     const second = g.players[opponentOf(g.current)].coins;
     expect(first).toBe(DEFAULT_BALANCE.startingCoins.first);
     expect(second).toBe(DEFAULT_BALANCE.startingCoins.second);
-    expect(first).toBe(0);
-    expect(second).toBe(0);
+    // 先手と後手の開始資金は同額（先手有利の補正は後手の 1 ターン目の収入で行う）
+    expect(first).toBe(second);
   });
 
   it('市場は 10 スロットで全て未建設', () => {
