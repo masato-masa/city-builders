@@ -131,6 +131,8 @@ interface GameStats {
   acquires: { A: number; B: number };
   /** 試合終了時に Lv2 だった物件の数と、建っていた物件の数 */
   endLevel2: number;
+  /** 試合終了時に Lv3（買収されない最終段階）だった物件の数 */
+  endLevel3: number;
   endBuilt: number;
   /** 地区の称号が持ち主から相手へ移った回数（誰も持たない → 取得は数えない） */
   titleMoves: number;
@@ -296,6 +298,7 @@ function runOne(
     upgrades,
     acquires,
     endLevel2: g.market.filter((s) => s.owner !== null && s.level >= 2).length,
+    endLevel3: g.market.filter((s) => s.owner !== null && s.level >= 3).length,
     endBuilt: g.market.filter((s) => s.owner !== null).length,
     titleMoves,
     endTitles: {
@@ -344,6 +347,7 @@ let totalGames = 0;
 const personaUpgrades: number[] = new Array(N).fill(0) as number[];
 const personaAcquires: number[] = new Array(N).fill(0) as number[];
 let endLevel2 = 0;
+let endLevel3 = 0;
 let endBuilt = 0;
 let gamesWithAcquire = 0;
 let titleMovesTotal = 0;
@@ -419,6 +423,7 @@ for (let i = 0; i < N; i++) {
         personaAcquires[i]! += result.acquires.A;
         personaAcquires[j]! += result.acquires.B;
         endLevel2 += result.endLevel2;
+        endLevel3 += result.endLevel3;
         endBuilt += result.endBuilt;
         if (result.acquires.A + result.acquires.B > 0) gamesWithAcquire++;
         titleMovesTotal += result.titleMoves;
@@ -609,7 +614,7 @@ console.log(
 );
 console.log(`| 称号の多い側の勝率 | ${PERSONAS.map(() => '').join(' | ')} | ${titleDecided > 0 ? pct(titleHolderWins / titleDecided) : '-'} |`);
 console.log(`| 3 つ全部持って終えた試合 / その勝率 | ${PERSONAS.map(() => '').join(' | ')} | ${pct(sweepGames / totalGames)} / ${sweepGames > 0 ? pct(sweepWins / sweepGames) : '-'} |`);
-console.log(`| 終了時に Lv2 の物件の割合 | ${PERSONAS.map(() => '').join(' | ')} | ${pct(endLevel2 / Math.max(1, endBuilt))} |`);
+console.log(`| 終了時に Lv2 以上 / Lv3 の物件の割合 | ${PERSONAS.map(() => '').join(' | ')} | ${pct(endLevel2 / Math.max(1, endBuilt))} / ${pct(endLevel3 / Math.max(1, endBuilt))} |`);
 console.log('');
 
 console.log('## 表 4: 徴税官の状況判断');

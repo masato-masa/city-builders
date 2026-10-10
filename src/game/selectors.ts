@@ -108,10 +108,36 @@ export function acquireCostFor(
   return acquirePriceOf(slot, balance, state.players[player].acquireDiscount);
 }
 
-/** 区画をアップグレードするときの価格。最大レベル（Lv2）なら Infinity。 */
+/** 区画をアップグレードするときの価格。Lv1 → Lv2 は upgrades、Lv2 → Lv3 は upgrades3。
+ *  最大レベル（balance.maxLevel）なら Infinity。 */
 export function upgradePriceOf(slot: BuildingSlot, balance: Balance = DEFAULT_BALANCE): number {
-  if (slot.owner === null || slot.level >= 2) return Number.POSITIVE_INFINITY;
-  return balance.upgrades[slot.buildingId].cost;
+  if (slot.owner === null || slot.level >= balance.maxLevel) return Number.POSITIVE_INFINITY;
+  return slot.level >= 2
+    ? balance.upgrades3[slot.buildingId].cost
+    : balance.upgrades[slot.buildingId].cost;
+}
+
+/** 最終段階（balance.maxLevel）まで上げた物件か。最終段階の物件は買収されない。 */
+export function slotMaxed(slot: BuildingSlot, balance: Balance = DEFAULT_BALANCE): boolean {
+  return slot.owner !== null && slot.level >= balance.maxLevel;
+}
+
+/** player が区画 slotId を買収できない理由（コイン不足を除く）。買収の対象でない区画（自分の物件・空き地）は 'notForeign'。
+ *  UI が「なぜ買えないか」を 1 行で言うためのもの。判定の順は canAcquire と同じ。買えるなら null。 */
+export type AcquireBlock = 'notForeign' | 'guarded' | 'maxLevel' | 'locked';
+export function acquireBlockOf(
+  state: GameState,
+  slotId: number,
+  player: PlayerId,
+  balance: Balance = DEFAULT_BALANCE,
+): AcquireBlock | null {
+  const slot = state.market[slotId];
+  const foe = opponentOf(player);
+  if (!slot || slot.owner !== foe) return 'notForeign';
+  if (state.players[foe].guarded) return 'guarded';
+  if (slotMaxed(slot, balance)) return 'maxLevel';
+  if (slotLocked(state, slot, balance)) return 'locked';
+  return null;
 }
 
 /** 区画がまだ動かせない（アップグレード・買収できない）か。

@@ -55,6 +55,7 @@ export const DAILY_RULES: readonly DailyRule[] = [
     label: () => 'アップグレード費 −3',
     patch: (b) => ({
       upgrades: mapValues(b.upgrades, (v) => ({ ...v, cost: Math.max(0, v.cost - 3) })),
+      upgrades3: mapValues(b.upgrades3, (v) => ({ ...v, cost: Math.max(0, v.cost - 3) })),
     }),
   },
   {
@@ -63,6 +64,7 @@ export const DAILY_RULES: readonly DailyRule[] = [
     patch: (b) => ({
       fortressToll: b.fortressToll * 2,
       level2: { ...b.level2, fortressToll: b.level2.fortressToll * 2 },
+      level3: { ...b.level3, fortressToll: b.level3.fortressToll * 2 },
     }),
   },
 ];

@@ -35,7 +35,7 @@ export function cardTextFor(card: CardId, balance: Balance): string {
     case 'banker':
       return `次の収入 コイン +${balance.bankerIncome}。さらに解決時の自分の物件 1 件につき +${balance.bankerPerBuilding}`;
     case 'architect':
-      return `このターン建てる物件すべて、建設費 −${balance.architectDiscount}`;
+      return `このターン建てる物件すべて、建設費 −${balance.architectDiscount}（アップグレード・買収には効かない）`;
     case 'herald':
       return `手札 1 枚を使わずに山の底へ送り、補充する。街道があればコスト ${balance.heraldCostWithRoad}`;
     case 'festival':
@@ -93,7 +93,7 @@ export function buildingTextFor(building: BuildingId, balance: Balance, level = 
   }
 }
 
-/** レベルで値が変わる物件の効果。Lv1 の値は Balance の同名の項目、Lv2 の値は Balance.level2 にある。 */
+/** レベルで値が変わる物件の効果。Lv1 の値は Balance の同名の項目、Lv2 は Balance.level2、Lv3 は Balance.level3 にある。 */
 export type Level2EffectKey =
   | 'tradingHouseIncome'
   | 'factoryDiscount'
@@ -105,11 +105,13 @@ export type Level2EffectKey =
 
 /** レベルに応じた物件の効果値。数値はすべて balance から引く（ロジックに直書きしない）。 */
 export function buildingEffect(balance: Balance, key: Level2EffectKey, level: number): number {
+  if (level >= 3) return balance.level3[key];
   return level >= 2 ? balance.level2[key] : balance[key];
 }
 
 /** レベルに応じた物件の VP（大聖堂は vpOfSlot が別に数える）。 */
 export function buildingVp(balance: Balance, building: BuildingId, level: number): number {
+  if (level >= 3) return balance.upgrades3[building].vp;
   return level >= 2 ? balance.upgrades[building].vp : balance.buildings[building].vp;
 }
 
@@ -154,6 +156,12 @@ export interface Balance {
   upgrades: Record<BuildingId, { cost: number; vp: number }>;
   /** Lv2 の効果値。Lv1 の値は同名の項目 */
   level2: Record<Level2EffectKey, number>;
+  /** 2 回目のアップグレード（Lv2 → Lv3）。cost は払う額、vp は Lv3 での VP（置き換え） */
+  upgrades3: Record<BuildingId, { cost: number; vp: number }>;
+  /** Lv3 の効果値 */
+  level3: Record<Level2EffectKey, number>;
+  /** レベルの上限。上限まで上げた物件は買収されない */
+  maxLevel: number;
   /** 買収の上乗せ。価格は「その物件に払われたコインの合計 + これ」 */
   acquireMarkup: number;
   /** 建設・アップグレード・買収のあと、その区画を動かせないターン数（1 人の手番を 1 と数える）。
@@ -245,6 +253,29 @@ export const DEFAULT_BALANCE: Balance = {
     quarryExtraDiscount: 6,
     roadUses: 2,
   },
+  // Lv3 の費用は建設費 +3。lab 100（Lv3 の費用 → 終了時に Lv3 の物件の割合 / 1 試合の買収）:
+  // 建設費と同額 29.2% / 3.94 回、+1 25.3% / 4.01 回、+3 15.3% / 4.39 回（Lv3 なし 4.42 回）。
+  // 安いと買収されない物件ばかりになり、買収の読み合いが減る
+  upgrades3: {
+    tradingHouse: { cost: 10, vp: 6 },
+    wall: { cost: 13, vp: 6 },
+    factory: { cost: 15, vp: 7 },
+    road: { cost: 17, vp: 6 },
+    cathedral: { cost: 19, vp: 0 },
+    fortress: { cost: 21, vp: 12 },
+    exchange: { cost: 23, vp: 7 },
+    quarry: { cost: 16, vp: 7 },
+  },
+  level3: {
+    tradingHouseIncome: 3,
+    factoryDiscount: 6,
+    cathedralVpPerBuilding: 4,
+    exchangeBonus: 6,
+    fortressToll: 4,
+    quarryExtraDiscount: 8,
+    roadUses: 3,
+  },
+  maxLevel: 3,
   acquireMarkup: 4,
   slotLockTurns: 1,
   market: [

@@ -11,6 +11,7 @@ import {
   ownedSlots,
   scoreOf,
   slotLocked,
+  slotMaxed,
   titleVpSwing,
   upgradePriceOf,
   vpOfSlot,
@@ -146,12 +147,13 @@ export function reachOf(
       continue;
     }
     if (slotLocked(state, s, balance)) continue;
-    if (s.owner === player && s.level < 2) {
+    if (s.owner === player && s.level < balance.maxLevel) {
       const price = upgradePriceOf(s, balance);
       // 大聖堂も同じ式で測れるよう、レベルだけ上げた区画を vpOfSlot に渡して差を取る
       const gain = vpOfSlot(state, { ...s, level: s.level + 1 }, balance) - vpOfSlot(state, s, balance);
       candidates.push({ vp: gain, isBuild: false, cost: () => price });
-    } else if (s.owner === foe && !state.players[foe].guarded) {
+    } else if (s.owner === foe && !state.players[foe].guarded && !slotMaxed(s, balance)) {
+      // 最終段階（maxLevel）の物件は買収できない
       // 買収者を使ったターンは割引が乗る
       const price = acquireCostFor(state, player, s, balance);
       candidates.push({
@@ -203,7 +205,8 @@ export function exposedVpOf(
   // 相手の次の手番の時点で、まだ動かせない区画は奪われない
   const foeTurn = state.current === foe ? state.turn : state.turn + 1;
   const mine = ownedSlots(state, player)
-    .filter((s) => !slotLocked(state, s, balance, foeTurn))
+    // 最終段階の物件は買収されないので晒されない（アップグレードの価値の一部がここに出る）
+    .filter((s) => !slotLocked(state, s, balance, foeTurn) && !slotMaxed(s, balance))
     .map((s) => ({
       // 奪われると地区の称号も失うなら、その VP も込みで測る（あと 1 件で奪われる）
       vp: vpOfSlot(state, s, balance) - titleVpSwing(state, s.slotId, foe, player, balance),

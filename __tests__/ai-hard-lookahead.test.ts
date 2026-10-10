@@ -78,6 +78,27 @@ const FROZEN_BALANCE: Balance = {
     quarryExtraDiscount: 6,
     roadUses: 2,
   },
+  // Lv3 は凍結時点のルールに無かったので上限 2 のまま（表は型を満たすためだけに置く）
+  upgrades3: {
+    tradingHouse: { cost: 8, vp: 6 },
+    wall: { cost: 11, vp: 6 },
+    factory: { cost: 13, vp: 7 },
+    road: { cost: 15, vp: 6 },
+    cathedral: { cost: 17, vp: 0 },
+    fortress: { cost: 19, vp: 12 },
+    exchange: { cost: 21, vp: 7 },
+    quarry: { cost: 14, vp: 7 },
+  },
+  level3: {
+    tradingHouseIncome: 3,
+    factoryDiscount: 6,
+    cathedralVpPerBuilding: 4,
+    exchangeBonus: 6,
+    fortressToll: 4,
+    quarryExtraDiscount: 8,
+    roadUses: 3,
+  },
+  maxLevel: 2,
   acquireMarkup: 4,
   slotLockTurns: 1,
   market: [
@@ -290,7 +311,7 @@ describe('easy / normal の決定性', () => {
   // 実際に確認した最終局面のコイン残高。数値は凍結した FROZEN_BALANCE で回すので、
   // DEFAULT_BALANCE の調整では動かない。ここが動いたら easy / normal の指し手（AI）が変わったということなので、
   // 意図的な変更でない限り疑うこと。祝祭を「毎ターンの収入」でなく 1 度きりの上乗せとして評価するよう直したとき、
-  // 手番の後の建築家の割引・試合の終わりの投資/借りを数えないよう直したときに更新した。
+  // 手番の後の建築家の割引・試合の終わりの投資/借りを数えないよう直したとき、最終段階の物件を買収不可にしたときに更新した。
   it('seed 0 / 5 の最終コイン残高が既知の値と一致する（回帰検知用）', () => {
     const finish = (difficulty: 'easy' | 'normal', seed: number) => {
       let g = createGame(seed, FROZEN_BALANCE);
@@ -309,6 +330,6 @@ describe('easy / normal の決定性', () => {
       easy5: coins(finish('easy', 5)),
       normal0: coins(finish('normal', 0)),
       normal5: coins(finish('normal', 5)),
-    }).toEqual({ easy0: [-3, 2], easy5: [0, 0], normal0: [3, 3], normal5: [4, 17] });
+    }).toEqual({ easy0: [0, 22], easy5: [5, -3], normal0: [3, 8], normal5: [14, 4] });
   });
 });

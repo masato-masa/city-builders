@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { exposedVpOf, reachOf } from '@/ai/evaluate';
 import { buildingTextFor, DEFAULT_BALANCE } from '@/game/balance';
 import { canAcquire, canUpgrade, canUseRoad, cardCostFor, incomeStages, legalActions, reduce } from '@/game/reducer';
-import { acquirePriceOf, incomePerTurnOf, roadUsesRemaining, scoreOf, vpOfSlot } from '@/game/selectors';
+import { acquireBlockOf, acquirePriceOf, incomePerTurnOf, roadUsesRemaining, scoreOf, vpOfSlot } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { BuildingId, GameState, PlayerId } from '@/game/types';
 
@@ -46,16 +46,39 @@ describe('アップグレード', () => {
     expect(scoreOf(g, 'you')).toBe(B.upgrades.wall.vp + B.districtTitleVp);
   });
 
-  it('Lv2 より上には上げられない。相手の物件・未建設は上げられない', () => {
+  it('最終段階（maxLevel）より上には上げられない。相手の物件・未建設は上げられない', () => {
     const g = fixture(100, 0);
     const wall = slotOf(g, 'wall');
     g.market[wall]!.owner = 'you';
-    g.market[wall]!.level = 2;
+    g.market[wall]!.level = B.maxLevel;
     expect(canUpgrade(g, wall, B)).toBe(false);
     g.market[wall]!.owner = 'cpu';
     g.market[wall]!.level = 1;
     expect(canUpgrade(g, wall, B)).toBe(false);
     expect(canUpgrade(g, slotOf(g, 'fortress'), B)).toBe(false);
+  });
+
+  it('Lv2 から Lv3 へは upgrades3 の額を払い、VP と効果が Lv3 の値になる', () => {
+    let g = fixture(100, 0);
+    const house = slotOf(g, 'tradingHouse');
+    g = reduce(g, { type: 'build', slotId: house }, B);
+    g = pass(pass(g));
+    g = reduce(g, { type: 'upgrade', slotId: house }, B);
+    expect(g.market[house]!.level).toBe(2);
+    // 同じ手番に 2 段は上げられない
+    expect(canUpgrade(g, house, B)).toBe(false);
+    g = pass(pass(g));
+    const before = g.players.you.coins;
+    g = reduce(g, { type: 'upgrade', slotId: house }, B);
+    expect(g.market[house]!.level).toBe(3);
+    expect(g.players.you.coins).toBe(before - B.upgrades3.tradingHouse.cost);
+    expect(g.market[house]!.paid).toBe(
+      B.buildings.tradingHouse.cost + B.upgrades.tradingHouse.cost + B.upgrades3.tradingHouse.cost,
+    );
+    expect(vpOfSlot(g, g.market[house]!, B)).toBe(B.upgrades3.tradingHouse.vp);
+    expect(incomePerTurnOf(g, 'you', B)).toBe(B.baseIncome + B.level3.tradingHouseIncome);
+    expect(buildingTextFor('tradingHouse', B, 3)).toContain(`+${B.level3.tradingHouseIncome}`);
+    expect(canUpgrade(pass(pass(g)), house, B)).toBe(false);
   });
 
   it('コインが足りなければ上げられない', () => {
@@ -67,6 +90,31 @@ describe('アップグレード', () => {
 });
 
 describe('買収', () => {
+  it('最終段階（Lv3）の物件は買収できない。理由は acquireBlockOf が maxLevel と返す', () => {
+    const g = fixture(0, 200);
+    const wall = slotOf(g, 'wall');
+    g.market[wall]!.owner = 'you';
+    g.market[wall]!.paid = 10;
+    g.current = 'cpu';
+    g.market[wall]!.level = B.maxLevel - 1;
+    expect(canAcquire(g, wall, B)).toBe(true);
+    expect(acquireBlockOf(g, wall, 'cpu', B)).toBeNull();
+    g.market[wall]!.level = B.maxLevel;
+    expect(canAcquire(g, wall, B)).toBe(false);
+    expect(acquireBlockOf(g, wall, 'cpu', B)).toBe('maxLevel');
+    expect(legalActions(g, B).some((a) => a.type === 'acquire' && a.slotId === wall)).toBe(false);
+    // 衛兵が先に言われる（衛兵が切れても最終段階なので買えない）
+    g.players.you.guarded = true;
+    expect(acquireBlockOf(g, wall, 'cpu', B)).toBe('guarded');
+    // CPU の見積もりも揃う: 晒されている VP にも、相手の reach にも入らない
+    g.players.you.guarded = false;
+    expect(exposedVpOf(g, 'you', B)).toBe(0);
+    const lower = structuredClone(g);
+    lower.market[wall]!.level = B.maxLevel - 1;
+    expect(exposedVpOf(lower, 'you', B)).toBeGreaterThan(0);
+    expect(reachOf(lower, 'cpu', B)).toBeGreaterThan(reachOf(g, 'cpu', B));
+  });
+
   // 仕様書の例（+1）どおりに動くかを、上乗せ 1 の balance で確かめる。既定の上乗せは実測で決めた値
   it('価格は払われた合計 + 1。10 → 11 → 12 と上がり、代金は元の持ち主に入る', () => {
     let g = fixture(10, 0);

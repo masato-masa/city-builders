@@ -1,5 +1,6 @@
 import { DEFAULT_BALANCE, type Balance } from './balance';
 import {
+  acquireBlockOf,
   acquireCostFor,
   activeEffectMax,
   activeEffectSum,
@@ -197,7 +198,8 @@ function upgrade(
 }
 
 /** 相手の物件を買収できるか。価格は paid + acquireMarkup。
- *  相手が衛兵で守られていれば買えない。城壁は防がない。封鎖者で止められた物件も買える。 */
+ *  相手が衛兵で守られていれば買えない。最終段階（maxLevel）の物件も買えない。
+ *  城壁は防がない。封鎖者で止められた物件も買える。理由の判定は selectors の acquireBlockOf。 */
 export function canAcquire(
   state: GameState,
   slotId: number,
@@ -205,11 +207,8 @@ export function canAcquire(
 ): boolean {
   if (state.phase !== 'playing') return false;
   const player = state.current;
-  const foe = opponentOf(player);
-  const slot = state.market[slotId];
-  if (!slot || slot.owner !== foe) return false;
-  if (state.players[foe].guarded) return false;
-  if (slotLocked(state, slot, balance)) return false;
+  if (acquireBlockOf(state, slotId, player, balance) !== null) return false;
+  const slot = state.market[slotId]!;
   return state.players[player].coins >= acquireCostFor(state, player, slot, balance);
 }
 
