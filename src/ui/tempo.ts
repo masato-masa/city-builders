@@ -29,7 +29,14 @@ export const CPU_END_DELAY_MS = 250;
 /** 勝敗が付いてから結果画面を出すまでの間。最後の 1 手を見せる。 */
 export const RESULT_DELAY_MS = 1400;
 
-/** カードが盤面へ飛ぶ演出の長さ（秒）。 */
+/** カード使用の 1 段目「溜め」: 札がその場で縮んで光る長さ（ボタンの縮みの基準 80〜120ms）。
+ *  2 段目「発動」（盤面へ飛んで弾ける）は CARD_EFFECT_DELAY_MS − これ。 */
+export const CARD_CHARGE_MS = 100;
+
+/** 溜めで縮める倍率（基準 0.9 前後）。 */
+export const CARD_CHARGE_SCALE = 0.9;
+
+/** カードが盤面へ飛ぶ演出の長さ（秒）。山の底へ送る札（伝令の対象・街道）に使う。 */
 export const CARD_FLIGHT_S = 0.5;
 
 /** 数字の増減ポップが出ている時間（ミリ秒）。 */
