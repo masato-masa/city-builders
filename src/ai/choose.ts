@@ -12,7 +12,7 @@ export type Difficulty = 'easy' | 'normal' | 'hard';
  *  値は scripts/difficulty-ladder.ts（npm run ladder）で測って決めた:
  *  ふつう→やさしい、つよい→ふつう がそれぞれ 70〜85% になるように（200 試合/組で 78.5% / 76.5%。
  *  ふつうの揺らぎ 8 では つよい→ふつう が 69.5% で下に外れた）。 */
-const NOISE: Record<Difficulty, number> = { easy: 20, normal: 10, hard: 0 };
+const NOISE: Record<Difficulty, number> = { easy: 20, normal: 6, hard: 0 };
 
 /** 妨害カードを検討する確率。easy は妨害をあまり撃たない。 */
 const HARASS_RATE: Record<Difficulty, number> = { easy: 0.5, normal: 0.8, hard: 1 };

@@ -189,7 +189,7 @@ describe('AiOptions への分解', () => {
       profile: CPU_PROFILE,
     });
     expect(optionsFor('normal')).toEqual({
-      noise: 10,
+      noise: 6,
       harassRate: 0.8,
       lookahead: false,
       profile: CPU_PROFILE,
