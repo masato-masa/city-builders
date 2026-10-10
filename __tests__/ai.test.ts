@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { chooseAction, optionsFor, playTurn } from '@/ai/choose';
+import { chooseAction, optionsFor, playTurn, type Difficulty } from '@/ai/choose';
 import { DEFAULT_PROFILE, DEFAULT_WEIGHTS, evaluateState, weightsAt } from '@/ai/evaluate';
+import { CPU_PROFILE } from '@/ai/profiles';
 import { DEFAULT_BALANCE } from '@/game/balance';
-import { scoreOf } from '@/game/selectors';
+import { winnerOf } from '@/game/selectors';
 import { legalActions, reduce } from '@/game/reducer';
 import { createRng } from '@/game/rng';
 import { createGame } from '@/game/setup';
@@ -180,30 +181,32 @@ describe('行動選択', () => {
 });
 
 describe('AiOptions への分解', () => {
-  it('optionsFor は難易度ごとの値をそのまま写している', () => {
+  it('optionsFor は難易度ごとの値をそのまま写している（3 段とも CPU_PROFILE）', () => {
     expect(optionsFor('easy')).toEqual({
-      noise: 45,
-      harassRate: 0.25,
+      noise: 20,
+      harassRate: 0.5,
       lookahead: false,
-      profile: DEFAULT_PROFILE,
+      profile: CPU_PROFILE,
     });
     expect(optionsFor('normal')).toEqual({
-      noise: 3,
+      noise: 10,
       harassRate: 0.8,
       lookahead: false,
-      profile: DEFAULT_PROFILE,
+      profile: CPU_PROFILE,
     });
     expect(optionsFor('hard')).toEqual({
       noise: 0,
       harassRate: 1,
       lookahead: true,
-      profile: DEFAULT_PROFILE,
+      profile: CPU_PROFILE,
     });
   });
 
-  it('Difficulty を渡しても optionsFor(difficulty) を渡しても指し手は完全一致する（20 試合ぶん）', () => {
+  it('Difficulty を渡しても optionsFor(difficulty) を渡しても指し手は完全一致する（20 試合ぶん。つよいは 2 試合）', () => {
     for (const difficulty of ['easy', 'normal', 'hard'] as const) {
-      for (let seed = 0; seed < 20; seed++) {
+      // つよいは先読みで 1 試合 0.3 秒ほどかかるので、試合数を絞る
+      const seeds = difficulty === 'hard' ? 2 : 20;
+      for (let seed = 0; seed < seeds; seed++) {
         let byName = createGame(seed);
         let byOptions = createGame(seed);
         const rngA = createRng(seed + 9000);
@@ -239,19 +242,49 @@ describe('1 ターンを通す', () => {
     expect(guard).toBeLessThan(200);
   });
 
-  it('ふつうは、やさしいより強い', () => {
-    let normalWins = 0;
-    for (let seed = 0; seed < 40; seed++) {
+});
+
+describe('難易度の順序（つよい > ふつう > やさしい > パスだけ）', () => {
+  /** a を 'you'、b を 'cpu' として n 試合。先手は交互。a の勝ち数（引き分け 0.5）を返す。
+   *  null は「何もしない（毎手番すぐ手番を終える）」相手。 */
+  const winsOf = (a: Difficulty | null, b: Difficulty | null, n: number, base: number): number => {
+    let wins = 0;
+    for (let k = 0; k < n; k++) {
+      const seed = base + k;
       let g = createGame(seed);
+      const first = k % 2 === 0 ? 'you' : 'cpu';
+      if (g.current !== first) {
+        g = structuredClone(g);
+        g.current = first;
+        g.players[first].coins = DEFAULT_BALANCE.startingCoins.first;
+        g.players[first === 'you' ? 'cpu' : 'you'].coins = DEFAULT_BALANCE.startingCoins.second;
+      }
       const rng = createRng(seed + 1000);
-      // 'you' を normal、'cpu' を easy として回す
       let guard = 0;
       while (g.phase === 'playing' && guard < 200) {
-        g = playTurn(g, g.current === 'you' ? 'normal' : 'easy', rng, DEFAULT_BALANCE);
+        const d = g.current === 'you' ? a : b;
+        g = d
+          ? playTurn(g, d, rng, DEFAULT_BALANCE)
+          : reduce(reduce(g, { type: 'startTurn' }, DEFAULT_BALANCE), { type: 'endTurn' }, DEFAULT_BALANCE);
         guard++;
       }
-      if (scoreOf(g, 'you') > scoreOf(g, 'cpu')) normalWins++;
+      const w = winnerOf(g, DEFAULT_BALANCE);
+      wins += w === 'you' ? 1 : w === 'draw' ? 0.5 : 0;
     }
-    expect(normalWins).toBeGreaterThan(20);
+    return wins;
+  };
+
+  // 本番の目安は 70〜85%（npm run ladder、200 試合/組）。ここは少ない試合数で順序だけを見る。
+  // 試合の seed は固定なので、結果も毎回同じ（揺れて落ちることはない）。
+  it('ふつうは、やさしいに勝ち越す', () => {
+    expect(winsOf('normal', 'easy', 30, 0)).toBeGreaterThan(18);
+  });
+
+  it('つよいは、ふつうに勝ち越す', () => {
+    expect(winsOf('hard', 'normal', 20, 100)).toBeGreaterThan(12);
+  });
+
+  it('やさしいでも、何もしない相手には負けない', () => {
+    expect(winsOf('easy', null, 10, 200)).toBe(10);
   });
 });

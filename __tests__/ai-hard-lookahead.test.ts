@@ -33,11 +33,14 @@ function player(coins: number, hand: CardId[]): PlayerState {
   };
 }
 
+/** cpu の手持ち。手番の頭の基礎収入を足すと、ちょうど徴税官（コスト 3）が払える額。 */
+const CPU_COINS = DEFAULT_BALANCE.cards.taxman.cost - DEFAULT_BALANCE.baseIncome;
+
 /** 「自分（you）がいまターンを終えようとしている」局面を作る。
  *  市場は全区画未建設（誰の reach 計算にも建設物件の所有差が混ざらないようにする）。
- *  cpu の手札は [target, banker, banker, banker]。banker はコスト 5 で cpu の
- *  所持コイン 3 では払えないので、cpu が実際に選べる行動は「target を使う」か
- *  「そのまま手番を終える」の 2 択だけになる（build もコスト 7 以上で払えない）。 */
+ *  cpu の手札は [target, banker, banker, banker]。cpu は収入を受け取っても 3 コインで、
+ *  banker（コスト 5）も建設（コスト 7 以上）も払えないので、cpu が実際に選べる行動は
+ *  「target を使う」か「そのまま手番を終える」の 2 択だけになる。 */
 function scenario(cpuFirstCard: CardId): GameState {
   const market = DEFAULT_BALANCE.market.map((buildingId, slotId) => ({
     slotId,
@@ -55,7 +58,7 @@ function scenario(cpuFirstCard: CardId): GameState {
     market,
     players: {
       you: player(10, ['miner', 'banker', 'architect', 'usurer']),
-      cpu: player(3, [cpuFirstCard, 'banker', 'banker', 'banker']),
+      cpu: player(CPU_COINS, [cpuFirstCard, 'banker', 'banker', 'banker']),
     },
   };
 }
@@ -65,12 +68,17 @@ describe('lookaheadScore: 相手の想定応手を読む', () => {
     const afterA = reduce(scenario('taxman'), { type: 'endTurn' }, DEFAULT_BALANCE);
     const afterB = reduce(scenario('architect'), { type: 'endTurn' }, DEFAULT_BALANCE);
 
-    // 前提確認: この局面で cpu にとって最善の一手は、想定どおりのカードである
-    // （徴税官は自分のコインを削りつつ相手のコインを奪うので cpu にとって得。
-    //   建築家はこのターンの建設費 -6 だが、このシナリオでは cpu はどのみち
-    //   何も建てられない（コインを使い切るため）ので、コストを払うだけ損。
+    // 前提確認: 手番を渡した直後の cpu は、まだ徴税官を払えない。払えるのは収入を受け取ってから。
+    // （1 手ずつ読んでいた旧版は相手の startTurn を挟まなかったので、この徴税官を読めなかった）
+    expect(legalActions(afterA, DEFAULT_BALANCE)).not.toContainEqual({ type: 'useCard', card: 'taxman' });
+    const startedA = reduce(afterA, { type: 'startTurn' }, DEFAULT_BALANCE);
+    const startedB = reduce(afterB, { type: 'startTurn' }, DEFAULT_BALANCE);
+
+    // 前提確認: 収入を受け取った cpu にとって最善の一手は、想定どおりのカードである
+    // （徴税官は相手の次の収入を削るので cpu にとって得。建築家はこのターンの建設費を
+    //   下げるが、cpu はどのみち何も建てられないので、コストを払うだけ損）。
     //   ※ 祝祭は incomePerTurnOf が festivalQueued を見て収入見積もりを
-    //   即座に押し上げるため、実は cpu にとって得な一手になってしまい、
+    //   即座に押し上げるため、cpu にとって得な一手になってしまい、
     //   「相手にとって無害なカード」の比較対象として使えなかった。
     const bestFor = (state: GameState): CardId | 'endTurn' => {
       let best: CardId | 'endTurn' = 'endTurn';
@@ -95,64 +103,41 @@ describe('lookaheadScore: 相手の想定応手を読む', () => {
       }
       return best;
     };
-    expect(bestFor(afterA)).toBe('taxman');
-    expect(bestFor(afterB)).toBe('endTurn');
+    expect(bestFor(startedA)).toBe('taxman');
+    expect(bestFor(startedB)).toBe('endTurn');
 
     // 手番が相手に渡った直後の「静的な」評価（相手がまだ何もしていない時点の評価）は、
-    // 徴税官と建築家を入れ替えただけでは変わらない。どちらも手札のコスト構成は同じ
-    // （コスト3のカード1枚＋コスト5のカード3枚）で、evaluateState は手札の中身
-    // （何が書かれたカードか）までは見ないため。
+    // 徴税官と建築家を入れ替えただけでは変わらない。どちらもコスト 3 のカードで、
+    // evaluateState は手札の中身（何が書かれたカードか）までは見ないため。
     const staticA = evaluateState(afterA, 'you', DEFAULT_BALANCE, DEFAULT_WEIGHTS);
     const staticB = evaluateState(afterB, 'you', DEFAULT_BALANCE, DEFAULT_WEIGHTS);
     expect(staticA).toBe(staticB);
 
-    // ところが lookaheadScore（つよいが使う2段先読み: 自分 → 相手の最善手 →
-    // 自分の最善手）は、相手が実際に徴税官を撃ってくることを読んで、自分視点の
-    // スコアを下げる。旧実装（手番が移る前の自分の次の一手を読んでいただけ）
-    // では、相手の手札の中身は一度も参照されないので、この差は絶対に出なかった。
+    // ところが lookaheadScore（つよいが使う手番単位の先読み: 自分の手番の残り →
+    // 収入を受け取った相手の手番）は、相手が実際に徴税官を撃ってくることを読んで、
+    // 自分視点のスコアを下げる。
     const lookA = lookaheadScore(afterA, 'you', DEFAULT_WEIGHTS, DEFAULT_BALANCE);
     const lookB = lookaheadScore(afterB, 'you', DEFAULT_WEIGHTS, DEFAULT_BALANCE);
     expect(lookA).toBeLessThan(lookB);
 
     // 建築家のほうは相手が結局何もしない（cpu の最善手は endTurn）ので、
-    // 手番が返ってきた自分は 10 コインまるごと使って立て直せる。その分だけ
-    // 静的評価より明確に高くなる。
-    expect(lookB).toBeGreaterThan(staticB);
+    // 先読みの結果は、相手が収入を受け取って手番を終えただけの局面になる。
+    const quiet = reduce(startedB, { type: 'endTurn' }, DEFAULT_BALANCE);
+    expect(lookB).toBe(evaluateState(quiet, 'you', DEFAULT_BALANCE, DEFAULT_WEIGHTS));
   });
 
-  it('1段読みだけでは出ない「自分の立て直し」の価値が、2段読みでは出る', () => {
-    // 1段読み（このセッションで直す前の実装）を、比較用にそのままここへ写す:
-    // 自分の行動 → 相手の最善手、までしか読まない。
-    const onePly = (after: GameState): number => {
-      const handedOver =
-        after.phase === 'playing' && after.current === 'you'
-          ? reduce(after, { type: 'endTurn' }, DEFAULT_BALANCE)
-          : after;
-      if (handedOver.phase !== 'playing' || handedOver.current === 'you') {
-        return evaluateState(handedOver, 'you', DEFAULT_BALANCE, DEFAULT_WEIGHTS);
-      }
-      const foe = handedOver.current;
-      let best = handedOver;
-      let bestScore = -Infinity;
-      for (const action of legalActions(handedOver, DEFAULT_BALANCE)) {
-        const next = reduce(handedOver, action, DEFAULT_BALANCE);
-        const score = evaluateState(next, foe, DEFAULT_BALANCE, DEFAULT_WEIGHTS);
-        if (score > bestScore) {
-          bestScore = score;
-          best = next;
-        }
-      }
-      return evaluateState(best, 'you', DEFAULT_BALANCE, DEFAULT_WEIGHTS);
-    };
-
-    // 建築家シナリオ: cpu の最善手は「何もせず手番を終える」なので、1段読みは
-    // 静的評価とほぼ同じ値にしかならない。2段読みはそこからさらに、手番が
-    // 返ってきた自分が 10 コインで最善の一手を打てることまで見るので、
-    // はっきり高いスコアになる。
-    const afterB = reduce(scenario('architect'), { type: 'endTurn' }, DEFAULT_BALANCE);
-    const onePlyB = onePly(afterB);
-    const twoPlyB = lookaheadScore(afterB, 'you', DEFAULT_WEIGHTS, DEFAULT_BALANCE);
-    expect(twoPlyB).toBeGreaterThan(onePlyB);
+  it('手番の途中の局面からは、自分の残りの手を打ち切ってから相手を読む', () => {
+    // you が建築家を使った直後（まだ自分の手番）。先読みは「建築家で安くなった建設」を
+    // 打ち切ってから手番を渡すので、建築家を使わずに手番を終えた場合より高く評価する。
+    const g = scenario('architect');
+    g.players.you.hand = ['architect', 'banker', 'banker', 'banker'];
+    g.players.you.coins = 10;
+    const usedArchitect = reduce(g, { type: 'useCard', card: 'architect' }, DEFAULT_BALANCE);
+    expect(usedArchitect.current).toBe('you');
+    const stopped = reduce(g, { type: 'endTurn' }, DEFAULT_BALANCE);
+    expect(lookaheadScore(usedArchitect, 'you', DEFAULT_WEIGHTS, DEFAULT_BALANCE)).toBeGreaterThan(
+      lookaheadScore(stopped, 'you', DEFAULT_WEIGHTS, DEFAULT_BALANCE),
+    );
   });
 
   it('手番がすでに相手に渡っている局面では、そのまま使う（二重に endTurn を挟まない）', () => {
@@ -185,12 +170,9 @@ describe('lookaheadScore: 相手の想定応手を読む', () => {
   });
 });
 
-describe('easy / normal の振る舞いは変えていない', () => {
-  // 変更前（相手の手番へ渡さず、自分の次の一手だけを読んでいた実装）と比べて、
-  // lookahead を使わない easy / normal の分岐は一切触っていない。
-  // ここでは「同じ seed からは同じ手順で試合が進む」ことを、複数 seed・
-  // 最後まで通した試合で確かめる（つよい実装の変更が easy / normal に
-  // 一切波及していないことの安全網）。
+describe('easy / normal の決定性', () => {
+  // 「同じ seed からは同じ手順で試合が進む」ことを、複数 seed・最後まで通した試合で確かめる。
+  // 下の最終コイン残高は、easy / normal の指し手が動いたことに気づくための回帰検知。
   it.each(['easy', 'normal'] as const)('%s は同じ seed なら毎回同じ結果になる', (difficulty) => {
     for (const seed of [0, 5, 11]) {
       const run = () => {
@@ -218,6 +200,7 @@ describe('easy / normal の振る舞いは変えていない', () => {
   // 銀行家の収入を（11,+1/件）→（6,+2/件）に変えたときも更新した（自走改善の調整で数値は今後も動く）。
   // アップグレード・買収の追加（合法手が増える）、採掘師 6→5、衛兵の一律加点の廃止で全 4 局が動いたので更新した。
   // 買収者を「このターンの買収価格 −3」に作り替え、城壁×衛兵・街道×伝令の連携と数値の調整（後手 1 ターン目の補正 1→0 を含む）を入れたときも更新した。
+  // 難易度の段差を作り直し（3 段とも CPU_PROFILE、揺らぎ・妨害の頻度を測り直し）たときも更新した。
   it('seed 0 / 5 の最終コイン残高が既知の値と一致する（回帰検知用）', () => {
     const finish = (difficulty: 'easy' | 'normal', seed: number) => {
       let g = createGame(seed);
@@ -231,19 +214,19 @@ describe('easy / normal の振る舞いは変えていない', () => {
     };
 
     const easy0 = finish('easy', 0);
-    expect(easy0.players.you.coins).toBe(0);
-    expect(easy0.players.cpu.coins).toBe(5);
+    expect(easy0.players.you.coins).toBe(3);
+    expect(easy0.players.cpu.coins).toBe(4);
 
     const easy5 = finish('easy', 5);
-    expect(easy5.players.you.coins).toBe(1);
-    expect(easy5.players.cpu.coins).toBe(3);
+    expect(easy5.players.you.coins).toBe(8);
+    expect(easy5.players.cpu.coins).toBe(1);
 
     const normal0 = finish('normal', 0);
-    expect(normal0.players.you.coins).toBe(2);
-    expect(normal0.players.cpu.coins).toBe(7);
+    expect(normal0.players.you.coins).toBe(7);
+    expect(normal0.players.cpu.coins).toBe(0);
 
     const normal5 = finish('normal', 5);
-    expect(normal5.players.you.coins).toBe(3);
-    expect(normal5.players.cpu.coins).toBe(0);
+    expect(normal5.players.you.coins).toBe(1);
+    expect(normal5.players.cpu.coins).toBe(1);
   });
 });
