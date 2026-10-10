@@ -3,6 +3,7 @@ import { activeEffectMax, activeEffectSum, ownedSlots, scoreOf } from '@/game/se
 import type { GameState, PlayerId } from '@/game/types';
 
 import { hapticTap } from './haptics';
+import { incomeLine } from './income-text';
 import { InfoBoard } from './InfoBoard';
 
 /** 次のターン開始時に入る見込み額。遅延収入のゲームなので、これが無いと判断できない。
@@ -84,9 +85,7 @@ export function CoinBar({
         </button>
       }
       sub={
-        <span className="coinbar-forecast">
-          次ターン収入 {income >= 0 ? `+${income}` : income}
-        </span>
+        <span className="coinbar-forecast">{incomeLine(income)}</span>
       }
     />
   );

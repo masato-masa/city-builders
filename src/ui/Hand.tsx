@@ -7,6 +7,7 @@ import { handSlotsOf, nextCardOf } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
 import { CARD_ART } from './art';
+import { cardShortfall } from './feel';
 import { MenuIcon } from './icons';
 
 /** 手札 4 枚の枠番号。PlayerState.hand は常に長さ 4 の固定スロット配列で、
@@ -144,6 +145,7 @@ function CardButton({
   };
   // 対象選択モード中（伝令）は、使用可否と無関係に「伝令自身か・そうでないか」
   // だけで見た目を決める。盤面の封鎖者対象選択と同じ考え方（要望参照）。
+  const short = targeting || using ? null : cardShortfall(state, viewer, card, balance);
   const targetable = targeting && card !== 'herald';
   const targetInvalid = targeting && card === 'herald';
   const className = [
@@ -207,6 +209,12 @@ function CardButton({
           <span className="card-cost-num">{cardCostFor(state, viewer, card, balance)}</span>
         </span>
       </motion.button>
+      {/* 足りないコイン。札（暗く沈めてある）の外に重ねて、沈めずに読ませる。寸法は変えない。 */}
+      {short !== null ? (
+        <span className="card-short" aria-label={`あと ${short} コイン`}>
+          あと{short}
+        </span>
+      ) : null}
     </motion.div>
   );
 }

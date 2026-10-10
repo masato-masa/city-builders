@@ -1398,6 +1398,11 @@
   top: 8px;
   right: 8px;
   z-index: 2;
+  margin: 0;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
   padding: 4px 9px;
   border-radius: 999px;
   background: rgba(22, 32, 41, 0.82);
@@ -1408,16 +1413,18 @@
 /* 封鎖者の対象選択モード中に出す案内（要望 G3）。.board-area（盤面コンテナ、
    TurnBadge と同じ基準）の上端中央に浮かせる。相手の情報ボードより下に来るので
    重ならない。全画面を覆う overlay は持たないので、盤面のタップはそのまま通る。 */
+/* 右端は残りターンの時計（.board-turn-badge、幅 約 53px）の分を空けて、重ならないようにする
+   （以前は中央寄せで最大幅いっぱいまで伸び、伝令の長い案内が時計に被っていた）。 */
 .target-banner {
   position: absolute;
   top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 8px;
+  right: 70px;
   z-index: 3;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  max-width: calc(100% - 16px);
   padding: 8px 10px 8px 14px;
   border-radius: 999px;
   background: rgba(22, 32, 41, 0.92);

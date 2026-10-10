@@ -1,12 +1,15 @@
 import { motion } from 'motion/react';
 
+import { TARGET_LABEL } from './feel';
+
 /** 対象選択モード中に出す、控えめな案内。封鎖者（盤面の区画を選ぶ）と
  *  伝令（手札のカードを選ぶ）の両方で使う。以前は <Sheet> で対象の一覧を
  *  出していたが、実物を直接タップして選ぶ方式に変えたので、案内だけを
  *  浮かせる。全画面を覆うオーバーレイは持たないので、タップはそのまま
  *  この下（盤面／手札）を通る。 */
 export function TargetBanner({
-  label = '封鎖モード中・相手の区画をタップ（このターンだけの効果）',
+  // 以前は「（このターンだけの効果）」と添えていたが、封鎖は永続（カードの説明・シートと食い違っていた）。
+  label = TARGET_LABEL.blockade,
   onCancel,
 }: {
   label?: string;

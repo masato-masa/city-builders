@@ -2,31 +2,31 @@ import { AnimatePresence } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 
 import type { Difficulty } from '@/ai/choose';
-import {
-  CARD_NAMES,
-  cardTextFor,
-  DEFAULT_BALANCE,
-  type Balance,
-} from '@/game/balance';
-import { canAcquire, canBuild, canUpgrade, canUseCard, canUseRoad, cardCostFor, reduce } from '@/game/reducer';
+import { CARD_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
+import { canAcquire, canBuild, canUpgrade, canUseCard, reduce } from '@/game/reducer';
 import { createRng, type Rng } from '@/game/rng';
-import { handSlotsOf, ownedSlots, roadUsesRemaining, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
+import { handSlotsOf, ownedSlots, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { Action, CardId, GameState } from '@/game/types';
 import { loadProgress, saveProgress, withResult } from '@/storage/storage';
 
 import { BUILDING_ART, CARD_ART, FIELD_URL } from './art';
 import { Board, type IncomeFlash } from './Board';
+import { CardSheet } from './CardSheet';
 import { CoinBar } from './CoinBar';
 import { type CpuStep, playTurnSteps } from './cpu-turn';
+import { cardAftermath, cardSequence, TARGET_LABEL } from './feel';
 import {
+  AftermathLayer,
   CardFlightLayer,
   CpuCallout,
   type CpuCalloutInfo,
   TurnBanner,
+  useAftermath,
   useCardFlights,
   useTurnBanner,
 } from './Fx';
+import { ImpactFlash, useBoardFeel } from './impact-fx';
 import {
   hapticBuild,
   hapticLose,
@@ -152,6 +152,10 @@ export function Game({
   }, [finished]);
 
   const boardAreaRef = useRef<HTMLDivElement>(null);
+  // 衝撃（ヒットストップ・盤面の揺れ）と決着の静止。盤面にだけ 1 手前を一瞬見せる。
+  // CPU の手では震わせない（下の CPU の手番の方針と同じ）。
+  const feel = useBoardFeel(state, boardAreaRef, (actor) => actor === 'you');
+  const aftermath = useAftermath();
   const { flights, fly } = useCardFlights();
   /** 手札の札の絵を盤面の中央へ飛ばす（使った手応え）。札が手札から消える前に呼ぶ。 */
   const flyCard = (card: CardId) =>
@@ -352,9 +356,10 @@ export function Game({
     // eslint 的な exhaustive-deps はこのプロジェクトに無い。cpuTurn の変化だけを見る。
   }, [cpuTurn]);
 
-  // 勝敗が付いた瞬間に 1 回だけ鳴らす。
+  // 決着の山場: 一瞬の静止 → 鐘（useBoardFeel）→ 結果画面。勝ち負けの音は結果画面と一緒に鳴らす
+  // （鐘と重ねると濁る）。
   useEffect(() => {
-    if (!finished) return;
+    if (!resultReady) return;
     const winner = winnerOf(state, balance);
     if (winner === 'you') {
       playWin();
@@ -363,13 +368,15 @@ export function Game({
       playLose();
       hapticLose();
     }
-    // eslint 的な exhaustive-deps はこのプロジェクトに無い。finished の変化だけを見る。
-  }, [finished]);
+    // eslint 的な exhaustive-deps はこのプロジェクトに無い。resultReady の変化だけを見る。
+  }, [resultReady]);
 
-  /** カードを使う。まず手札から盤面へ飛ぶところを見せ（音も先）、少し置いて効果を反映する。
-   *  伝令は、使う札のあとに「山の底へ送る札」も飛ばして（捨てる演出）から反映する。 */
+  /** カードを使う。溜め → 発動（盤面へ飛ぶ）→ 余韻（効果の一言）の 3 段。音は先に鳴らす。
+   *  伝令は、使う札のあとに「山の底へ送る札」も飛ばして（捨てる演出）から反映する。
+   *  操作は効果の反映で戻る。余韻は待たせない（触れば消える）。 */
   const commitCard = (card: CardId, action: Action) => {
     const discard = action.type === 'useCard' ? action.heraldTarget : undefined;
+    const timing = cardSequence(discard !== undefined);
     playUseCard(card);
     hapticUseCard();
     flyCard(card);
@@ -383,10 +390,13 @@ export function Game({
         setUsing([card, discard]);
       });
     }
-    later((discard ? DISCARD_AT_MS : 0) + CARD_EFFECT_DELAY_MS, () => {
-      setState(reduce(stateRef.current, action, balance));
+    later(timing.effectAt, () => {
+      const before = stateRef.current;
+      const after = reduce(before, action, balance);
+      setState(after);
       setUsing([]);
       setBusy(false);
+      aftermath.show(cardAftermath(before, after, card, balance), boardAreaRef.current, timing.aftermathMs);
     });
   };
 
@@ -423,7 +433,8 @@ export function Game({
   };
 
   /** 物件のアップグレード・買収。建設と同じ間合いで、光る／札が移る演出とコインの増減を一緒に出す
-   *  （演出は Board が Lv・持ち主の変化を見て出す。コインの増減は DELTA_POP に乗る）。 */
+   *  （演出は Board が Lv・持ち主の変化を見て出す。コインの増減は DELTA_POP に乗る。
+   *  買収の衝撃（ヒットストップ・揺れ・触覚）は useBoardFeel が状態の変化を見て出す）。 */
   const commitSlotAction = (action: Extract<Action, { type: 'upgrade' | 'acquire' }>) => {
     hapticBuild();
     setBusy(true);
@@ -474,20 +485,31 @@ export function Game({
   };
 
   return (
-    <div className="app app-play" style={{ backgroundImage: `url(${FIELD_URL})` }}>
+    <div
+      className={`app app-play${feel.still ? ' is-finale-still' : ''}`}
+      style={{ backgroundImage: `url(${FIELD_URL})` }}
+    >
       {/* ヘッダーの行は廃止（要望 1）。あきらめる／あそびかた／設定は
           手札の「次」の上のメニューボタン 1 つにまとめた（要望 2）。 */}
       <main className="play">
-        <div className="board-shell" onPointerDownCapture={() => flushIncome.current?.()}>
+        <div
+          className="board-shell"
+          onPointerDownCapture={() => {
+            flushIncome.current?.();
+            aftermath.skip();
+          }}
+        >
           <OpponentStrip
             state={state}
             balance={balance}
             log={cpuLog}
             active={!finished && (cpuActing || state.current === 'cpu')}
+            // CPU の 1 手は相手の情報ボードの右側（行動ログの上）に出す。盤面の中央に出すと建物を隠す。
+            overlay={<CpuCallout info={cpuCallout?.tone === 'you' ? null : cpuCallout} placement="strip" />}
           />
           <div className={`board-area${dragCard ? ' is-drop-armed' : ''}`} ref={boardAreaRef}>
             <Board
-              state={state}
+              state={feel.boardState}
               balance={balance}
               highlightSlot={cpuHighlightSlot}
               targeting={sheet?.kind === 'blockadeTarget'}
@@ -518,8 +540,9 @@ export function Game({
                 setSheet({ kind: 'slot', slotId });
               }}
             />
+            <ImpactFlash flash={feel.flash} />
+            {feel.still ? <span className="finale-still" aria-hidden="true" /> : null}
             <TurnBadge state={state} balance={balance} />
-            <CpuCallout info={cpuCallout} />
             <TurnBanner banner={banner} onDone={clearBanner} />
             {/* 対象選択中の案内はここ（盤面コンテナ）基準で上端中央に置く。相手の
                 情報ボードより下に来るので重ならない（要望 G3）。封鎖者は盤面、
@@ -534,28 +557,33 @@ export function Game({
               {sheet?.kind === 'heraldTarget' ? (
                 <TargetBanner
                   key="heraldTarget"
-                  label="伝令モード中・山の底へ送るカードを手札からタップ"
+                  label={TARGET_LABEL.herald}
                   onCancel={() => setSheet(null)}
                 />
               ) : null}
             </AnimatePresence>
           </div>
-          <CoinBar
-            state={state}
-            balance={balance}
-            onEndTurn={endTurn}
-            endTurnEnabled={!finished && !locked && state.current === 'you'}
-            active={!finished && !cpuActing && state.current === 'you'}
-            endTurnHint={
-              !handSlotsOf(state, 'you').some((c) => c !== null && canUseCard(state, c, balance)) &&
-              !state.market.some(
-                (m) =>
-                  canBuild(state, m.slotId, balance) ||
-                  canUpgrade(state, m.slotId, balance) ||
-                  canAcquire(state, m.slotId, balance),
-              )
-            }
-          />
+          {/* 自分の収入の段も、盤面ではなく自分の情報ボードの右側に出す（建物を隠さない）。
+              収入の間は操作できないので、終了ボタンに重なってもよい。 */}
+          <div className="self-wrap">
+            <CoinBar
+              state={state}
+              balance={balance}
+              onEndTurn={endTurn}
+              endTurnEnabled={!finished && !locked && state.current === 'you'}
+              active={!finished && !cpuActing && state.current === 'you'}
+              endTurnHint={
+                !handSlotsOf(state, 'you').some((c) => c !== null && canUseCard(state, c, balance)) &&
+                !state.market.some(
+                  (m) =>
+                    canBuild(state, m.slotId, balance) ||
+                    canUpgrade(state, m.slotId, balance) ||
+                    canAcquire(state, m.slotId, balance),
+                )
+              }
+            />
+            <CpuCallout info={cpuCallout?.tone === 'you' ? cpuCallout : null} placement="strip" />
+          </div>
           <Hand
             state={state}
             balance={balance}
@@ -617,46 +645,21 @@ export function Game({
 
       <AnimatePresence>
         {sheet?.kind === 'card' ? (
-          <Sheet
+          <CardSheet
             key="card"
-            title={CARD_NAMES[sheet.card]}
-            subtitle={`コスト ${balance.cards[sheet.card].cost}`}
+            state={state}
+            card={sheet.card}
+            viewer="you"
+            balance={balance}
+            locked={locked}
+            onRoad={() => commitRoad(sheet.card)}
+            onUse={() => {
+              const card = sheet.card;
+              setSheet(null);
+              useCard(card);
+            }}
             onClose={() => setSheet(null)}
-          >
-            {CARD_ART[sheet.card] ? (
-              <img className="sheet-card-art" src={CARD_ART[sheet.card]} alt="" />
-            ) : null}
-            <p className="sheet-text">{cardTextFor(sheet.card, balance)}</p>
-            {sheet.card === 'blockader' ? (
-              <p className="sheet-text">永続する効果です。解除する手段はいまはありません。</p>
-            ) : null}
-            {/* 街道の効果。以前はコインバーの専用ボタンから対象を選んでいたが、
-                いまはカードを選んだこのシートの中、「使う」の上に置く（要望 2）。
-                街道を持っていない／使い切っているときも、ボタンは消さず disabled にする。 */}
-            <button
-              className="sheet-row road-btn"
-              disabled={locked || !canUseRoad(state, sheet.card, balance)}
-              onClick={() => commitRoad(sheet.card)}
-            >
-              <span>山の底へ送る</span>
-              <span className="road-btn-sub">街道・あと {roadUsesRemaining(state, 'you', balance)} 回</span>
-            </button>
-            <button
-              className="btn3d btn3d-yellow"
-              disabled={locked || !canUseCard(state, sheet.card, balance)}
-              onClick={() => {
-                const card = sheet.card;
-                setSheet(null);
-                useCard(card);
-              }}
-            >
-              {canUseCard(state, sheet.card, balance) ||
-              state.current !== 'you' ||
-              state.players['you'].coins >= cardCostFor(state, 'you', sheet.card, balance)
-                ? '使う'
-                : `あと ${cardCostFor(state, 'you', sheet.card, balance) - state.players['you'].coins} コイン`}
-            </button>
-          </Sheet>
+          />
         ) : null}
       </AnimatePresence>
 
@@ -701,8 +704,8 @@ export function Game({
               VP の多いほうが勝ちです。
             </p>
             <p className="sheet-text">
-              投資カード（採掘師・銀行家）のコインが入るのは<b>次のターン</b>です。
-              だからコインバーに「次ターン収入 +N」を出しています。今建てるか、
+              投資カード（採掘師・銀行家）のコインが入るのは<b>次の収入</b>（自分の次のターンの始め）です。
+              だからコインバーに「次の収入 +N」を出しています。今建てるか、
               次のターンに回すかを、この 2 つの数字で比べてください。
             </p>
             <p className="sheet-text">
@@ -782,6 +785,7 @@ export function Game({
       </AnimatePresence>
 
       <CardFlightLayer flights={flights} />
+      <AftermathLayer pops={aftermath.pops} />
     </div>
   );
 }

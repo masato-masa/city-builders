@@ -12,15 +12,20 @@ export function Sheet({
   subtitle,
   children,
   onClose,
+  anchor = 'center',
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
   onClose: () => void;
+  /** 'bottom' は画面の下端に揃える。カード・区画のシートは中身の長さが毎回違うので、
+   *  中央に置くと「使う」「建てる」の位置が毎回動く。下端に揃えて、最後に置く主ボタンを
+   *  いつも同じ位置に出す（UX の指摘）。 */
+  anchor?: 'center' | 'bottom';
 }) {
   return (
     <motion.div
-      className="overlay"
+      className={anchor === 'bottom' ? 'overlay overlay-bottom' : 'overlay'}
       onClick={() => {
         // 外側をタップして閉じる
         playUiTap();
