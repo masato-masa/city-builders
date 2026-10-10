@@ -6,13 +6,10 @@ import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 
 import {
-  CARD_AFTERMATH_MS,
   CARD_CHARGE_MS,
   CARD_CHARGE_SCALE,
-  CARD_SEQUENCE_MAX_MS,
   cardAftermath,
   cardSequence,
-  cardShortfall,
   FINALE_STILL_MS,
   IMPACT,
   impactOf,
@@ -22,6 +19,7 @@ import {
   turnClockHint,
 } from '@/ui/feel';
 import { incomeLine } from '@/ui/income-text';
+import { TEMPO } from '@/ui/tempo';
 
 const B = DEFAULT_BALANCE;
 
@@ -125,14 +123,16 @@ describe('カード使用の 3 段（cardSequence）', () => {
     expect(CARD_CHARGE_SCALE).toBeLessThanOrEqual(0.93);
   });
 
-  it('合計は上限以内（伝令でも）、余韻はふつうの札で満額', () => {
-    const plain = cardSequence(false);
-    const herald = cardSequence(true);
-    expect(plain.totalMs).toBeLessThanOrEqual(CARD_SEQUENCE_MAX_MS);
-    expect(herald.totalMs).toBeLessThanOrEqual(CARD_SEQUENCE_MAX_MS);
-    expect(plain.aftermathMs).toBe(CARD_AFTERMATH_MS);
-    expect(herald.aftermathMs).toBeGreaterThan(0);
-    expect(plain.chargeMs + plain.launchMs).toBe(plain.effectAt);
+  it('合計は上限以内（伝令でも）、余韻はふつうの札で満額（どちらの速さでも）', () => {
+    for (const t of Object.values(TEMPO)) {
+      const plain = cardSequence(false, t);
+      const herald = cardSequence(true, t);
+      expect(plain.totalMs).toBeLessThanOrEqual(t.cardSequenceMaxMs);
+      expect(herald.totalMs).toBeLessThanOrEqual(t.cardSequenceMaxMs);
+      expect(plain.aftermathMs).toBe(t.cardAftermathMs);
+      expect(herald.aftermathMs).toBeGreaterThan(0);
+      expect(plain.chargeMs + plain.launchMs).toBe(plain.effectAt);
+    }
   });
 });
 
@@ -164,22 +164,6 @@ describe('余韻の一言（cardAftermath）', () => {
 });
 
 describe('画面の文言', () => {
-  it('手札のコスト不足は自分の手番で足りないときだけ', () => {
-    const g = fixture(['banker'], 1);
-    const cost = B.cards.banker.cost;
-    expect(cardShortfall(g, 'you', 'banker', B)).toBe(cost - 1 > 0 ? cost - 1 : null);
-    g.players.you.coins = 99;
-    expect(cardShortfall(g, 'you', 'banker', B)).toBeNull();
-    g.players.you.coins = 0;
-    g.current = 'cpu';
-    expect(cardShortfall(g, 'you', 'banker', B)).toBeNull();
-  });
-
-  it('コスト 0 の札には出さない', () => {
-    const g = fixture(['usurer'], -5);
-    expect(cardShortfall(g, 'you', 'usurer', B)).toBeNull();
-  });
-
   it('見込み収入は「次の収入」で言う', () => {
     expect(incomeLine(3)).toBe('次の収入 +3');
     expect(incomeLine(-2)).toBe('次の収入 -2');

@@ -60,3 +60,28 @@ export function setBgmEnabled(value: boolean): void {
   bgmEnabled = value;
   writeFlag(BGM_KEY, value);
 }
+
+// 演出の速さ（設定の「早送り」）。既定は「ふつう」（読める速さ）。「はやい」は慣れた人向け。
+export type Speed = 'normal' | 'fast';
+const SPEED_KEY = 'city-builders:speed';
+let speed: Speed | null = null;
+
+export function getSpeed(): Speed {
+  if (speed === null) {
+    try {
+      speed = localStorage.getItem(SPEED_KEY) === 'fast' ? 'fast' : 'normal';
+    } catch {
+      speed = 'normal';
+    }
+  }
+  return speed;
+}
+
+export function setSpeed(value: Speed): void {
+  speed = value;
+  try {
+    localStorage.setItem(SPEED_KEY, value);
+  } catch {
+    // 保存できなくても遊べる
+  }
+}

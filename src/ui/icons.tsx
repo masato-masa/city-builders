@@ -54,6 +54,28 @@ export function ChainIcon() {
   );
 }
 
+/** 区画の名札の「市場価値（買収に要るコイン）」に添える、口を縛ったコイン袋。 */
+export function CoinBagIcon() {
+  return (
+    <svg className="fig-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M9 3.2h6l-1.6 3.1c3.7 1.4 6.6 5.3 6.6 9.3 0 3.3-2.6 5.2-8 5.2s-8-1.9-8-5.2c0-4 2.9-7.9 6.6-9.3z"
+      />
+      <path d="M8.6 6.6h6.8" stroke="rgb(0 0 0 / 0.45)" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** 区画の名札の「アップグレード費」に添える上矢印。 */
+export function UpArrowIcon() {
+  return (
+    <svg className="fig-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="currentColor" d="M12 2.5 21.5 13h-5.8v8.5H8.3V13H2.5z" />
+    </svg>
+  );
+}
+
 /** 設定ボタン（? の隣）に置く歯車。 */
 export function SettingsIcon() {
   return (

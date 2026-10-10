@@ -13,7 +13,8 @@ export function TargetBanner({
   onCancel,
 }: {
   label?: string;
-  onCancel: () => void;
+  /** 省略すると「やめる」を出さない（ドラッグ中の案内）。 */
+  onCancel?: () => void;
 }) {
   return (
     <motion.div
@@ -25,9 +26,11 @@ export function TargetBanner({
       transition={{ duration: 0.18 }}
     >
       <span>{label}</span>
-      <button className="target-banner-cancel" onClick={onCancel}>
-        やめる
-      </button>
+      {onCancel ? (
+        <button className="target-banner-cancel" onClick={onCancel}>
+          やめる
+        </button>
+      ) : null}
     </motion.div>
   );
 }

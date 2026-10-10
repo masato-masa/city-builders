@@ -4,7 +4,7 @@ import { DEFAULT_BALANCE } from '@/game/balance';
 import { incomeStages } from '@/game/reducer';
 import { createGame } from '@/game/setup';
 import { runIncomeSequence } from '@/ui/play-helpers';
-import { INCOME_BEAT_MS, INCOME_TAIL_MS, TURN_INTRO_MS } from '@/ui/tempo';
+import { TEMPO, type Tempo } from '@/ui/tempo';
 
 const B = DEFAULT_BALANCE;
 
@@ -22,27 +22,48 @@ describe('runIncomeSequence（収入演出の長さと飛ばし）', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  function run() {
+  function run(t: Tempo = TEMPO.fast) {
     const g = fresh();
     const log: string[] = [];
-    const seq = runIncomeSequence(g, B, TURN_INTRO_MS, {
-      onShow: (b) => log.push(`show${b.index}`),
-      onApply: (b) => log.push(`apply${b.index}`),
-      onFinish: () => log.push('finish'),
-    });
+    const seq = runIncomeSequence(
+      g,
+      B,
+      t.turnIntroMs,
+      {
+        onShow: (b) => log.push(`show${b.index}`),
+        onApply: (b) => log.push(`apply${b.index}`),
+        onFinish: () => log.push('finish'),
+      },
+      t,
+    );
     return { g, log, seq };
   }
 
-  it('全体が 1.3 秒以内に終わり、段の順に出る', () => {
-    const { g, log } = run();
+  it('「はやい」は全体が 1.3 秒以内に終わり、段の順に出る', () => {
+    const t = TEMPO.fast;
+    const { g, log } = run(t);
     const n = incomeStages(g, B).length;
     expect(n).toBeGreaterThanOrEqual(4);
-    const total = TURN_INTRO_MS + (n - 1) * INCOME_BEAT_MS + INCOME_TAIL_MS + 200;
+    const total = t.turnIntroMs + (n - 1) * t.incomeBeatMs + t.incomeTailMs + 200;
     expect(total).toBeLessThanOrEqual(1300);
     vi.advanceTimersByTime(total);
     expect(log[0]).toBe('show0');
     expect(log.at(-1)).toBe('finish');
     expect(log.filter((l) => l.startsWith('show'))).toHaveLength(n);
+  });
+
+  it('「ふつう」は 1 段ずつ読める長さで出し、途中ではまだ終わっていない', () => {
+    const t = TEMPO.normal;
+    const { g, log } = run(t);
+    const n = incomeStages(g, B).length;
+    // 帯が出きってから 1 段目（重ねない）
+    vi.advanceTimersByTime(t.turnIntroMs - 1);
+    expect(log).toEqual([]);
+    vi.advanceTimersByTime(1 + t.incomeBeatMs);
+    expect(log.filter((l) => l.startsWith('show'))).toHaveLength(2);
+    expect(log).not.toContain('finish');
+    vi.advanceTimersByTime((n - 1) * t.incomeBeatMs + t.incomeTailMs);
+    expect(log.at(-1)).toBe('finish');
   });
 
   it('flush は最後の段を反映して即座に終わり、あとで二重に走らない', () => {

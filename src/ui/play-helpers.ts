@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef } from 'react';
 
 import { incomeStageStates, type IncomeStage } from '@/game/reducer';
 import type { Balance } from '@/game/balance';
-import type { GameState } from '@/game/types';
+import type { CardId, GameState } from '@/game/types';
 
+import type { DropHit } from './card-input';
 import { playCoinGain, playDebtSink } from './sound';
-import { INCOME_APPLY_MS, INCOME_BEAT_MS, INCOME_TAIL_MS } from './tempo';
+import { tempo, type Tempo } from './tempo';
 
 /** 一定時間あとに処理を走らせる。画面を離れたら（アンマウント）残りは全部捨てる。
  *  「使う → 効果」「手番 → 収入」を時間差で見せるために使う。 */
@@ -27,13 +28,30 @@ export function useLater() {
   }, []);
 }
 
-/** 画面上の点の下にある区画の番号。無ければ null（封鎖者を区画へ直接落としたときの対象決めに使う）。 */
-export function slotAtPoint(x: number, y: number): number | null {
+/** 手札の札を離した点の下にあるもの（盤面か・区画・ドラッグ中の札とは別の手札の札）。
+ *  何をするかは card-input.ts の resolveDrop が決める。 */
+export function dropHitAt(
+  x: number,
+  y: number,
+  board: HTMLElement | null,
+  dragged: CardId,
+): DropHit {
+  let slotId: number | null = null;
+  let handCard: CardId | null = null;
   for (const el of document.elementsFromPoint(x, y)) {
-    const hit = (el as HTMLElement).closest?.('[data-slot]') as HTMLElement | null;
-    if (hit) return Number(hit.dataset.slot);
+    const h = el as HTMLElement;
+    const holder = h.closest?.('[data-hand-card]') as HTMLElement | null;
+    if (holder) {
+      const c = holder.dataset.handCard as CardId;
+      if (c !== dragged && handCard === null) handCard = c;
+      continue;
+    }
+    const slot = h.closest?.('[data-slot]') as HTMLElement | null;
+    if (slot && slotId === null) slotId = Number(slot.dataset.slot);
   }
-  return null;
+  const r = board?.getBoundingClientRect();
+  const onBoard = !!r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  return { onBoard, slotId: onBoard ? slotId : null, handCard };
 }
 
 /** 収入で増減したコインの音。 */
@@ -63,8 +81,10 @@ export function runIncomeSequence(
     onApply: (beat: IncomeBeat) => void;
     onFinish: () => void;
   },
+  t: Tempo = tempo(),
 ): { cancel: () => void; flush: () => void } {
   const timers: number[] = [];
+  const { incomeApplyMs: INCOME_APPLY_MS, incomeBeatMs: INCOME_BEAT_MS, incomeTailMs: INCOME_TAIL_MS } = t;
   const beats = incomeStageStates(pre, balance).map((b, index) => ({ ...b, index }));
   beats.forEach((beat) => {
     const showAt = startDelay + beat.index * INCOME_BEAT_MS;

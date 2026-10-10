@@ -6,7 +6,7 @@ import { cardCostFor } from '@/game/reducer';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
 import { forecast } from './CoinBar';
-import { CARD_CHARGE_MS, CARD_EFFECT_DELAY_MS, DISCARD_AT_MS } from './tempo';
+import { CARD_CHARGE_MS, tempo, type Tempo } from './tempo';
 
 export { CARD_CHARGE_MS, CARD_CHARGE_SCALE } from './tempo';
 
@@ -87,10 +87,6 @@ const round = (v: number) => Math.round(v * 10) / 10;
 
 /* ---------------- カード使用の 3 段（溜め → 発動 → 余韻） ---------------- */
 
-/** 余韻（数字が出て消える）の最長。 */
-export const CARD_AFTERMATH_MS = 650;
-/** 1 枚の使用演出の合計の上限（溜め〜余韻の終わりまで）。余韻はタップで飛ばせる。 */
-export const CARD_SEQUENCE_MAX_MS = 1400;
 
 export interface CardSequence {
   chargeMs: number;
@@ -103,12 +99,13 @@ export interface CardSequence {
   totalMs: number;
 }
 
-/** カード 1 枚の使用演出の時間割。discard は伝令（山の底へ送る札を続けて飛ばす）。 */
-export function cardSequence(discard: boolean): CardSequence {
+/** カード 1 枚の使用演出の時間割。discard は伝令（山の底へ送る札を続けて飛ばす）。
+ *  t は間合い（既定は設定の速さ。余韻の最長・合計の上限も t が持つ）。 */
+export function cardSequence(discard: boolean, t: Tempo = tempo()): CardSequence {
   const chargeMs = CARD_CHARGE_MS;
-  const launchMs = CARD_EFFECT_DELAY_MS - CARD_CHARGE_MS;
-  const effectAt = (discard ? DISCARD_AT_MS : 0) + CARD_EFFECT_DELAY_MS;
-  const aftermathMs = Math.max(0, Math.min(CARD_AFTERMATH_MS, CARD_SEQUENCE_MAX_MS - effectAt));
+  const launchMs = t.cardEffectDelayMs - CARD_CHARGE_MS;
+  const effectAt = (discard ? t.discardAtMs : 0) + t.cardEffectDelayMs;
+  const aftermathMs = Math.max(0, Math.min(t.cardAftermathMs, t.cardSequenceMaxMs - effectAt));
   return { chargeMs, launchMs, effectAt, aftermathMs, totalMs: effectAt + aftermathMs };
 }
 
@@ -164,24 +161,12 @@ export const FINALE_STILL_MS = 150;
 
 /* ---------------- 画面の文言 ---------------- */
 
-/** 手札の札が「あと何コイン」足りないか。足りている・自分の手番でない・使用済みなら null。
- *  札の寸法は変えず、札の上に重ねて出す。 */
-export function cardShortfall(state: GameState, viewer: PlayerId, card: CardId, balance: Balance): number | null {
-  if (state.phase !== 'playing' || state.current !== viewer) return null;
-  const p = state.players[viewer];
-  if (p.usedThisTurn.includes(card)) return null;
-  const cost = cardCostFor(state, viewer, card, balance);
-  if (cost <= 0) return null;
-  const short = cost - p.coins;
-  return short > 0 ? short : null;
-}
-
 /** 「のこり N ターン」の時計をタップしたときの説明。 */
 export function turnClockHint(left: number): string {
   return left <= 0 ? '試合は終わりました' : `おたがい あと ${left} ターンで試合終了（物件が全部建っても終わり）`;
 }
 
-/** カードのシートの「山の底へ送る」が押せないときの理由。押せるなら null。 */
+/** 街道のシートの「山の底へ送る」が押せないときの理由。押せるなら null。 */
 export function roadReason(hasRoad: boolean, usesLeft: number, myTurn: boolean): string | null {
   if (!hasRoad) return '街道を建てると使えます';
   if (!myTurn) return '自分のターンに使えます';

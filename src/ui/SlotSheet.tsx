@@ -1,9 +1,20 @@
-import { BUILDING_NAMES, type Balance } from '@/game/balance';
-import { buildCostFor, canBuild } from '@/game/reducer';
-import type { GameState, PlayerId } from '@/game/types';
+import { BUILDING_NAMES, CARD_NAMES, type Balance } from '@/game/balance';
+import { buildCostFor, canBuild, canUseRoad } from '@/game/reducer';
+import { handSlotsOf, roadUsesRemaining } from '@/game/selectors';
+import type { CardId, GameState, PlayerId } from '@/game/types';
 
+import { CARD_ART } from './art';
+import { roadReason } from './feel';
 import { Sheet } from './Sheets';
-import { acquireButton, acquireNote, districtNote, levelEffects, upgradeButton, type SlotButton } from './slot-actions';
+import {
+  acquireButton,
+  acquireNote,
+  districtNote,
+  isMaxLevel,
+  levelEffects,
+  upgradeButton,
+  type SlotButton,
+} from './slot-actions';
 
 /** 区画をタップしたときのシート。CPU 戦と 2 人対戦で共有する。
  *  空き地 → 建てる / 自分の物件 → アップグレード / 相手の物件 → 買収。
@@ -18,6 +29,7 @@ export function SlotSheet({
   onBuild,
   onUpgrade,
   onAcquire,
+  onRoad,
   onClose,
 }: {
   state: GameState;
@@ -32,6 +44,8 @@ export function SlotSheet({
   onBuild: () => void;
   onUpgrade: () => void;
   onAcquire: () => void;
+  /** 自分の街道で、手札の札を山の底へ送る。 */
+  onRoad: (card: CardId) => void;
   onClose: () => void;
 }) {
   const slot = state.market[slotId]!;
@@ -64,7 +78,7 @@ export function SlotSheet({
         </div>
       ) : (
         <p className="sheet-text">
-          {owned && current.level >= 2 ? <b className="level-max">Lv{current.level}（最大）</b> : null}
+          {isMaxLevel(state, slotId, balance) ? <b className="level-max">Lv{current.level}（最大）</b> : null}
           {current.text}
         </p>
       )}
@@ -90,7 +104,12 @@ export function SlotSheet({
           </button>
         </>
       ) : slot.owner === viewer ? (
-        <ActionButton button={upgradeButton(state, slotId, viewer, balance)} locked={locked} onClick={onUpgrade} />
+        <>
+          {slot.buildingId === 'road' ? (
+            <RoadPicker state={state} viewer={viewer} balance={balance} locked={locked} onRoad={onRoad} />
+          ) : null}
+          <ActionButton button={upgradeButton(state, slotId, viewer, balance)} locked={locked} onClick={onUpgrade} />
+        </>
       ) : (
         <>
           <p className="sheet-text">{acquireNote(state, slotId, balance)}</p>
@@ -98,6 +117,55 @@ export function SlotSheet({
         </>
       )}
     </Sheet>
+  );
+}
+
+/** 自分の街道のシートの中で、手札のどれを山の底へ送るかを選ぶ（街道の効果は建物の側から使う）。
+ *  4 枚の札を並べ、押した札を送る。押せないときは理由を 1 行で言う。 */
+function RoadPicker({
+  state,
+  viewer,
+  balance,
+  locked,
+  onRoad,
+}: {
+  state: GameState;
+  viewer: PlayerId;
+  balance: Balance;
+  locked: boolean;
+  onRoad: (card: CardId) => void;
+}) {
+  const usesLeft = roadUsesRemaining(state, viewer, balance);
+  const myTurn = state.phase === 'playing' && state.current === viewer;
+  const disabledHere = state.players[viewer].disabledSlot !== null &&
+    state.market[state.players[viewer].disabledSlot!]?.buildingId === 'road';
+  const reason = disabledHere
+    ? '封鎖者に効果を止められています'
+    : roadReason(true, usesLeft, myTurn);
+  return (
+    <div className="road-picker">
+      <p className="road-picker-head">
+        <span>手札の札を山の底へ送る</span>
+        <span className="road-btn-sub">{reason ?? `このターン あと ${usesLeft} 回`}</span>
+      </p>
+      <div className="road-picker-cards">
+        {handSlotsOf(state, viewer).map((card, i) =>
+          card ? (
+            <button
+              key={`${i}-${card}`}
+              className="road-pick"
+              disabled={locked || !canUseRoad(state, card, balance)}
+              onClick={() => onRoad(card)}
+            >
+              {CARD_ART[card] ? <img src={CARD_ART[card]} alt="" draggable={false} /> : null}
+              <span className="road-pick-name">{CARD_NAMES[card]}</span>
+            </button>
+          ) : (
+            <span key={`${i}-empty`} className="road-pick is-empty" />
+          ),
+        )}
+      </div>
+    </div>
   );
 }
 

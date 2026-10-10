@@ -937,14 +937,49 @@
   background: var(--owner-cpu);
 }
 
+/* 建った物件の 2 つの数字。市場価値（買収に要るコイン）は金の文字＋袋の印、
+   アップグレード費は緑の文字＋上矢印。地は VP と同じ暗幕で、色と印の 2 つで見分ける
+   （凡例が無くても読める）。台座・旗・道の識別色には触らない。 */
+.plot-value,
+.plot-upgrade {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3cqw;
+  padding: 0.35cqw 1.1cqw 0.35cqw 0.8cqw;
+  border-radius: 3cqw;
+  background: rgb(20 16 12 / 0.78);
+  font-size: max(9.5px, 3.2cqw);
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 0.5cqw 0 rgb(0 0 0 / 0.35);
+}
+
+.plot-value {
+  color: var(--coin);
+}
+
+.plot-upgrade {
+  color: #7ee08a;
+}
+
+.fig-icon {
+  display: block;
+  flex: none;
+  width: max(9px, 3cqw);
+  height: max(9px, 3cqw);
+}
+
 /* 地区の境界。道の上の細い点線。持ち主の色は使わない（台座・旗・道の色が識別の情報なので）。
    viewBox は縦横で伸びるので、線の太さと点線の間隔は画面の px で固定する。 */
+/* 「地区が見づらい」という指摘で、細い点線 → 暗い縁つきの明るい破線に（2 回描き。色は持ち主の色を使わない）。 */
 .district-border line {
-  stroke: rgb(255 238 204 / 0.42);
-  stroke-width: 1.5px;
-  stroke-dasharray: 5px 5px;
+  stroke: rgb(255 244 214 / 0.85);
+  stroke-width: 2.5px;
+  stroke-dasharray: 9px 5px;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 1.5px rgb(0 0 0 / 0.9));
 }
 
 /* 地区の名札。盤面の端（建物の無いところ）に縦書きで置く。上に称号の旗。
@@ -963,8 +998,8 @@
   gap: 0.8cqw;
   padding: 1.2cqw 0 1.4cqw;
   border-radius: 3.6cqw;
-  background: rgb(20 16 12 / 0.5);
-  box-shadow: inset 0 0 0 1px rgb(255 238 204 / 0.18);
+  background: rgb(20 16 12 / 0.72);
+  box-shadow: inset 0 0 0 1px rgb(255 238 204 / 0.35);
 }
 
 .district-tag.owner-you .district-tag-body {
@@ -988,6 +1023,48 @@
   height: 100%;
   border-left: 0.5cqw solid rgb(255 238 204 / 0.35);
   margin-left: 0.4cqw;
+}
+
+/* 地区の件数（自分 対 相手）。縦に積む。数字の色は持ち主の明るい版。 */
+.district-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.district-count-n {
+  font-size: max(11px, 3.8cqw);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.8);
+}
+
+.district-count-n.owner-you {
+  color: var(--owner-you-glow);
+}
+
+.district-count-n.owner-cpu {
+  color: var(--owner-cpu-glow);
+}
+
+.district-count-vs {
+  color: rgb(255 246 228 / 0.7);
+  font-size: max(8px, 2.4cqw);
+  font-weight: 800;
+  margin: 0.3cqw 0;
+}
+
+/* 称号の VP。多く持つ側に入る点数。 */
+.district-vp {
+  padding: 0.3cqw 0.8cqw;
+  border-radius: 2cqw;
+  background: #ffd34d;
+  color: #4a3300;
+  font-size: max(8.5px, 2.6cqw);
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .district-name {
@@ -1458,7 +1535,9 @@
 
 /* 盤面の上に乗る数字は、縁取りで読ませる。 */
 .plot-cost,
-.plot-vp {
+.plot-vp,
+.plot-value,
+.plot-upgrade {
   -webkit-text-stroke: 2px rgb(0 0 0 / 0.45);
   paint-order: stroke fill;
 }
@@ -1564,6 +1643,191 @@
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
+}
+
+/* あそびかたの中で、区画の数字の見た目をそのまま見せる札。 */
+.help-fig {
+  display: inline-flex;
+  vertical-align: middle;
+  font-size: 11px;
+  padding: 1px 7px 1px 5px;
+  -webkit-text-stroke: 0;
+}
+
+.help-fig .fig-icon {
+  width: 11px;
+  height: 11px;
+}
+
+/* 設定の「早送り」の今の速さ（ふつう／はやい）。 */
+.speed-row-sub {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* 自分の街道のシートの「手札の札を山の底へ送る」。手札 4 枚を小さく並べ、押した札を送る。 */
+.road-picker {
+  margin: 0 0 12px;
+}
+
+.road-picker-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.road-picker-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.road-pick {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 68 / 84;
+  padding: 0;
+  border: 2px solid #0b1520;
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--card-face);
+  cursor: pointer;
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.35);
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s var(--ease, ease), opacity 0.15s var(--ease, ease);
+}
+
+.road-pick:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.road-pick:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.road-pick.is-empty {
+  opacity: 0.25;
+}
+
+.road-pick img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.road-pick-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 2px 2px 3px;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.85), rgb(0 0 0 / 0));
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+}
+
+/* 手札の上に重ねる層（長押しの説明・タップの案内）。.hand-row 基準の絶対配置で、寸法は動かない。 */
+.hand-row {
+  position: relative;
+}
+
+.card-peek {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(100% + 6px);
+  z-index: 70;
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgb(16 24 32 / 0.96);
+  border: 1.5px solid #5d7a8c;
+  color: var(--chrome-ink);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
+  pointer-events: none;
+}
+
+.card-peek-art {
+  flex: none;
+  width: 68px;
+  aspect-ratio: 68 / 84;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid #0b1520;
+}
+
+.card-peek-body {
+  min-width: 0;
+}
+
+.card-peek-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.card-peek-cost {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--coin);
+}
+
+.card-peek-text {
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.card-peek-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--chrome-ink-dim);
+}
+
+.hand-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  translate: -50% 0;
+  z-index: 70;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgb(16 24 32 / 0.94);
+  color: var(--chrome-ink);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.4);
+}
+
+/* 持ち上げている札。指で動かすのでスクロールに取られない（.card-drag の touch-action と同じ）。 */
+.card-drag.is-lifted {
+  cursor: grabbing;
+}
+
+.card-drag .card {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 /* ---- ホーム ----

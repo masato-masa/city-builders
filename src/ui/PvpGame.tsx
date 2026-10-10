@@ -9,7 +9,7 @@ import type { Action, CardId, GameState } from '@/game/types';
 
 import { CARD_ART, FIELD_URL } from './art';
 import { Board, type IncomeFlash } from './Board';
-import { CardSheet } from './CardSheet';
+import { dragGuide, resolveDrop } from './card-input';
 import { CoinBar, forecast } from './CoinBar';
 import { cardAftermath, cardSequence, TARGET_LABEL } from './feel';
 import {
@@ -28,20 +28,16 @@ import { hapticBuild, hapticReject, hapticTap, hapticUseCard, hapticWin, hapticY
 import { Hand } from './Hand';
 import { InfoBoard } from './InfoBoard';
 import { playStageCue, stageCallout } from './income-stages';
-import { playIncome, runIncomeSequence, slotAtPoint, useLater } from './play-helpers';
+import { dropHitAt, playIncome, runIncomeSequence, useLater } from './play-helpers';
 import { buildReview } from './match-log';
 import { ResultScreen } from './ResultScreen';
 import { useMatchLog } from './use-match-log';
 import { Sheet } from './Sheets';
 import { SlotSheet } from './SlotSheet';
 import { TargetBanner } from './TargetBanner';
-import {
-  BUILD_EFFECT_DELAY_MS,
-  CARD_EFFECT_DELAY_MS,
-  DISCARD_AT_MS,
-  RESULT_DELAY_MS,
-  TURN_INTRO_MS,
-} from './tempo';
+import { HelpText } from './HelpText';
+import { SpeedRow } from './SpeedRow';
+import { RESULT_DELAY_MS, tempo } from './tempo';
 import { TurnBadge } from './TurnBadge';
 import { refreshBgm } from './bgm';
 import { useGameBgm } from './use-bgm';
@@ -66,7 +62,6 @@ import {
 
 type Pending =
   | { kind: 'slot'; slotId: number }
-  | { kind: 'card'; card: CardId }
   | { kind: 'heraldTarget' }
   | { kind: 'blockadeTarget' }
   | { kind: 'menu' }
@@ -176,7 +171,7 @@ export function PvpGame({
   // 帯のあと、収入を 1 段ずつ反映する（基礎収入 → 建物収入 → 投資 → 返済。祝祭は建物収入の段で見せる）。
   useEffect(() => {
     if (!introPending) return;
-    const seq = runIncomeSequence(stateRef.current, balance, TURN_INTRO_MS, {
+    const seq = runIncomeSequence(stateRef.current, balance, tempo().turnIntroMs, {
       onShow: (b) => {
         calloutSeq.current += 1;
         const who = stateRef.current.current;
@@ -232,7 +227,7 @@ export function PvpGame({
     setBusy(true);
     setSheet(null);
     if (discard) {
-      later(DISCARD_AT_MS, () => {
+      later(tempo().discardAtMs, () => {
         playEndTurn();
         flyDiscard(discard);
         setUsing([card, discard]);
@@ -255,17 +250,11 @@ export function PvpGame({
     setUsing([target]);
     setBusy(true);
     setSheet(null);
-    later(CARD_EFFECT_DELAY_MS, () => {
+    later(tempo().cardEffectDelayMs, () => {
       setState(reduce(stateRef.current, { type: 'useRoad', target }, balance));
       setUsing([]);
       setBusy(false);
     });
-  };
-
-  const useCard = (card: CardId) => {
-    if (card === 'herald') return setSheet({ kind: 'heraldTarget' });
-    if (card === 'blockader') return setSheet({ kind: 'blockadeTarget' });
-    commitCard(card, { type: 'useCard', card });
   };
 
   /** 物件を建てる。指示のあと少し置いて、着地とコインの減りを一緒に出す。 */
@@ -273,7 +262,7 @@ export function PvpGame({
     hapticBuild();
     setBusy(true);
     setSheet(null);
-    later(BUILD_EFFECT_DELAY_MS, () => {
+    later(tempo().buildEffectDelayMs, () => {
       playBuild();
       setState(reduce(stateRef.current, { type: 'build', slotId }, balance));
       setBusy(false);
@@ -285,7 +274,7 @@ export function PvpGame({
     hapticBuild();
     setBusy(true);
     setSheet(null);
-    later(BUILD_EFFECT_DELAY_MS, () => {
+    later(tempo().buildEffectDelayMs, () => {
       if (action.type === 'upgrade') playUpgrade();
       else playAcquire();
       setState(reduce(stateRef.current, action, balance));
@@ -293,27 +282,17 @@ export function PvpGame({
     });
   };
 
-  /** 手札を盤面へドラッグして離した。そのまま使用にする。 */
+  /** 手札をドラッグして離した。カードはこれでしか使わない（CPU 戦と同じ。判定は resolveDrop）。 */
   const dropCard = (card: CardId, point: { x: number; y: number }) => {
-    if (locked || handoff) return;
-    if (!canUseCard(state, card, balance)) {
+    const r = resolveDrop(state, active, card, dropHitAt(point.x, point.y, boardAreaRef.current, card));
+    if (r.kind === 'cancel') return;
+    if (locked || handoff || !canUseCard(state, card, balance) || r.kind === 'reject') {
       playReject();
       hapticReject();
       return;
     }
-    if (card === 'herald') return setSheet({ kind: 'heraldTarget' });
-    if (card === 'blockader') {
-      const slotId = slotAtPoint(point.x, point.y);
-      if (slotId === null) return setSheet({ kind: 'blockadeTarget' });
-      const slot = state.market[slotId];
-      if (!slot || slot.owner === active) {
-        playReject();
-        hapticReject();
-        return;
-      }
-      return commitCard(card, { type: 'useCard', card, blockadeSlot: slotId });
-    }
-    commitCard(card, { type: 'useCard', card });
+    if (r.kind === 'target') return setSheet({ kind: r.mode === 'herald' ? 'heraldTarget' : 'blockadeTarget' });
+    commitCard(card, r.action);
   };
 
   // 終了ボタン: endTurn だけ進めて目隠しを出す。次の手番側の startTurn（収入）は、
@@ -383,7 +362,7 @@ export function PvpGame({
               state={feel.boardState}
               balance={balance}
               viewer={active}
-              targeting={sheet?.kind === 'blockadeTarget'}
+              targeting={sheet?.kind === 'blockadeTarget' || dragCard === 'blockader'}
               dropArmed={dragCard !== null}
               flash={incomeFlash}
               onPick={(slotId) => {
@@ -421,6 +400,7 @@ export function PvpGame({
                 コインバーと重なるため、封鎖者と同じ場所にまとめる。実際にどこを
                 タップするかは対象側（盤面の区画／手札のカード）が光って示す。 */}
             <AnimatePresence>
+              {dragCard ? <TargetBanner key={`drag-${dragCard}`} label={dragGuide(dragCard)} /> : null}
               {sheet?.kind === 'blockadeTarget' ? (
                 <TargetBanner key="blockadeTarget" onCancel={() => setSheet(null)} />
               ) : null}
@@ -465,30 +445,18 @@ export function PvpGame({
                   viewer={active}
                   canUse={(card) => !locked && canUseCard(state, card, balance)}
                   using={using}
-                  dropRef={boardAreaRef}
                   onDrop={dropCard}
                   onDragActive={setDragCard}
                   targeting={sheet?.kind === 'heraldTarget'}
-                  selected={sheet?.kind === 'card' ? sheet.card : null}
                   onPick={(card) => {
-                    if (locked) return;
-                    if (sheet?.kind === 'heraldTarget') {
-                      if (card === 'herald') {
-                        playReject();
-                        hapticReject();
-                        return;
-                      }
-                      commitCard('herald', { type: 'useCard', card: 'herald', heraldTarget: card });
-                      return;
-                    }
-                    if (canUseCard(state, card, balance)) {
-                      playSelect();
-                      hapticTap();
-                    } else {
+                    // 伝令の対象選び（盤面で離したあと）。伝令自身は対象にできない。
+                    if (locked || sheet?.kind !== 'heraldTarget') return;
+                    if (card === 'herald' || !canUseCard(state, 'herald', balance)) {
                       playReject();
                       hapticReject();
+                      return;
                     }
-                    setSheet({ kind: 'card', card });
+                    commitCard('herald', { type: 'useCard', card: 'herald', heraldTarget: card });
                   }}
                   onMenu={() => {
                     if (swapping) return;
@@ -517,26 +485,7 @@ export function PvpGame({
             onBuild={() => commitBuild(sheet.slotId)}
             onUpgrade={() => commitSlotAction({ type: 'upgrade', slotId: sheet.slotId })}
             onAcquire={() => commitSlotAction({ type: 'acquire', slotId: sheet.slotId })}
-            onClose={() => setSheet(null)}
-          />
-        ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {sheet?.kind === 'card' ? (
-          <CardSheet
-            key="card"
-            state={state}
-            card={sheet.card}
-            viewer={active}
-            balance={balance}
-            locked={locked}
-            onRoad={() => commitRoad(sheet.card)}
-            onUse={() => {
-              const card = sheet.card;
-              setSheet(null);
-              useCard(card);
-            }}
+            onRoad={commitRoad}
             onClose={() => setSheet(null)}
           />
         ) : null}
@@ -575,35 +524,7 @@ export function PvpGame({
       <AnimatePresence>
         {sheet?.kind === 'help' ? (
           <Sheet key="help" title="あそびかた" onClose={() => setSheet(null)}>
-            <p className="sheet-text">
-              人物カードを使ってコインを稼ぎ、まん中の物件を建てます。物件は早い者勝ちで、
-              VP（勝利点）は物件と地区の称号から手に入ります。10 件すべてが建つとゲームが終わり、
-              VP の多いほうが勝ちです。
-            </p>
-            <p className="sheet-text">
-              投資カード（採掘師・銀行家）のコインが入るのは<b>次の収入</b>（自分の次のターンの始め）です。
-              だからコインバーに「次の収入 +N」を出しています。今建てるか、
-              次のターンに回すかを、この 2 つの数字で比べてください。
-            </p>
-            <p className="sheet-text">
-              手札 4 枚はデッキの先頭 4 枚です。使ったカードだけが山の一番下へ回り、
-              使わなかったカードは残ります。つまり<b>何枚で止めるかが、次のターンの手札を決めます</b>。
-              左下の「次」で 1 枚先まで見えます。
-            </p>
-            <p className="sheet-text">
-              相手も同じ 10 種を持っています。徴税官でコインを奪われ、封鎖者で区画を 1 つ
-              押さえられ、買収者で物件を安く買い取られます。衛兵を張るか、城壁を建てて防いでください。
-            </p>
-            <p className="sheet-text">
-              建った物件をタップすると、<b>アップグレード</b>（自分の物件を Lv2 に上げて VP と効果を増やす）と
-              <b>買収</b>（相手の物件を、これまでに払われたコイン＋{balance.acquireMarkup} で奪う。代金は相手に渡る）ができます。
-              どちらも手札は使いません。カードの「買収者」を使ったターンは、買収の価格が下がります。
-            </p>
-            <p className="sheet-text">
-              市場は 3 つの<b>地区</b>（{balance.districts.map((d) => d.name).join('・')}）に分かれています。
-              地区の中で物件を相手より多く持つと、その地区の<b>称号</b>（+{balance.districtTitleVp} VP）が手に入ります。
-              同数なら今の持ち主のまま。買収で物件が動けば称号も動きます。盤面の端の旗が、いまの持ち主です。
-            </p>
+            <HelpText balance={balance} />
           </Sheet>
         ) : null}
       </AnimatePresence>
@@ -645,6 +566,7 @@ export function PvpGame({
                 onClick={toggleHaptics}
               />
             </div>
+            <SpeedRow />
           </Sheet>
         ) : null}
       </AnimatePresence>
