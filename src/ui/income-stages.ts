@@ -27,13 +27,10 @@ export function stageCallout(
       return { id, tone, kind: 'card', art: CARD_ART.usurer, text };
     case 'tax':
       return { id, tone, kind: 'card', art: CARD_ART.taxman, text };
-    case 'bind':
-      return { id, tone, kind: 'card', art: CARD_ART.spy, text };
   }
 }
 
-/** 段が出た瞬間の効果音（コインの音は反映のときに別に鳴らす）。祝祭の効き・買収者だけ札の音。 */
+/** 段が出た瞬間の効果音（コインの音は反映のときに別に鳴らす）。祝祭の効きだけ札の音。 */
 export function playStageCue(stage: IncomeStage): void {
   if (stage.kind === 'building' && stage.festival) playUseCard('festival');
-  else if (stage.kind === 'bind') playUseCard('spy');
 }

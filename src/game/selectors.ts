@@ -88,10 +88,24 @@ export function activeEffectMax(
     .reduce((n, s) => Math.max(n, buildingEffect(balance, key, s.level)), 0);
 }
 
-/** 区画を買収するときの価格。未建設なら Infinity。 */
-export function acquirePriceOf(slot: BuildingSlot, balance: Balance = DEFAULT_BALANCE): number {
+/** 区画を買収するときの価格。未建設なら Infinity。discount は買収者の割引（0 未満にはしない）。 */
+export function acquirePriceOf(
+  slot: BuildingSlot,
+  balance: Balance = DEFAULT_BALANCE,
+  discount = 0,
+): number {
   if (slot.owner === null) return Number.POSITIVE_INFINITY;
-  return slot.paid + balance.acquireMarkup;
+  return Math.max(0, slot.paid + balance.acquireMarkup - discount);
+}
+
+/** player がいまその区画を買収するときに実際に払う額（このターンの買収者の割引を織り込む）。 */
+export function acquireCostFor(
+  state: GameState,
+  player: PlayerId,
+  slot: BuildingSlot,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
+  return acquirePriceOf(slot, balance, state.players[player].acquireDiscount);
 }
 
 /** 区画をアップグレードするときの価格。最大レベル（Lv2）なら Infinity。 */

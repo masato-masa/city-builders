@@ -1145,46 +1145,6 @@
   filter: grayscale(0.85) brightness(0.6);
 }
 
-/* 買収者に縛られて今ターン使えないカード。「使えない」全般（is-dim）と
-   区別できるよう、絵をグレースケールにした上で鎖マークを重ねる。 */
-.card.is-bound .card-art {
-  filter: grayscale(0.6) brightness(0.7);
-}
-
-/* 縛られた札には斜めの影の縞を掛けて「封じられている」ことを面で見せる。 */
-.card.is-bound .card-body::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    -45deg,
-    rgb(20 0 8 / 0.42) 0 6px,
-    rgb(20 0 8 / 0.12) 6px 12px
-  );
-  pointer-events: none;
-}
-
-.card-chain-badge {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.card-chain-badge svg {
-  width: 30px;
-  height: 30px;
-  padding: 5px;
-  border-radius: 50%;
-  background: #5a0f1c;
-  border: 2px solid #ff8a7a;
-  box-sizing: border-box;
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.5);
-}
-
 /* 絵と名前を収める内側の層。コストバッジ（.card-cost、下端で少しはみ出す）は
    この層の外・.card 直下に置くので、この層だけを overflow: hidden で切っても
    バッジのはみ出しは影響を受けない。角丸は縁の内側に合わせて少し小さくする。 */

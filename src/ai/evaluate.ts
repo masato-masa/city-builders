@@ -1,5 +1,7 @@
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
+import { cardCostFor } from '@/game/reducer';
 import {
+  acquireCostFor,
   acquirePriceOf,
   activeEffectMax,
   handOf,
@@ -36,9 +38,7 @@ export interface Weights {
   debt: number;
   /** 衛兵が張れているか（0 か 1）。守っているものの大きさを掛けて使う */
   guarded: number;
-  /** 相手が買収者を受けているか（bindPending か boundCards が空でなければ 1） */
-  opponentBound: number;
-  /** 手札のうち、いま払えない・買収者に縛られているカードの枚数 */
+  /** 手札のうち、いま払えないカードの枚数（工場・城壁・街道でのコストの変化を織り込む） */
   stuck: number;
   /** 相手の手札のうち、相手がいま払えない枚数。相手が詰まっているのは自分に有利なので正の重み */
   opponentStuck: number;
@@ -59,7 +59,6 @@ export const DEFAULT_WEIGHTS: Weights = {
   opponentIncome: -2.0,
   debt: -1.2,
   guarded: 0,
-  opponentBound: 2.5,
   stuck: -1.5,
   opponentStuck: 1.0,
   exposed: -4,
@@ -132,7 +131,8 @@ export function reachOf(
       const gain = vpOfSlot(state, { ...s, level: s.level + 1 }, balance) - vpOfSlot(state, s, balance);
       candidates.push({ vp: gain, isBuild: false, cost: () => price });
     } else if (s.owner === foe && !state.players[foe].guarded) {
-      const price = acquirePriceOf(s, balance);
+      // 買収者を使ったターンは割引が乗る
+      const price = acquireCostFor(state, player, s, balance);
       candidates.push({ vp: vpOfSlot(state, s, balance), isBuild: false, cost: () => price });
     }
   }
@@ -166,11 +166,17 @@ export function exposedVpOf(
   const f = state.players[foe];
   let budget =
     f.coins + incomePerTurnOf(state, foe, balance) + f.pendingIncome.length * balance.minerIncome;
+  // 相手の手札に買収者があれば、使ったうえで割引の効いた値段で買ってくると見る（読み合いの核）
+  let discount = 0;
+  if (handOf(state, foe, balance).includes('spy')) {
+    discount = balance.spyAcquireDiscount;
+    budget -= balance.cards.spy.cost;
+  }
   // 相手の次の手番の時点で、まだ動かせない区画は奪われない
   const foeTurn = state.current === foe ? state.turn : state.turn + 1;
   const mine = ownedSlots(state, player)
     .filter((s) => !slotLocked(state, s, balance, foeTurn))
-    .map((s) => ({ vp: vpOfSlot(state, s, balance), price: acquirePriceOf(s, balance) }))
+    .map((s) => ({ vp: vpOfSlot(state, s, balance), price: acquirePriceOf(s, balance, discount) }))
     .sort((a, b) => b.vp - a.vp);
   let total = 0;
   for (const m of mine) {
@@ -203,11 +209,9 @@ export function evaluateState(
   // 大きいほど「守れて良かった」の価値が上がる。相手の手札は読まない。
   const guarded = p.guarded ? p.coins + incomePerTurn * 3 : 0;
 
-  const opponentBound = foeState.bindPending || foeState.boundCards.length > 0 ? 1 : 0;
-
-  // 手札のうち、いま払えない・買収者に縛られていて使えないカードの枚数
+  // 手札のうち、いま払えないカードの枚数
   const stuck = handOf(state, player, balance).filter(
-    (c) => p.coins < balance.cards[c].cost || p.boundCards.includes(c),
+    (c) => p.coins < cardCostFor(state, player, c, balance),
   ).length;
   // 相手について同じ計算をする（払えない枚数のみ）。相手が詰まっているのは自分に有利
   const opponentStuck = handOf(state, foe, balance).filter(
@@ -231,7 +235,6 @@ export function evaluateState(
     // 徴税官で相手に課した徴収は、自分の借りの裏返しとして得になる
     (foeState.pendingTax - p.pendingTax) * -weights.debt +
     guarded * weights.guarded +
-    exposed * weights.exposed * (0.5 + late) +
-    opponentBound * weights.opponentBound
+    exposed * weights.exposed * (0.5 + late)
   );
 }

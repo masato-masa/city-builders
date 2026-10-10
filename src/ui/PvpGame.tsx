@@ -533,9 +533,7 @@ export function PvpGame({
                 useCard(card);
               }}
             >
-              {!canUseCard(state, sheet.card, balance) && state.players[active].boundCards.includes(sheet.card)
-                ? '買収者に縛られている'
-                : canUseCard(state, sheet.card, balance) ||
+              {canUseCard(state, sheet.card, balance) ||
               state.current !== active ||
               state.players[active].coins >= cardCostFor(state, active, sheet.card, balance)
                 ? '使う'

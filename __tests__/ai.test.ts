@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAction, optionsFor, playTurn } from '@/ai/choose';
 import { DEFAULT_PROFILE, DEFAULT_WEIGHTS, evaluateState, weightsAt } from '@/ai/evaluate';
 import { DEFAULT_BALANCE } from '@/game/balance';
-import { handOf, scoreOf } from '@/game/selectors';
+import { scoreOf } from '@/game/selectors';
 import { legalActions, reduce } from '@/game/reducer';
 import { createRng } from '@/game/rng';
 import { createGame } from '@/game/setup';
@@ -103,22 +103,32 @@ describe('重み付き評価関数', () => {
     );
   });
 
-  it('opponentBound: 相手が買収者を受けているほうが評価が高い', () => {
-    const bound = createGame(3);
-    bound.players.cpu.boundCards = ['miner'];
-    const notBound = createGame(3);
-    expect(evaluateState(bound, 'you', DEFAULT_BALANCE)).toBeGreaterThan(
-      evaluateState(notBound, 'you', DEFAULT_BALANCE),
+  it('reach: 買収者の割引で相手の物件に手が届くと評価が上がる', () => {
+    const g = createGame(3);
+    const fortress = g.market.find((s) => s.buildingId === 'fortress')!;
+    fortress.owner = 'cpu';
+    // 安く建てられた城塞（建築家・石切場）。割引なしでは 1 コイン足りず、商館しか建てられない
+    fortress.paid = 5;
+    g.current = 'you';
+    g.players.you.coins = fortress.paid + DEFAULT_BALANCE.acquireMarkup - 1;
+    const discounted = structuredClone(g);
+    discounted.players.you.acquireDiscount = DEFAULT_BALANCE.spyAcquireDiscount;
+    expect(evaluateState(discounted, 'you', DEFAULT_BALANCE)).toBeGreaterThan(
+      evaluateState(g, 'you', DEFAULT_BALANCE),
     );
   });
 
-  it('stuck: 買収者に縛られたカードがあると評価が低い', () => {
+  it('stuck: 城壁があると衛兵が払えるようになり、評価が上がる', () => {
     const g = createGame(3);
-    g.players.you.coins = 100;
-    const bound = structuredClone(g);
-    bound.players.you.boundCards = [handOf(g, 'you', DEFAULT_BALANCE)[0]!];
-    expect(evaluateState(bound, 'you', DEFAULT_BALANCE)).toBeLessThan(
-      evaluateState(g, 'you', DEFAULT_BALANCE),
+    g.players.you.hand = ['guard', 'miner', 'banker', 'architect'];
+    g.players.you.coins = 0;
+    const walled = structuredClone(g);
+    const wall = walled.market.find((s) => s.buildingId === 'wall')!;
+    wall.owner = 'you';
+    // 盤面は同じで、連携のコストだけが違う balance と比べる（差は stuck だけに出る）
+    const noSynergy = { ...DEFAULT_BALANCE, guardCostWithWall: DEFAULT_BALANCE.cards.guard.cost };
+    expect(evaluateState(walled, 'you', DEFAULT_BALANCE)).toBeGreaterThan(
+      evaluateState(walled, 'you', noSynergy),
     );
   });
 });

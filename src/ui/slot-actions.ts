@@ -4,7 +4,7 @@
 
 import { BUILDING_NAMES, buildingTextFor, buildingVp, type Balance } from '@/game/balance';
 import { canAcquire, canUpgrade } from '@/game/reducer';
-import { acquirePriceOf, opponentOf, slotLocked, upgradePriceOf, vpOfSlot } from '@/game/selectors';
+import { acquireCostFor, opponentOf, slotLocked, upgradePriceOf, vpOfSlot } from '@/game/selectors';
 import type { Action, GameState, PlayerId } from '@/game/types';
 
 /** Lv の上限。これ以上は上げられない（upgradePriceOf が Infinity を返す）。 */
@@ -67,7 +67,8 @@ export function acquireButton(
   const slot = state.market[slotId];
   const foe = opponentOf(viewer);
   if (!slot || slot.owner !== foe) return null;
-  const price = acquirePriceOf(slot, balance);
+  // 買収者を使ったターンは割引後の額を出す（相手の手番中に見るときは割引なし）
+  const price = acquireCostFor(state, viewer, slot, balance);
   const myTurn = state.phase === 'playing' && state.current === viewer;
   const enabled = myTurn && canAcquire(state, slotId, balance);
   const label = `買収（${price}コイン）`;
@@ -87,11 +88,13 @@ export function acquireButton(
   return { price, enabled, label: `あと ${short} コイン`, reason: null };
 }
 
-/** 買収の価格の内訳を 1 行で。カードの「買収者」と混同しないよう、物件を奪う行動だと書く。 */
+/** 買収の価格の内訳を 1 行で。手番の側が買収者を使っていれば、その割引も内訳に出す。 */
 export function acquireNote(state: GameState, slotId: number, balance: Balance): string | null {
   const slot = state.market[slotId];
   if (!slot || slot.owner === null) return null;
-  return `これまでに払われた ${slot.paid} コイン ＋ ${balance.acquireMarkup}。代金は相手に渡り、物件と VP が移ります`;
+  const discount = state.players[state.current].acquireDiscount;
+  const spy = discount > 0 && slot.owner !== state.current ? ` − 買収者 ${discount}` : '';
+  return `これまでに払われた ${slot.paid} コイン ＋ ${balance.acquireMarkup}${spy}。代金は相手に渡り、物件と VP が移ります`;
 }
 
 export interface LevelEffect {

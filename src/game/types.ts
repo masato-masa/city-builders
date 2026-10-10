@@ -69,10 +69,8 @@ export interface PlayerState {
   festivalActive: boolean;
   /** 衛兵。次の自分のターンが始まるまで妨害を受けない */
   guarded: boolean;
-  /** 買収者を受けた。次の自分の開始フェーズで手札から spyBindCount 枚抽選する */
-  bindPending: boolean;
-  /** 抽選された結果。このターン使用できない */
-  boundCards: CardId[];
+  /** このターン限りの買収価格の割引（買収者） */
+  acquireDiscount: number;
   /** 封鎖者に効果を止められている自分の物件の区画。解除する手段が無いので永続 */
   disabledSlot: number | null;
 }

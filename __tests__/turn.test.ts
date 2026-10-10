@@ -41,12 +41,12 @@ describe('ターン終了', () => {
     g.players.you.blockedSlot = 3;
     g.players.you.disabledSlot = 5;
     g.players.you.festivalActive = true;
-    g.players.you.boundCards = ['miner'];
+    g.players.you.acquireDiscount = 5;
     const after = reduce(g, { type: 'endTurn' }, DEFAULT_BALANCE);
     expect(after.players.you.blockedSlot).toBe(3);
     expect(after.players.you.disabledSlot).toBe(5);
     expect(after.players.you.festivalActive).toBe(false);
-    expect(after.players.you.boundCards).toEqual([]);
+    expect(after.players.you.acquireDiscount).toBe(0);
   });
 
   it('何もせずに終えられる', () => {

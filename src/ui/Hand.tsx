@@ -7,7 +7,7 @@ import { handSlotsOf, nextCardOf } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
 import { CARD_ART } from './art';
-import { ChainIcon, MenuIcon } from './icons';
+import { MenuIcon } from './icons';
 
 /** 手札 4 枚の枠番号。PlayerState.hand は常に長さ 4 の固定スロット配列で、
  *  添字がそのまま画面上の枠に対応する（要望 6）。 */
@@ -53,7 +53,6 @@ export function Hand({
   const hand = handSlotsOf(state, viewer);
   const next = nextCardOf(state, viewer, balance);
   const nextArt = next ? CARD_ART[next] : undefined;
-  const bound = state.players[viewer].boundCards;
   return (
     <div className={`hand-row hand-row-${viewer}`}>
       <div className="next-col">
@@ -87,7 +86,6 @@ export function Hand({
                     balance={balance}
                     viewer={viewer}
                     usable={canUse(card)}
-                    bound={bound.includes(card)}
                     targeting={targeting}
                     selected={selected === card}
                     onPick={onPick}
@@ -112,7 +110,6 @@ function CardButton({
   balance,
   viewer,
   usable,
-  bound,
   targeting,
   selected,
   onPick,
@@ -126,9 +123,6 @@ function CardButton({
   balance: Balance;
   viewer: PlayerId;
   usable: boolean;
-  /** 買収者に縛られて今ターン使えないカードか。使えない理由が「買収者」だと
-   *  ひと目で分かるよう、コスト不足の is-dim とは別に鎖マークを出す。 */
-  bound: boolean;
   targeting: boolean;
   selected: boolean;
   onPick: (card: CardId) => void;
@@ -156,7 +150,6 @@ function CardButton({
     'card',
     art ? 'has-art' : null,
     !targeting && !usable ? 'is-dim' : null,
-    !targeting && bound ? 'is-bound' : null,
     targetable ? 'is-targetable' : null,
     targetInvalid ? 'is-target-invalid' : null,
     selected ? 'is-selected' : null,
@@ -209,11 +202,6 @@ function CardButton({
           {art ? <img className="card-art" src={art} alt="" draggable={false} /> : null}
           <span className="card-name">{CARD_NAMES[card]}</span>
         </span>
-        {!targeting && bound ? (
-          <span className="card-chain-badge" aria-hidden="true">
-            <ChainIcon />
-          </span>
-        ) : null}
         {/* コストは金貨の宝石バッジ（クラロワのエリクサーの雫に当たる）。 */}
         <span className="card-cost">
           <span className="card-cost-num">{cardCostFor(state, viewer, card, balance)}</span>
