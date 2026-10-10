@@ -5,6 +5,7 @@
 import { BUILDING_NAMES, buildingTextFor, buildingVp, type Balance } from '@/game/balance';
 import { canAcquire, canUpgrade } from '@/game/reducer';
 import {
+  acquireBlockOf,
   acquireCostFor,
   acquirePriceOf,
   districtCounts,
@@ -31,7 +32,8 @@ export function isMaxLevel(state: GameState, slotId: number, balance: Balance): 
  *  市場価値は、相手の物件なら viewer がいま払う額（買収者の割引込み）、自分の物件なら相手が払う額（割引なし）。 */
 export type PlotFigures =
   | { kind: 'unbuilt'; build: number }
-  | { kind: 'built'; value: number; upgrade: number | null };
+  /** value は買収に要るコイン。最終段階で買収できない物件は null */
+  | { kind: 'built'; value: number | null; upgrade: number | null };
 
 export function plotFigures(
   state: GameState,
@@ -42,8 +44,13 @@ export function plotFigures(
 ): PlotFigures {
   const slot = state.market[slotId]!;
   if (slot.owner === null) return { kind: 'unbuilt', build: buildCost(slotId) };
-  const value = slot.owner === viewer ? acquirePriceOf(slot, balance) : acquireCostFor(state, viewer, slot, balance);
   const up = upgradePriceOf(slot, balance);
+  const maxed = !Number.isFinite(up);
+  const value = maxed
+    ? null
+    : slot.owner === viewer
+      ? acquirePriceOf(slot, balance)
+      : acquireCostFor(state, viewer, slot, balance);
   return { kind: 'built', value, upgrade: Number.isFinite(up) ? up : null };
 }
 
@@ -114,6 +121,9 @@ export function acquireButton(
   if (state.players[foe].guarded) {
     return { price, enabled, label, reason: '相手は衛兵で守られています（相手の次の手番まで）' };
   }
+  if (acquireBlockOf(state, slotId, viewer, balance) === 'maxLevel') {
+    return { price, enabled, label: '買収できません', reason: '最終段階まで上げた物件は買収できません' };
+  }
   if (slotLocked(state, slot, balance)) {
     return {
       price,
@@ -182,7 +192,12 @@ export function levelEffects(
   const level = slot.owner === null ? 1 : slot.level;
   const vpAt = (lv: number): string => {
     if (slot.buildingId === 'cathedral') {
-      const per = lv >= 2 ? balance.level2.cathedralVpPerBuilding : balance.cathedralVpPerBuilding;
+      const per =
+        lv >= 3
+          ? balance.level3.cathedralVpPerBuilding
+          : lv >= 2
+            ? balance.level2.cathedralVpPerBuilding
+            : balance.cathedralVpPerBuilding;
       return `他の物件 1 件につき ${per} VP`;
     }
     return `${buildingVp(balance, slot.buildingId, lv)} VP`;

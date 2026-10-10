@@ -160,3 +160,22 @@ describe('CPU の行動の文言', () => {
     expect(cpuActionCallout(s, { type: 'build', slotId: 1 })).toBeNull();
   });
 });
+
+describe('最終段階の物件（買収できない）', () => {
+  it('名札の市場価値は null（買収不可）、アップグレードの数字も出さない', async () => {
+    const { plotFigures } = await import('@/ui/slot-actions');
+    const s = board();
+    s.market[7]!.level = B.maxLevel;
+    const f = plotFigures(s, 7, 'you', B, () => 0);
+    expect(f).toEqual({ kind: 'built', value: null, upgrade: null });
+  });
+
+  it('買収のボタンは押せず、理由を 1 行で出す', () => {
+    const s = board();
+    s.players.you.coins = 99;
+    s.market[7]!.level = B.maxLevel;
+    const b = acquireButton(s, 7, 'you', B)!;
+    expect(b.enabled).toBe(false);
+    expect(b.reason).toContain('最終段階');
+  });
+});

@@ -941,6 +941,12 @@
    アップグレード費は緑の文字＋上矢印。地は VP と同じ暗幕で、色と印の 2 つで見分ける
    （凡例が無くても読める）。台座・旗・道の識別色には触らない。 */
 .plot-value,
+.plot-value.is-locked {
+  color: #e8eeeb;
+  font-size: 0.85em;
+  letter-spacing: 0.02em;
+}
+
 .plot-upgrade {
   display: inline-flex;
   align-items: center;

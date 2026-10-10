@@ -300,7 +300,7 @@ function PlotView({
   const figureText =
     figures.kind === 'unbuilt'
       ? ` 建設 ${figures.build} コイン`
-      : ` 買収 ${figures.value} コイン${figures.upgrade !== null ? `・アップグレード ${figures.upgrade} コイン` : ''}`;
+      : ` ${figures.value === null ? '買収不可' : `買収 ${figures.value} コイン`}${figures.upgrade !== null ? `・アップグレード ${figures.upgrade} コイン` : ''}`;
   const ariaLabel = `${BUILDING_NAMES[slot.buildingId]}${leveled ? ` Lv${slot.level}` : ''}${maxed ? '（最大）' : ''} ${vpText}${figureText}${disabled ? ' 効果停止中' : ''}${blocked ? ' 封鎖中' : ''}`;
   const stateClass = [
     blocked ? 'is-blocked' : null,
@@ -488,10 +488,14 @@ function PlotView({
           {/* 建った物件は数字を 2 つ: 市場価値（買収に要るコイン、袋の印）とアップグレード費（上矢印）。
               凡例が無くても分かるよう、色だけでなく印を添える。最大レベルならアップグレードは出さない。 */}
           {figures.kind === 'built' ? (
-            <span className="plot-value">
-              <CoinBagIcon />
-              {figures.value}
-            </span>
+            figures.value === null ? (
+              <span className="plot-value is-locked">買収不可</span>
+            ) : (
+              <span className="plot-value">
+                <CoinBagIcon />
+                {figures.value}
+              </span>
+            )
           ) : null}
           {figures.kind === 'built' && figures.upgrade !== null ? (
             <span className="plot-upgrade">
