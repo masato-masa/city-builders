@@ -12,6 +12,7 @@ import {
   ARP_PATTERN,
   BGM_BEATS_PER_BAR,
   BGM_BUS_DB,
+  BGM_SCORE_DB,
   barAt,
   beatSeconds,
   bgmMood,
@@ -160,7 +161,7 @@ function begin(): void {
   const { ctx } = g;
   const out = ctx.createGain();
   out.gain.setValueAtTime(0.0001, ctx.currentTime);
-  out.gain.exponentialRampToValueAtTime(1, ctx.currentTime + 1.2);
+  out.gain.exponentialRampToValueAtTime(dbToGain(BGM_SCORE_DB), ctx.currentTime + 1.2);
   out.connect(g.bgmFilter);
   g.bgmBus.gain.setValueAtTime(dbToGain(BGM_BUS_DB), ctx.currentTime);
   g.bgmFilter.frequency.setValueAtTime(mood.cutoffHz, ctx.currentTime);
@@ -278,7 +279,7 @@ export async function renderBgm(bars: number, turnsLeft = 99, sampleRate = 32000
   filter.frequency.value = m.cutoffHz;
   filter.Q.value = 0.5;
   const bus = off.createGain();
-  bus.gain.value = dbToGain(BGM_BUS_DB);
+  bus.gain.value = dbToGain(BGM_BUS_DB + BGM_SCORE_DB);
   filter.connect(bus);
   bus.connect(off.destination);
   let t = 0;

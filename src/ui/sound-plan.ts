@@ -201,6 +201,9 @@ export const SFX_BUS_DB = 0;
  *  このバスで下げる。効果音より -6〜-12dB（standards §2）の真ん中を狙って -9dB。
  *  実効音量の差は sfx.html の「音量の測定」で測る。 */
 export const BGM_BUS_DB = -9;
+/** BGM の譜面そのものの持ち上げ（dB）。譜面の素の実効音量が効果音より約 5dB 小さかったので、
+ *  ここで足してからバスで -9dB 下げる。測定（sfx.html）: 効果音の平均 -20.7dB に対し BGM -29.5dB 前後。 */
+export const BGM_SCORE_DB = 5;
 /** ホーム（プレイ画面の外）で BGM を流すときの音量。いまは流さない。 */
 export const BGM_HOME_DB = -Infinity;
 

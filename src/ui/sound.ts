@@ -488,6 +488,29 @@ export function playWin(): void {
   });
 }
 
+/** 確認用: 読み込んだ音ごとの実効音量（RMS、dBFS）とピーク。SAMPLE_GAIN を掛けたあとの値で、
+ *  効果音バスに入る大きさ。sfx.html の「音量の測定」で BGM と比べる。 */
+export function measureSampleLevels(): Record<string, { rmsDb: number; peakDb: number }> {
+  const res: Record<string, { rmsDb: number; peakDb: number }> = {};
+  for (const [name, buf] of samples) {
+    const ch = buf.getChannelData(0);
+    const g = SAMPLE_GAIN[name] ?? 0.5;
+    let sum = 0;
+    let peak = 0;
+    for (let i = 0; i < ch.length; i++) {
+      sum += ch[i]! * ch[i]!;
+      peak = Math.max(peak, Math.abs(ch[i]!));
+    }
+    res[name] = { rmsDb: 20 * Math.log10(Math.sqrt(sum / ch.length) * g), peakDb: 20 * Math.log10(peak * g) };
+  }
+  return res;
+}
+
+/** 確認用: 音源の読み込みが済んだ数。 */
+export function loadedSampleCount(): number {
+  return samples.size;
+}
+
 /** 負け: 沈む短いフレーズ */
 export function playLose(): void {
   stopBgm(0.4);

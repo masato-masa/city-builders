@@ -12,10 +12,16 @@
       .cand { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
       .cand.is-picked { outline: 2px solid #e48b4e; border-radius: 6px; padding: 2px; }
       code { background: #fff; padding: 2px 6px; border-radius: 4px; }
+      .lab-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #e3ddcf; }
+      .lab-row b { width: 110px; }
+      .lab-row button { padding: 6px 10px; border-radius: 8px; border: 1px solid #d8cfbd; background: #fff; color: inherit; }
+      #levels { background: #fff; padding: 8px; border-radius: 8px; font-size: 12px; white-space: pre-wrap; }
     </style>
   </head>
   <body>
+    <div id="lab"></div>
     <div id="root"></div>
+    <script type="module" src="/src/ui/sfx-lab.ts"></script>
     <script type="module" src="/src/ui/sfx-preview.ts"></script>
   </body>
 </html>
