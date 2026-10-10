@@ -17,7 +17,7 @@ import { loadProgress, saveProgress, withResult } from '@/storage/storage';
 
 import { BUILDING_ART, CARD_ART, FIELD_URL } from './art';
 import { Board, type IncomeFlash } from './Board';
-import { CardSheet } from './CardSheet';
+import { dragGuide, resolveDrop } from './card-input';
 import { CoinBar } from './CoinBar';
 import { type CpuStep, playTurnSteps } from './cpu-turn';
 import { cardAftermath, cardSequence, TARGET_LABEL } from './feel';
@@ -44,7 +44,7 @@ import {
 import { Hand } from './Hand';
 import { OpponentStrip } from './OpponentStrip';
 import { stageCallout, playStageCue } from './income-stages';
-import { playIncome, runIncomeSequence, slotAtPoint, useLater } from './play-helpers';
+import { dropHitAt, playIncome, runIncomeSequence, useLater } from './play-helpers';
 import { buildReview, recordTransition, streakLine } from './match-log';
 import { type DailyResult, ResultScreen } from './ResultScreen';
 import { useMatchLog } from './use-match-log';
@@ -52,18 +52,9 @@ import { Sheet } from './Sheets';
 import { cpuActionCallout } from './slot-actions';
 import { SlotSheet } from './SlotSheet';
 import { TargetBanner } from './TargetBanner';
-import {
-  BUILD_EFFECT_DELAY_MS,
-  CARD_EFFECT_DELAY_MS,
-  CPU_EFFECT_DELAY_MS,
-  CPU_END_DELAY_MS,
-  CPU_FIRST_GAP_MS,
-  INCOME_BEAT_MS,
-  DISCARD_AT_MS,
-  CPU_STEP_GAP_MS,
-  RESULT_DELAY_MS,
-  TURN_INTRO_MS,
-} from './tempo';
+import { HelpText } from './HelpText';
+import { SpeedRow } from './SpeedRow';
+import { RESULT_DELAY_MS, tempo } from './tempo';
 import { TurnBadge } from './TurnBadge';
 import { refreshBgm } from './bgm';
 import { useGameBgm } from './use-bgm';
@@ -89,7 +80,6 @@ import {
 
 type Pending =
   | { kind: 'slot'; slotId: number }
-  | { kind: 'card'; card: CardId }
   | { kind: 'heraldTarget' }
   | { kind: 'blockadeTarget' }
   | { kind: 'menu' }
@@ -130,6 +120,8 @@ export function Game({
   const [introPending, setIntroPending] = useState(() => state.current === 'you');
   // 収入の演出の途中でプレイヤーが触ったとき、残りを飛ばして反映する（待たせない）。
   const flushIncome = useRef<(() => void) | null>(null);
+  // CPU の 1 手の途中でプレイヤーが触ったとき、その 1 手を飛ばして次へ進める。
+  const skipCpuStep = useRef<(() => void) | null>(null);
   // カードを使う動きを見せてから効果を反映するまで（建設も同じ）の間。
   const [busy, setBusy] = useState(false);
   // 使用中の札（手札からは先に消し、盤面へ飛ぶ複製が見せる）。
@@ -256,7 +248,7 @@ export function Game({
   // （手番 → 基礎収入 → 建物収入 → 投資 → 返済、の順。祝祭のときは建物収入の段でそれと分かる）。
   useEffect(() => {
     if (!introPending) return;
-    const seq = runIncomeSequence(stateRef.current, balance, TURN_INTRO_MS, {
+    const seq = runIncomeSequence(stateRef.current, balance, tempo().turnIntroMs, {
       onShow: (b) => showStage(b.stage, 'you'),
       onApply: (b) => {
         playIncome(b.stage.amount);
@@ -309,14 +301,17 @@ export function Game({
     if (!step) return;
     const isLast = revealed === steps.length - 1;
     const a = step.action;
-    // 収入の段は読める長さだけ（INCOME_BEAT_MS）で次へ。行動は 1 手あたり gap + effectDelay。
+    // 収入の段は読める長さだけ（incomeBeatMs）で次へ。行動は 1 手あたり gap + effectDelay。
+    // 間合いは設定の速さ（tempo.ts）。1 手ごとに読むので、途中で切り替えても次の 1 手から効く。
+    const t = tempo();
     const isStage = a.type === 'startTurn' && step.stage !== undefined;
-    const gap = revealed === 0 ? CPU_FIRST_GAP_MS : isStage ? 0 : CPU_STEP_GAP_MS;
+    const gap = revealed === 0 ? t.cpuFirstGapMs : isStage ? 0 : t.cpuStepGapMs;
     // 伝令は、使う札のあとに「山の底へ送る札」を見せるぶん、効果の反映を遅らせる。
     const heraldTarget = a.type === 'useCard' ? a.heraldTarget : undefined;
     const effectDelay =
-      (a.type === 'endTurn' ? CPU_END_DELAY_MS : isStage ? INCOME_BEAT_MS : CPU_EFFECT_DELAY_MS) +
-      (heraldTarget ? DISCARD_AT_MS : 0);
+      (a.type === 'endTurn' ? t.cpuEndDelayMs : isStage ? t.incomeBeatMs : t.cpuEffectDelayMs) +
+      (heraldTarget ? t.discardAtMs : 0);
+    let shown = false;
     const showDiscard = heraldTarget
       ? window.setTimeout(() => {
           cpuCalloutSeq.current += 1;
@@ -327,9 +322,10 @@ export function Game({
             text: `${CARD_NAMES[heraldTarget]}を山の底へ`,
           });
           playEndTurn();
-        }, gap + DISCARD_AT_MS)
+        }, gap + t.discardAtMs)
       : null;
-    const show = window.setTimeout(() => {
+    const showStep = () => {
+      shown = true;
       setCpuLog((prev) => [...prev, step.log]);
       if (a.type === 'startTurn' && step.stage) {
         showStage(step.stage, 'cpu');
@@ -356,8 +352,10 @@ export function Game({
       );
       if (a.type === 'useCard') playUseCard(a.card);
       else if (a.type === 'endTurn') playEndTurn();
-    }, gap);
-    const apply = window.setTimeout(() => {
+    };
+    const show = window.setTimeout(showStep, gap);
+    const applyStep = () => {
+      skipCpuStep.current = null;
       if (a.type === 'build') {
         playBuild();
         setCpuHighlightSlot(a.slotId);
@@ -380,8 +378,18 @@ export function Game({
         setState(step.state);
         setCpuTurn((prev) => (prev ? { ...prev, revealed: prev.revealed + 1 } : prev));
       }
-    }, gap + effectDelay);
+    };
+    const apply = window.setTimeout(applyStep, gap + effectDelay);
+    // 盤面に触れたら、この 1 手を待たずに反映する（まだ出していなければ出してから）。
+    skipCpuStep.current = () => {
+      window.clearTimeout(show);
+      window.clearTimeout(apply);
+      if (showDiscard !== null) window.clearTimeout(showDiscard);
+      if (!shown) showStep();
+      applyStep();
+    };
     return () => {
+      skipCpuStep.current = null;
       window.clearTimeout(show);
       window.clearTimeout(apply);
       if (showDiscard !== null) window.clearTimeout(showDiscard);
@@ -417,7 +425,7 @@ export function Game({
     setBusy(true);
     setSheet(null);
     if (discard) {
-      later(DISCARD_AT_MS, () => {
+      later(tempo().discardAtMs, () => {
         playEndTurn();
         flyDiscard(discard);
         setUsing([card, discard]);
@@ -440,17 +448,11 @@ export function Game({
     setUsing([target]);
     setBusy(true);
     setSheet(null);
-    later(CARD_EFFECT_DELAY_MS, () => {
+    later(tempo().cardEffectDelayMs, () => {
       setState(reduce(stateRef.current, { type: 'useRoad', target }, balance));
       setUsing([]);
       setBusy(false);
     });
-  };
-
-  const useCard = (card: CardId) => {
-    if (card === 'herald') return setSheet({ kind: 'heraldTarget' });
-    if (card === 'blockader') return setSheet({ kind: 'blockadeTarget' });
-    commitCard(card, { type: 'useCard', card });
   };
 
   /** 物件を建てる。指示のあと少し置いて、着地とコインの減りを一緒に出す。 */
@@ -458,7 +460,7 @@ export function Game({
     hapticBuild();
     setBusy(true);
     setSheet(null);
-    later(BUILD_EFFECT_DELAY_MS, () => {
+    later(tempo().buildEffectDelayMs, () => {
       playBuild();
       setState(reduce(stateRef.current, { type: 'build', slotId }, balance));
       setBusy(false);
@@ -472,7 +474,7 @@ export function Game({
     hapticBuild();
     setBusy(true);
     setSheet(null);
-    later(BUILD_EFFECT_DELAY_MS, () => {
+    later(tempo().buildEffectDelayMs, () => {
       if (action.type === 'upgrade') playUpgrade();
       else playAcquire();
       setState(reduce(stateRef.current, action, balance));
@@ -480,28 +482,19 @@ export function Game({
     });
   };
 
-  /** 手札を盤面へドラッグして離した。そのまま使用にする。 */
+  /** 手札をドラッグして離した。カードはこれでしか使わない（タップでは使わない）。
+   *  離した場所で決める: 盤面 → 使う / 伝令は別の札の上 → その札を山の底へ / 封鎖者は区画の上 → その区画。
+   *  盤面の外で離したらやめる。対象の要る札を盤面の空いたところで離したら、対象選び（タップ）へ。 */
   const dropCard = (card: CardId, point: { x: number; y: number }) => {
-    if (locked) return;
-    if (!canUseCard(state, card, balance)) {
+    const r = resolveDrop(state, 'you', card, dropHitAt(point.x, point.y, boardAreaRef.current, card));
+    if (r.kind === 'cancel') return;
+    if (locked || !canUseCard(state, card, balance) || r.kind === 'reject') {
       playReject();
       hapticReject();
       return;
     }
-    if (card === 'herald') return setSheet({ kind: 'heraldTarget' });
-    if (card === 'blockader') {
-      // 区画の上で離したら、その区画を対象にそのまま使う。盤面の空きで離したら対象選びへ。
-      const slotId = slotAtPoint(point.x, point.y);
-      if (slotId === null) return setSheet({ kind: 'blockadeTarget' });
-      const slot = state.market[slotId];
-      if (!slot || slot.owner === 'you') {
-        playReject();
-        hapticReject();
-        return;
-      }
-      return commitCard(card, { type: 'useCard', card, blockadeSlot: slotId });
-    }
-    commitCard(card, { type: 'useCard', card });
+    if (r.kind === 'target') return setSheet({ kind: r.mode === 'herald' ? 'heraldTarget' : 'blockadeTarget' });
+    commitCard(card, r.action);
   };
 
   const toggleSound = () => {
@@ -530,6 +523,7 @@ export function Game({
           className="board-shell"
           onPointerDownCapture={() => {
             flushIncome.current?.();
+            skipCpuStep.current?.();
             aftermath.skip();
           }}
         >
@@ -546,7 +540,7 @@ export function Game({
               state={feel.boardState}
               balance={balance}
               highlightSlot={cpuHighlightSlot}
-              targeting={sheet?.kind === 'blockadeTarget'}
+              targeting={sheet?.kind === 'blockadeTarget' || dragCard === 'blockader'}
               dropArmed={dragCard !== null}
               flash={incomeFlash}
               onPick={(slotId) => {
@@ -585,6 +579,7 @@ export function Game({
                 タップするかは、対象になる側（盤面の区画／手札のカード）が
                 光って示す。 */}
             <AnimatePresence>
+              {dragCard ? <TargetBanner key={`drag-${dragCard}`} label={dragGuide(dragCard)} /> : null}
               {sheet?.kind === 'blockadeTarget' ? (
                 <TargetBanner key="blockadeTarget" onCancel={() => setSheet(null)} />
               ) : null}
@@ -623,33 +618,18 @@ export function Game({
             balance={balance}
             canUse={(card) => !locked && canUseCard(state, card, balance)}
             using={using}
-            dropRef={boardAreaRef}
             onDrop={dropCard}
             onDragActive={setDragCard}
             targeting={sheet?.kind === 'heraldTarget'}
-            selected={sheet?.kind === 'card' ? sheet.card : null}
             onPick={(card) => {
-              if (locked) return;
-              // 伝令の対象選択モード中は、通常のカード詳細シートを開かず、
-              // タップした手札カードをそのまま対象にして確定する（封鎖者の
-              // 盤面タップと同じ考え方）。伝令自身は対象にできない。
-              if (sheet?.kind === 'heraldTarget') {
-                if (card === 'herald') {
-                  playReject();
-                  hapticReject();
-                  return;
-                }
-                commitCard('herald', { type: 'useCard', card: 'herald', heraldTarget: card });
-                return;
-              }
-              if (canUseCard(state, card, balance)) {
-                playSelect();
-                hapticTap();
-              } else {
+              // 伝令の対象選び（盤面で離したあと）。タップした手札をそのまま対象にする。伝令自身は対象にできない。
+              if (locked || sheet?.kind !== 'heraldTarget') return;
+              if (card === 'herald' || !canUseCard(state, 'herald', balance)) {
                 playReject();
                 hapticReject();
+                return;
               }
-              setSheet({ kind: 'card', card });
+              commitCard('herald', { type: 'useCard', card: 'herald', heraldTarget: card });
             }}
             onMenu={() => {
               playUiTap();
@@ -672,26 +652,7 @@ export function Game({
             onBuild={() => commitBuild(sheet.slotId)}
             onUpgrade={() => commitSlotAction({ type: 'upgrade', slotId: sheet.slotId })}
             onAcquire={() => commitSlotAction({ type: 'acquire', slotId: sheet.slotId })}
-            onClose={() => setSheet(null)}
-          />
-        ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {sheet?.kind === 'card' ? (
-          <CardSheet
-            key="card"
-            state={state}
-            card={sheet.card}
-            viewer="you"
-            balance={balance}
-            locked={locked}
-            onRoad={() => commitRoad(sheet.card)}
-            onUse={() => {
-              const card = sheet.card;
-              setSheet(null);
-              useCard(card);
-            }}
+            onRoad={commitRoad}
             onClose={() => setSheet(null)}
           />
         ) : null}
@@ -732,35 +693,7 @@ export function Game({
       <AnimatePresence>
         {sheet?.kind === 'help' ? (
           <Sheet key="help" title="あそびかた" onClose={() => setSheet(null)}>
-            <p className="sheet-text">
-              人物カードを使ってコインを稼ぎ、まん中の物件を建てます。物件は早い者勝ちで、
-              VP（勝利点）は物件と地区の称号から手に入ります。10 件すべてが建つとゲームが終わり、
-              VP の多いほうが勝ちです。
-            </p>
-            <p className="sheet-text">
-              投資カード（採掘師・銀行家）のコインが入るのは<b>次の収入</b>（自分の次のターンの始め）です。
-              だからコインバーに「次の収入 +N」を出しています。今建てるか、
-              次のターンに回すかを、この 2 つの数字で比べてください。
-            </p>
-            <p className="sheet-text">
-              手札 4 枚はデッキの先頭 4 枚です。使ったカードだけが山の一番下へ回り、
-              使わなかったカードは残ります。つまり<b>何枚で止めるかが、次のターンの手札を決めます</b>。
-              左下の「次」で 1 枚先まで見えます。
-            </p>
-            <p className="sheet-text">
-              相手も同じ 10 種を持っています。徴税官でコインを奪われ、封鎖者で区画を 1 つ
-              押さえられ、買収者で物件を安く買い取られます。衛兵を張るか、城壁を建てて防いでください。
-            </p>
-            <p className="sheet-text">
-              建った物件をタップすると、<b>アップグレード</b>（自分の物件を Lv2 に上げて VP と効果を増やす）と
-              <b>買収</b>（相手の物件を、これまでに払われたコイン＋{balance.acquireMarkup} で奪う。代金は相手に渡る）ができます。
-              どちらも手札は使いません。カードの「買収者」を使ったターンは、買収の価格が下がります。
-            </p>
-            <p className="sheet-text">
-              市場は 3 つの<b>地区</b>（{balance.districts.map((d) => d.name).join('・')}）に分かれています。
-              地区の中で物件を相手より多く持つと、その地区の<b>称号</b>（+{balance.districtTitleVp} VP）が手に入ります。
-              同数なら今の持ち主のまま。買収で物件が動けば称号も動きます。盤面の端の旗が、いまの持ち主です。
-            </p>
+            <HelpText balance={balance} />
           </Sheet>
         ) : null}
       </AnimatePresence>
@@ -802,6 +735,7 @@ export function Game({
                 onClick={toggleHaptics}
               />
             </div>
+            <SpeedRow />
           </Sheet>
         ) : null}
       </AnimatePresence>

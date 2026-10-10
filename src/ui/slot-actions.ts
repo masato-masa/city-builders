@@ -6,6 +6,7 @@ import { BUILDING_NAMES, buildingTextFor, buildingVp, type Balance } from '@/gam
 import { canAcquire, canUpgrade } from '@/game/reducer';
 import {
   acquireCostFor,
+  acquirePriceOf,
   districtCounts,
   districtOfSlot,
   opponentOf,
@@ -17,8 +18,34 @@ import {
 } from '@/game/selectors';
 import type { Action, GameState, PlayerId } from '@/game/types';
 
-/** Lv の上限。これ以上は上げられない（upgradePriceOf が Infinity を返す）。 */
-export const MAX_LEVEL = 2;
+/** これ以上上げられないか。上限のレベル数は直書きせず、upgradePriceOf が Infinity を返すかで見る
+ *  （Lv の上限は src/game 側が決める）。 */
+export function isMaxLevel(state: GameState, slotId: number, balance: Balance): boolean {
+  const slot = state.market[slotId];
+  return !!slot && slot.owner !== null && !Number.isFinite(upgradePriceOf(slot, balance));
+}
+
+/** 区画の名札に出す数字。
+ *  - 未建設: 建設費（いま払う額）
+ *  - 建った物件: 市場価値（＝買収に要るコイン）とアップグレード費（最大レベルなら null＝出さない）
+ *  市場価値は、相手の物件なら viewer がいま払う額（買収者の割引込み）、自分の物件なら相手が払う額（割引なし）。 */
+export type PlotFigures =
+  | { kind: 'unbuilt'; build: number }
+  | { kind: 'built'; value: number; upgrade: number | null };
+
+export function plotFigures(
+  state: GameState,
+  slotId: number,
+  viewer: PlayerId,
+  balance: Balance,
+  buildCost: (slotId: number) => number,
+): PlotFigures {
+  const slot = state.market[slotId]!;
+  if (slot.owner === null) return { kind: 'unbuilt', build: buildCost(slotId) };
+  const value = slot.owner === viewer ? acquirePriceOf(slot, balance) : acquireCostFor(state, viewer, slot, balance);
+  const up = upgradePriceOf(slot, balance);
+  return { kind: 'built', value, upgrade: Number.isFinite(up) ? up : null };
+}
 
 export interface SlotButton {
   /** 払う額 */
@@ -38,7 +65,7 @@ export function lockRemaining(state: GameState, slotId: number, balance: Balance
   return balance.slotLockTurns - (state.turn - slot.touchedTurn);
 }
 
-/** 自分の物件のアップグレードのボタン。Lv2（上限）なら null（ボタンを出さない）。 */
+/** 自分の物件のアップグレードのボタン。最大レベルなら null（ボタンを出さない）。 */
 export function upgradeButton(
   state: GameState,
   slotId: number,
@@ -46,8 +73,9 @@ export function upgradeButton(
   balance: Balance,
 ): SlotButton | null {
   const slot = state.market[slotId];
-  if (!slot || slot.owner !== viewer || slot.level >= MAX_LEVEL) return null;
+  if (!slot || slot.owner !== viewer) return null;
   const price = upgradePriceOf(slot, balance);
+  if (!Number.isFinite(price)) return null;
   const myTurn = state.phase === 'playing' && state.current === viewer;
   const enabled = myTurn && canUpgrade(state, slotId, balance);
   const label = `アップグレード（${price}コイン）`;
@@ -165,7 +193,7 @@ export function levelEffects(
     text: buildingTextFor(slot.buildingId, balance, level),
   };
   const next =
-    slot.owner === null || level >= MAX_LEVEL
+    slot.owner === null || isMaxLevel(state, slotId, balance)
       ? null
       : { level: level + 1, vp: vpAt(level + 1), text: buildingTextFor(slot.buildingId, balance, level + 1) };
   return { current, next };

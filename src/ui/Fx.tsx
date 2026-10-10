@@ -5,17 +5,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { Aftermath } from './feel';
-import {
-  BANNER_MS,
-  CARD_CHARGE_MS,
-  CARD_CHARGE_SCALE,
-  CARD_EFFECT_DELAY_MS,
-  CARD_FLIGHT_S,
-  DELTA_POP_MS,
-} from './tempo';
-
-/** 使う札の飛翔（溜め＋発動）の長さ（秒）。効果の反映（CARD_EFFECT_DELAY_MS）と同じ時刻に着く。 */
-const USE_TOTAL_S = CARD_EFFECT_DELAY_MS / 1000;
+import { CARD_CHARGE_MS, CARD_CHARGE_SCALE, DELTA_POP_MS, tempo } from './tempo';
 
 /* ---------------- 手番のバナー ---------------- */
 
@@ -30,12 +20,12 @@ export interface TurnBannerInfo {
 }
 
 /** 手番が替わった瞬間に盤面の中央を横切る帯。
- *  BANNER_MS（tempo.ts）の間出して抜ける。操作は一切止めない
+ *  tempo().bannerMs の間出して抜ける。操作は一切止めない
  *  （pointer-events: none）。クラロワの帯（実測 青 #2764b2・赤 #a00e47、下端に 2px の濃い縁）に合わせた。 */
 export function TurnBanner({ banner, onDone }: { banner: TurnBannerInfo | null; onDone: () => void }) {
   useEffect(() => {
     if (!banner) return;
-    const t = window.setTimeout(onDone, BANNER_MS);
+    const t = window.setTimeout(onDone, tempo().bannerMs);
     return () => window.clearTimeout(t);
   }, [banner?.id]);
   return (
@@ -89,6 +79,8 @@ interface Flight {
   art: string;
   from: { x: number; y: number; w: number; h: number };
   to: { x: number; y: number };
+  /** 飛ぶ長さ（秒）。出した時点の速さの設定で決める。 */
+  durationS: number;
 }
 
 /** 手札のカードを使ったとき、その絵が盤面の中央へ飛んで弾ける演出。
@@ -103,6 +95,9 @@ export function useCardFlights() {
     const b = toEl.getBoundingClientRect();
     seq.current += 1;
     const id = seq.current;
+    const t = tempo();
+    // 使う札は効果の反映（cardEffectDelayMs）と同じ時刻に着く。捨てる札は cardFlightS。
+    const durationS = mode === 'discard' ? t.cardFlightS : t.cardEffectDelayMs / 1000;
     setFlights((prev) => [
       ...prev,
       {
@@ -111,9 +106,10 @@ export function useCardFlights() {
         art,
         from: { x: a.left, y: a.top, w: a.width, h: a.height },
         to: mode === 'discard' ? { x: b.left + b.width / 2, y: b.top + b.height / 2 } : { x: b.left + b.width / 2, y: b.top + b.height * 0.45 },
+        durationS,
       },
     ]);
-    window.setTimeout(() => setFlights((prev) => prev.filter((f) => f.id !== id)), CARD_FLIGHT_S * 1000 + 400);
+    window.setTimeout(() => setFlights((prev) => prev.filter((f) => f.id !== id)), durationS * 1000 + 400);
   }, []);
   return { flights, fly };
 }
@@ -140,13 +136,13 @@ export function CardFlightLayer({ flights }: { flights: Flight[] }) {
                 rotate: [0, 8, 26],
                 opacity: [1, 1, 0],
               }}
-              transition={{ duration: CARD_FLIGHT_S, times: [0, 0.4, 1], ease: 'easeInOut' }}
+              transition={{ duration: f.durationS, times: [0, 0.4, 1], ease: 'easeInOut' }}
             />
           );
         }
         // 3 段の 1・2 段目。溜め（その場で 0.9 倍に縮んで光る）→ 発動（盤面へ飛んで弾ける）。
         // 3 段目の余韻（数字）は効果を反映した時点で AftermathLayer が出す。
-        const total = USE_TOTAL_S;
+        const total = f.durationS;
         const c = CARD_CHARGE_MS / 1000 / total;
         return (
           <div key={f.id}>

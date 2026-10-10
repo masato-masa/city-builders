@@ -19,7 +19,8 @@ import {
   rowOf,
   type Segment,
 } from './board-layout';
-import { ChainIcon } from './icons';
+import { ChainIcon, CoinBagIcon, UpArrowIcon } from './icons';
+import { isMaxLevel, plotFigures } from './slot-actions';
 import { playTitle } from './sound';
 
 /** 称号の持ち主が替わったら音を鳴らす（盤面に見えた瞬間に合わせるため、盤面が受け取る状態で見る）。
@@ -186,6 +187,13 @@ function DistrictTag({
           {holder ? <Flag owner={holder} /> : <span className="district-flag-empty" />}
         </span>
         <span className="district-name">{name}</span>
+        {/* 件数「自分 対 相手」。多い側に称号（+N VP）。色は持ち主の明るい版（識別色そのものは変えない）。 */}
+        <span className="district-count" aria-hidden="true">
+          <span className={`district-count-n owner-${viewer}`}>{counts[viewer]}</span>
+          <span className="district-count-vs">対</span>
+          <span className={`district-count-n owner-${foe}`}>{counts[foe]}</span>
+        </span>
+        <span className="district-vp">+{titleVp}</span>
       </motion.span>
       {moved > 0 && holder ? (
         <motion.span
@@ -266,7 +274,10 @@ function PlotView({
     setPrevLevel(slot.level);
     if (owned && slot.level > prevLevel) setUpgraded((n) => n + 1);
   }
-  const maxed = owned && slot.level >= 2;
+  // Lv が上がっている印（星）。最大かどうかは upgradePriceOf が Infinity かで見る（レベル数を直書きしない）。
+  const leveled = owned && slot.level >= 2;
+  const maxed = owned && isMaxLevel(state, slotId, balance);
+  const figures = plotFigures(state, slotId, viewer, balance, (id) => buildCostFor(state, viewer, id, balance));
 
   // 封鎖中の空き地。blockedSlot は「押せない」判定のためプレイヤーごとに
   // 持つ値だが、盤面はどちらの操作でも同じ 1 枚を共有しているので、
@@ -286,7 +297,11 @@ function PlotView({
   // 建った区画は plot-art の alt="" で物件名が読み上げに出ないので、
   // ボタン自体に物件名と VP を含む aria-label を付ける。
   const vpText = vpTextFor(state, slotId, balance);
-  const ariaLabel = `${BUILDING_NAMES[slot.buildingId]}${maxed ? ' Lv2' : ''} ${vpText}${disabled ? ' 効果停止中' : ''}${blocked ? ' 封鎖中' : ''}`;
+  const figureText =
+    figures.kind === 'unbuilt'
+      ? ` 建設 ${figures.build} コイン`
+      : ` 買収 ${figures.value} コイン${figures.upgrade !== null ? `・アップグレード ${figures.upgrade} コイン` : ''}`;
+  const ariaLabel = `${BUILDING_NAMES[slot.buildingId]}${leveled ? ` Lv${slot.level}` : ''}${maxed ? '（最大）' : ''} ${vpText}${figureText}${disabled ? ' 効果停止中' : ''}${blocked ? ' 封鎖中' : ''}`;
   const stateClass = [
     blocked ? 'is-blocked' : null,
     disabled ? 'is-disabled' : null,
@@ -338,7 +353,7 @@ function PlotView({
             tint の不透明度で出すので、建った瞬間にふわっと染まる。 */}
         <span className={`plot-base${ownerClass}`} aria-hidden="true">
           <span className="plot-base-tint" />
-          {maxed ? <span className="plot-lv2-rim" /> : null}
+          {leveled ? <span className="plot-lv2-rim" /> : null}
         </span>
         {/* 建物の足元の接地影。グローではなく影で台座に置く。 */}
         <span className={`plot-contact${owned ? '' : ' is-unbuilt'}`} aria-hidden="true" />
@@ -455,9 +470,9 @@ function PlotView({
         {/* 名前は台座の前面に刻む。色は台座の前面（所有者色）が担う。 */}
         <span className="plot-name">{BUILDING_NAMES[slot.buildingId]}</span>
         {deed}
-        {/* Lv2 の印。旗の反対側（左）に金の星を立てる。持ち主の色（台座・旗・VP）は変えない。 */}
-        {maxed ? (
-          <span className="plot-level-badge" title="Lv2">
+        {/* Lv2 以上の印。旗の反対側（左）に金の星を立てる。持ち主の色（台座・旗・VP）は変えない。 */}
+        {leveled ? (
+          <span className="plot-level-badge" title={`Lv${slot.level}`}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 2.2l2.9 6.1 6.6.8-4.9 4.5 1.3 6.6L12 16.9l-5.9 3.3 1.3-6.6-4.9-4.5 6.6-.8z" />
             </svg>
@@ -468,8 +483,22 @@ function PlotView({
               基準費用と食い違うので、基準費用を出すと画面が嘘の数字を出す。
               「買う前と後で情報を変えない」は出す項目の話であって、
               値を固定しろという意味ではない。 */}
-          <span className="plot-cost">{buildCostFor(state, viewer, slotId, balance)}</span>
+          {figures.kind === 'unbuilt' ? <span className="plot-cost">{figures.build}</span> : null}
           <span className={`plot-vp${owned ? ` owner-${owner}` : ''}`}>{vpText}</span>
+          {/* 建った物件は数字を 2 つ: 市場価値（買収に要るコイン、袋の印）とアップグレード費（上矢印）。
+              凡例が無くても分かるよう、色だけでなく印を添える。最大レベルならアップグレードは出さない。 */}
+          {figures.kind === 'built' ? (
+            <span className="plot-value">
+              <CoinBagIcon />
+              {figures.value}
+            </span>
+          ) : null}
+          {figures.kind === 'built' && figures.upgrade !== null ? (
+            <span className="plot-upgrade">
+              <UpArrowIcon />
+              {figures.upgrade}
+            </span>
+          ) : null}
         </span>
       </span>
     </>
