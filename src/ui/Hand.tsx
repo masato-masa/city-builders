@@ -7,7 +7,7 @@ import { handSlotsOf, nextCardOf } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
 import { cardArtOf } from './art';
-import { classifyPress, doubleNoteOf, LONG_PRESS_MS, TAP_HINT, useHintOf, type PressKind } from './card-input';
+import { classifyPress, doubleNoteOf, DRAG_THRESHOLD_PX, LONG_PRESS_MS, TAP_HINT, useHintOf, type PressKind } from './card-input';
 import { hapticTap } from './haptics';
 import { MenuIcon } from './icons';
 import { playSelect } from './sound';
@@ -182,6 +182,8 @@ interface Press {
   y0: number;
   t0: number;
   kind: PressKind;
+  /** 長押しで説明を出したか（出したあとに動かせばドラッグへ移る） */
+  peeked: boolean;
   timer: number;
 }
 
@@ -277,17 +279,25 @@ function CardButton({
           const p = press.current;
           if (!p || p.kind !== 'pending') return;
           p.kind = 'longpress';
+          p.peeked = true;
           playSelect();
           hapticTap();
           onPeek(card);
         }, LONG_PRESS_MS);
-        press.current = { pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), kind: 'pending', timer };
+        press.current = { pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), kind: 'pending', timer, peeked: false };
       }}
       onPointerMove={(e) => {
         const p = press.current;
         if (!p || p.pointerId !== e.pointerId) return;
         const dx = e.clientX - p.x0;
         const dy = e.clientY - p.y0;
+        // 長押しで説明を見たあとでも、指を動かしたらドラッグに移る（迷ってから動かす指は多い）。
+        // 持ち上げられない札の「動かした」印（peeked: false の longpress）はそのまま。
+        const moved = Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX;
+        if (p.kind === 'longpress' && p.peeked && moved && draggable) {
+          onPeek(null);
+          p.kind = 'pending';
+        }
         if (p.kind === 'pending' && classifyPress(dx, dy, performance.now() - p.t0) === 'drag') {
           window.clearTimeout(p.timer);
           if (!draggable) {
