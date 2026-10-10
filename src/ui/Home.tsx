@@ -12,6 +12,9 @@ import { CityEmblem, CrownIcon, SwordIcon, VersusIcon } from './icons';
 import { Sheet } from './Sheets';
 import { playUiTap, primeAudio } from './sound';
 
+/** 遊んだ感想を書く記録表（Claude の Artifact）。開発者向けのテスト用メニューの中だけに置く。 */
+const REVIEW_BOARD_URL = 'https://claude.ai/artifact/Pye1XcbHCx3TfDkBpm2z2d';
+
 const LABELS: Record<Difficulty, string> = {
   easy: 'やさしい',
   normal: 'ふつう',
@@ -166,6 +169,10 @@ export function Home({
       {dev ? (
         <Sheet title="テスト用" subtitle="数値はすぐ反映される" onClose={() => setDev(false)}>
           <div className="dev-grid">
+            <div className="dev-section-title">感想</div>
+            <a className="dev-link" href={REVIEW_BOARD_URL} target="_blank" rel="noopener noreferrer">
+              レビュー記録表を開く（遊んだ感想を書く）
+            </a>
             <div className="dev-section-title">基本</div>
             <label>
               基本収入

@@ -1217,6 +1217,19 @@
   margin-top: 0;
 }
 
+.dev-link {
+  display: flex;
+  align-items: center;
+  min-height: var(--hit);
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--cell-radius);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--title);
+  text-decoration: none;
+}
+
 .dev-grid label {
   display: flex;
   align-items: center;
