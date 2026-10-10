@@ -7,7 +7,7 @@ import { handSlotsOf, nextCardOf } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
 import { cardArtOf } from './art';
-import { classifyPress, LONG_PRESS_MS, TAP_HINT, type PressKind } from './card-input';
+import { classifyPress, doubleNoteOf, LONG_PRESS_MS, TAP_HINT, useHintOf, type PressKind } from './card-input';
 import { hapticTap } from './haptics';
 import { MenuIcon } from './icons';
 import { playSelect } from './sound';
@@ -169,15 +169,8 @@ function CardPeek({
         </p>
         <p className="card-peek-text">{cardTextFor(card, balance)}</p>
         {card === 'blockader' ? <p className="card-peek-note">永続する効果です。解除する手段はいまはありません。</p> : null}
-        <p className="card-peek-note">
-          {card === 'herald'
-            ? '使うとき: 山の底へ送る札の上へドラッグ'
-            : card === 'blockader'
-              ? '使うとき: 相手の区画か空き地の上へドラッグ'
-              : card === 'inspector'
-                ? '使うとき: 相手の物件の上へドラッグ'
-                : '使うとき: 盤面へドラッグ'}
-        </p>
+        {card === 'double' ? <p className="card-peek-note">{doubleNoteOf(state, viewer, card, balance)}</p> : null}
+        <p className="card-peek-note">{useHintOf(state, viewer, card)}</p>
       </div>
     </motion.div>
   );

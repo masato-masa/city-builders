@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
 
 import type { Difficulty } from '@/ai/choose';
-import { BUILDING_NAMES, CARD_NAMES, CARD_POOL, NEW_CARDS, type Balance } from '@/game/balance';
+import { BUILDING_NAMES, CARD_NAMES, CARD_POOL, type Balance } from '@/game/balance';
 import { dailyFor, formatScore, localDateKey } from '@/meta/daily';
 import { stepInfo } from '@/meta/rank';
 import { clearDaily, loadDaily } from '@/storage/daily';
@@ -226,23 +226,29 @@ export function Home({
               レビュー記録表を開く（遊んだ感想を書く）
             </a>
             <div className="dev-section-title">デッキ（CPU 戦・2 人対戦。日替わりは既定のまま）</div>
-            <div className="dev-deck-row">
-              <span>
-                新カード入り（祝祭・徴税官 → {NEW_CARDS.map((c) => CARD_NAMES[c]).join('・')}）
-              </span>
-              <button
-                className="switch"
-                role="switch"
-                aria-checked={testDeck === 'newCards'}
-                aria-label="新カード入りのデッキ"
-                onClick={() => {
-                  const next: TestDeck = testDeck === 'newCards' ? 'default' : 'newCards';
-                  setTestDeck(next);
-                  saveTestDeck(next);
-                  playUiTap();
-                }}
-              />
-            </div>
+            {/* 2 つは排他（片方を入れるともう片方は切れる）。両方切ると既定の 10 枚 */}
+            {(
+              [
+                ['newCards', `新カード入り（祝祭・徴税官 → ${CARD_NAMES.craftsman}・${CARD_NAMES.inspector}）`, '新カード入りのデッキ'],
+                ['draw', `抽選デッキ（試合ごとに全 ${CARD_POOL.length} 種から 10 枚。両者共通）`, '抽選デッキ'],
+              ] as const
+            ).map(([kind, text, label]) => (
+              <div className="dev-deck-row" key={kind}>
+                <span>{text}</span>
+                <button
+                  className="switch"
+                  role="switch"
+                  aria-checked={testDeck === kind}
+                  aria-label={label}
+                  onClick={() => {
+                    const next: TestDeck = testDeck === kind ? 'default' : kind;
+                    setTestDeck(next);
+                    saveTestDeck(next);
+                    playUiTap();
+                  }}
+                />
+              </div>
+            ))}
             <div className="dev-section-title">基本</div>
             <label>
               基本収入
@@ -403,6 +409,14 @@ export function Home({
                 type="number"
                 value={balance.inspectorPaidCut}
                 onChange={(e) => put({ ...balance, inspectorPaidCut: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              {CARD_NAMES.clerk}: 商館 1 件あたりのコイン
+              <input
+                type="number"
+                value={balance.clerkPerHouse}
+                onChange={(e) => put({ ...balance, clerkPerHouse: Number(e.target.value) })}
               />
             </label>
             <label>

@@ -5,7 +5,7 @@ import type { Difficulty } from '@/ai/choose';
 import { CARD_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { canAcquire, canBuild, canUpgrade, canUseCard, reduce } from '@/game/reducer';
 import { createRng, type Rng } from '@/game/rng';
-import { handSlotsOf, ownedSlots, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
+import { effectiveCardOf, handSlotsOf, ownedSlots, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { Action, CardId, GameState, PlayerId } from '@/game/types';
 import { dailyScore } from '@/meta/daily';
@@ -16,8 +16,8 @@ import { loadMeta, saveMeta } from '@/storage/meta';
 import { loadProgress, saveProgress, withResult } from '@/storage/storage';
 
 import { BUILDING_ART, cardArtOf, FIELD_URL } from './art';
-import { Board, type IncomeFlash } from './Board';
-import { dragGuide, inspectPick, resolveDrop, type TargetMode } from './card-input';
+import { Board, boardTargetingOf, type IncomeFlash } from './Board';
+import { dragGuide, resolveDrop, slotPick, slotTargetModeOf, type SlotTargetMode } from './card-input';
 import { CoinBar } from './CoinBar';
 import { type CpuStep, playTurnSteps } from './cpu-turn';
 import { cardAftermath, cardSequence, TARGET_LABEL } from './feel';
@@ -78,18 +78,11 @@ import {
   playYourTurn,
 } from './sound';
 
-/** 対象選びの種類 → 開くモード。 */
-const TARGET_SHEET: Record<TargetMode, 'heraldTarget' | 'blockadeTarget' | 'inspectTarget'> = {
-  herald: 'heraldTarget',
-  blockade: 'blockadeTarget',
-  inspect: 'inspectTarget',
-};
-
 type Pending =
   | { kind: 'slot'; slotId: number }
   | { kind: 'heraldTarget' }
-  | { kind: 'blockadeTarget' }
-  | { kind: 'inspectTarget' }
+  /** 区画を対象に取る札（封鎖者・検査官・顔役と、それを写す影武者）の対象選び。card は実際に使う札 */
+  | { kind: 'slotTarget'; card: CardId; mode: SlotTargetMode }
   | { kind: 'menu' }
   | { kind: 'confirmExit' }
   | { kind: 'help' }
@@ -432,7 +425,8 @@ export function Game({
   const commitCard = (card: CardId, action: Action) => {
     const discard = action.type === 'useCard' ? action.heraldTarget : undefined;
     const timing = cardSequence(discard !== undefined);
-    playUseCard(card);
+    // 影武者は写した札の音で鳴らす（何が起きたか耳で分かる）
+    playUseCard(effectiveCardOf(stateRef.current, stateRef.current.current, card) ?? card);
     hapticUseCard();
     flyCard(card);
     setUsing([card]);
@@ -500,14 +494,16 @@ export function Game({
    *  離した場所で決める: 盤面 → 使う / 伝令は別の札の上 → その札を山の底へ / 封鎖者は区画の上 → その区画。
    *  盤面の外で離したらやめる。対象の要る札を盤面の空いたところで離したら、対象選び（タップ）へ。 */
   const dropCard = (card: CardId, point: { x: number; y: number }) => {
-    const r = resolveDrop(state, 'you', card, dropHitAt(point.x, point.y, boardAreaRef.current, card));
+    const r = resolveDrop(state, 'you', card, dropHitAt(point.x, point.y, boardAreaRef.current, card), balance);
     if (r.kind === 'cancel') return;
     if (locked || !canUseCard(state, card, balance) || r.kind === 'reject') {
       playReject();
       hapticReject();
       return;
     }
-    if (r.kind === 'target') return setSheet({ kind: TARGET_SHEET[r.mode] });
+    if (r.kind === 'target') {
+      return setSheet(r.mode === 'herald' ? { kind: 'heraldTarget' } : { kind: 'slotTarget', card, mode: r.mode });
+    }
     commitCard(card, r.action);
   };
 
@@ -554,36 +550,27 @@ export function Game({
               state={feel.boardState}
               balance={balance}
               highlightSlot={cpuHighlightSlot}
-              targeting={
-                sheet?.kind === 'inspectTarget' || dragCard === 'inspector'
-                  ? 'foe'
-                  : sheet?.kind === 'blockadeTarget' || dragCard === 'blockader'
-              }
+              targeting={boardTargetingOf(
+                sheet?.kind === 'slotTarget'
+                  ? sheet.mode
+                  : dragCard
+                    ? slotTargetModeOf(state, 'you', dragCard)
+                    : null,
+              )}
               dropArmed={dragCard !== null}
               flash={incomeFlash}
               onPick={(slotId) => {
                 if (locked) return;
-                // 封鎖者の対象選択モード中は、通常の区画詳細シートを開かず、
+                // 対象選び（封鎖者・検査官・顔役・それを写す影武者）の間は、区画の詳細シートを開かず、
                 // タップした区画をそのまま対象にして確定する（要望 G3）。
-                if (sheet?.kind === 'blockadeTarget') {
-                  const slot = state.market[slotId];
-                  if (!slot || slot.owner === 'you') {
-                    playReject();
-                    hapticReject();
-                    return;
-                  }
-                  commitCard('blockader', { type: 'useCard', card: 'blockader', blockadeSlot: slotId });
-                  return;
-                }
-                // 検査官の対象選び: 相手の物件だけ
-                if (sheet?.kind === 'inspectTarget') {
-                  const r = inspectPick(state, 'you', slotId);
+                if (sheet?.kind === 'slotTarget') {
+                  const r = slotPick(state, 'you', sheet.card, sheet.mode, slotId, balance);
                   if (!r.ok) {
                     playReject();
                     hapticReject();
                     return;
                   }
-                  commitCard('inspector', r.action);
+                  commitCard(sheet.card, r.action);
                   return;
                 }
                 const slot = state.market[slotId];
@@ -608,12 +595,11 @@ export function Game({
                 タップするかは、対象になる側（盤面の区画／手札のカード）が
                 光って示す。 */}
             <AnimatePresence>
-              {dragCard ? <TargetBanner key={`drag-${dragCard}`} label={dragGuide(dragCard)} /> : null}
-              {sheet?.kind === 'blockadeTarget' ? (
-                <TargetBanner key="blockadeTarget" onCancel={() => setSheet(null)} />
+              {dragCard ? (
+                <TargetBanner key={`drag-${dragCard}`} label={dragGuide(dragCard, state, 'you')} />
               ) : null}
-              {sheet?.kind === 'inspectTarget' ? (
-                <TargetBanner key="inspectTarget" label={TARGET_LABEL.inspect} onCancel={() => setSheet(null)} />
+              {sheet?.kind === 'slotTarget' ? (
+                <TargetBanner key={`slotTarget-${sheet.mode}`} label={TARGET_LABEL[sheet.mode]} onCancel={() => setSheet(null)} />
               ) : null}
               {sheet?.kind === 'heraldTarget' ? (
                 <TargetBanner

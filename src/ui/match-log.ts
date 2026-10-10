@@ -26,8 +26,27 @@ export type MatchEvent =
       titleStolen?: boolean;
     }
   | { kind: 'card'; turn: number; actor: PlayerId; card: CardId }
+  /** 物件の Lv が下がった（検査官）。actor は下げた側（物件の持ち主の相手）。 */
+  | {
+      kind: 'downgrade';
+      turn: number;
+      actor: PlayerId;
+      slotId: number;
+      buildingId: BuildingId;
+      from: number;
+      to: number;
+      /** 下げた側から見た VP 差の動き */
+      swing: number;
+    }
   /** 地区の称号の持ち主が替わった（from が null なら初めて取った）。 */
   | { kind: 'title'; turn: number; actor: PlayerId; district: number; name: string; from: PlayerId | null };
+
+/** 建設・アップグレード・買収の出来事（勝敗を分けた出来事・実績の判定に使う）。 */
+export type SlotEvent = Extract<MatchEvent, { kind: 'build' | 'upgrade' | 'acquire' }>;
+
+export function isSlotEvent(e: MatchEvent): e is SlotEvent {
+  return e.kind === 'build' || e.kind === 'upgrade' || e.kind === 'acquire';
+}
 
 export interface VpPoint {
   turn: number;
@@ -78,10 +97,26 @@ export function recordTransition(
   const youAfter = scoreOf(next, 'you', balance);
   const cpuAfter = scoreOf(next, 'cpu', balance);
   const marginOf = (actor: PlayerId, you: number, cpu: number) => (actor === 'you' ? you - cpu : cpu - you);
-  const slotEvents: MatchEvent[] = [];
+  const slotEvents: SlotEvent[] = [];
+  const downEvents: MatchEvent[] = [];
   for (const after of next.market) {
     const before = prev.market[after.slotId];
     if (!before || after.owner === null) continue;
+    if (before.owner === after.owner && after.level < before.level) {
+      // 検査官で Lv が下がった。下げたのは持ち主の相手
+      const actor = opponentOf(after.owner);
+      downEvents.push({
+        kind: 'downgrade',
+        turn: next.turn,
+        actor,
+        slotId: after.slotId,
+        buildingId: after.buildingId,
+        from: before.level,
+        to: after.level,
+        swing: marginOf(actor, youAfter, cpuAfter) - marginOf(actor, youBefore, cpuBefore),
+      });
+      continue;
+    }
     let kind: 'build' | 'upgrade' | 'acquire' | null = null;
     if (before.owner === null) kind = 'build';
     else if (before.owner !== after.owner) kind = 'acquire';
@@ -109,10 +144,8 @@ export function recordTransition(
     if (holder === null || holder === was) return;
     const name = balance.districts[i]?.name ?? '';
     titleEvents.push({ kind: 'title', turn: next.turn, actor: holder, district: i, name, from: was });
-    const cause = slotEvents.find(
-      (e) => e.kind !== 'card' && e.kind !== 'title' && e.actor === holder && balance.districts[i]?.slots.includes(e.slotId),
-    );
-    if (cause && cause.kind !== 'card' && cause.kind !== 'title') {
+    const cause = slotEvents.find((e) => e.actor === holder && balance.districts[i]?.slots.includes(e.slotId));
+    if (cause) {
       cause.title = name;
       cause.titleStolen = was !== null;
     }
@@ -120,11 +153,9 @@ export function recordTransition(
 
   // 同じ差分に 2 件以上あると swing を分けられないので、件数で割る（まとめて反映されたときだけ）。
   if (slotEvents.length > 1) {
-    for (const e of slotEvents) {
-      if (e.kind !== 'card' && e.kind !== 'title') e.swing = Math.round(e.swing / slotEvents.length);
-    }
+    for (const e of slotEvents) e.swing = Math.round(e.swing / slotEvents.length);
   }
-  events.push(...slotEvents, ...titleEvents);
+  events.push(...slotEvents, ...downEvents, ...titleEvents);
 
   const point: VpPoint = { turn: next.turn, you: youAfter, cpu: cpuAfter };
   const last = log.vp[log.vp.length - 1];
@@ -192,8 +223,6 @@ const VERB: Record<'build' | 'upgrade' | 'acquire', string> = {
   acquire: '買収',
 };
 
-type SlotEvent = Extract<MatchEvent, { kind: 'build' | 'upgrade' | 'acquire' }>;
-
 /** 出来事が称号を動かしていたら、その一言（「（城下の称号ごと）」）。 */
 function titleSuffix(e: SlotEvent): string {
   if (!e.title) return '';
@@ -210,7 +239,7 @@ export function decisiveMoment(
   winner: PlayerId | 'draw',
   names: Names,
 ): DecisiveMoment | null {
-  const slots = log.events.filter((e): e is SlotEvent => e.kind !== 'card' && e.kind !== 'title');
+  const slots = log.events.filter(isSlotEvent);
   if (slots.length === 0) return null;
   const who = (p: PlayerId) => names[p];
   const at = (e: { turn: number; actor: PlayerId }) =>

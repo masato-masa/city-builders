@@ -3,6 +3,7 @@
 
 import { CARD_NAMES, type Balance } from '@/game/balance';
 import { cardCostFor } from '@/game/reducer';
+import { doubleSourceOf } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
 import { forecast } from './CoinBar';
@@ -132,13 +133,15 @@ export function cardAftermath(
   const a1 = next.players[actor];
   const f0 = prev.players[foe];
   const f1 = next.players[foe];
-  if (card === 'taxman' || card === 'blockader') {
+  // 影武者は写した札の効果で言う（払ったコストは影武者の分で数える）
+  const eff = card === 'double' ? (doubleSourceOf(prev, actor) ?? card) : card;
+  if (eff === 'taxman' || eff === 'blockader') {
     if (f1.pendingTax > f0.pendingTax) return { text: `相手の収入 ${sign(f0.pendingTax - f1.pendingTax)}`, tone: 'hit' };
     if (f1.disabledSlot !== f0.disabledSlot) return { text: '物件の効果を停止', tone: 'hit' };
     if (f1.blockedSlot !== f0.blockedSlot) return { text: '区画を封鎖', tone: 'hit' };
     return { text: '防がれた', tone: 'blocked' };
   }
-  if (card === 'inspector') {
+  if (eff === 'inspector') {
     // どの区画が変わったか（Lv が下がった／払われた額が減った）を前後の盤面から探す
     for (const slot of next.market) {
       const before = prev.market[slot.slotId];
@@ -148,7 +151,15 @@ export function cardAftermath(
     }
     return f1.guarded ? { text: '防がれた', tone: 'blocked' } : { text: 'もう下げられない', tone: 'blocked' };
   }
-  if (card === 'guard' && a1.guarded && !a0.guarded) return { text: '守りを固めた', tone: 'guard' };
+  if (eff === 'boss') {
+    const took = next.titles.findIndex((t, i) => t === actor && prev.titles[i] !== actor);
+    return took >= 0 ? { text: `${balance.districts[took]?.name ?? ''}の称号を奪った`, tone: 'hit' } : { text: '防がれた', tone: 'blocked' };
+  }
+  if (eff === 'informer') {
+    const sent = f0.queue[0];
+    return f1.queue[0] !== sent && sent ? { text: `${CARD_NAMES[sent]}を山の底へ`, tone: 'hit' } : { text: '防がれた', tone: 'blocked' };
+  }
+  if (eff === 'guard' && a1.guarded && !a0.guarded) return { text: '守りを固めた', tone: 'guard' };
   if (a1.upgradeDiscount > a0.upgradeDiscount) {
     return { text: `アップグレード費 ${sign(a0.upgradeDiscount - a1.upgradeDiscount)}`, tone: 'gain' };
   }
@@ -163,8 +174,9 @@ export function cardAftermath(
   if (now > 0) return { text: `コイン ${sign(now)}`, tone: 'gain' };
   if (later !== 0) return { text: `次の収入 ${sign(later)}`, tone: later > 0 ? 'gain' : 'hit' };
   if (a1.festivalQueued && !a0.festivalQueued) return { text: '次の収入で祝祭', tone: 'gain' };
-  if (card === 'herald') return null;
-  return { text: CARD_NAMES[card], tone: 'gain' };
+  if (eff === 'clerk') return { text: '商館が無い', tone: 'blocked' };
+  if (eff === 'herald') return null;
+  return { text: CARD_NAMES[eff], tone: 'gain' };
 }
 
 /* ---------------- 決着 ---------------- */
@@ -191,5 +203,6 @@ export function roadReason(hasRoad: boolean, usesLeft: number, myTurn: boolean):
 export const TARGET_LABEL = {
   blockade: '封鎖: 相手の区画をタップ',
   inspect: '検査: 相手の物件をタップ',
+  district: '顔役: 同数の地区をタップ',
   herald: '伝令: 山の底へ送る札をタップ',
 } as const;

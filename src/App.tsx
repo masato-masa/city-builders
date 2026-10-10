@@ -40,7 +40,7 @@ export function App() {
         key={session.seed}
         seed={session.seed}
         balance={loadBalance()}
-        deck={testDeckCards()}
+        deck={testDeckCards(session.seed)}
         onExit={() => setSession(null)}
         onRestart={() => setSession({ mode: 'pvp', seed: newSeed() })}
       />
@@ -72,7 +72,7 @@ export function App() {
       seed={session.seed}
       difficulty={session.difficulty}
       balance={loadBalance()}
-      deck={testDeckCards()}
+      deck={testDeckCards(session.seed)}
       onExit={() => setSession(null)}
       onRestart={() => setSession({ mode: 'cpu', seed: newSeed(), difficulty: session.difficulty })}
     />

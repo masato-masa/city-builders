@@ -3,13 +3,13 @@ import { useEffect, useRef, useState } from 'react';
 
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { canAcquire, canBuild, canUpgrade, canUseCard, reduce } from '@/game/reducer';
-import { handSlotsOf, opponentOf, ownedSlots, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
+import { effectiveCardOf, handSlotsOf, opponentOf, ownedSlots, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { Action, CardId, GameState } from '@/game/types';
 
 import { cardArtOf, FIELD_URL } from './art';
-import { Board, type IncomeFlash } from './Board';
-import { dragGuide, inspectPick, resolveDrop, type TargetMode } from './card-input';
+import { Board, boardTargetingOf, type IncomeFlash } from './Board';
+import { dragGuide, resolveDrop, slotPick, slotTargetModeOf, type SlotTargetMode } from './card-input';
 import { CoinBar, forecast } from './CoinBar';
 import { cardAftermath, cardSequence, TARGET_LABEL } from './feel';
 import {
@@ -60,18 +60,11 @@ import {
   playYourTurn,
 } from './sound';
 
-/** 対象選びの種類 → 開くモード。 */
-const TARGET_SHEET: Record<TargetMode, 'heraldTarget' | 'blockadeTarget' | 'inspectTarget'> = {
-  herald: 'heraldTarget',
-  blockade: 'blockadeTarget',
-  inspect: 'inspectTarget',
-};
-
 type Pending =
   | { kind: 'slot'; slotId: number }
   | { kind: 'heraldTarget' }
-  | { kind: 'blockadeTarget' }
-  | { kind: 'inspectTarget' }
+  /** 区画を対象に取る札（封鎖者・検査官・顔役と、それを写す影武者）の対象選び。card は実際に使う札 */
+  | { kind: 'slotTarget'; card: CardId; mode: SlotTargetMode }
   | { kind: 'menu' }
   | { kind: 'confirmExit' }
   | { kind: 'help' }
@@ -231,7 +224,8 @@ export function PvpGame({
   const commitCard = (card: CardId, action: Action) => {
     const discard = action.type === 'useCard' ? action.heraldTarget : undefined;
     const timing = cardSequence(discard !== undefined);
-    playUseCard(card);
+    // 影武者は写した札の音で鳴らす（何が起きたか耳で分かる）
+    playUseCard(effectiveCardOf(stateRef.current, stateRef.current.current, card) ?? card);
     hapticUseCard();
     flyCard(card);
     setUsing([card]);
@@ -295,14 +289,16 @@ export function PvpGame({
 
   /** 手札をドラッグして離した。カードはこれでしか使わない（CPU 戦と同じ。判定は resolveDrop）。 */
   const dropCard = (card: CardId, point: { x: number; y: number }) => {
-    const r = resolveDrop(state, active, card, dropHitAt(point.x, point.y, boardAreaRef.current, card));
+    const r = resolveDrop(state, active, card, dropHitAt(point.x, point.y, boardAreaRef.current, card), balance);
     if (r.kind === 'cancel') return;
     if (locked || handoff || !canUseCard(state, card, balance) || r.kind === 'reject') {
       playReject();
       hapticReject();
       return;
     }
-    if (r.kind === 'target') return setSheet({ kind: TARGET_SHEET[r.mode] });
+    if (r.kind === 'target') {
+      return setSheet(r.mode === 'herald' ? { kind: 'heraldTarget' } : { kind: 'slotTarget', card, mode: r.mode });
+    }
     commitCard(card, r.action);
   };
 
@@ -373,36 +369,27 @@ export function PvpGame({
               state={feel.boardState}
               balance={balance}
               viewer={active}
-              targeting={
-                sheet?.kind === 'inspectTarget' || dragCard === 'inspector'
-                  ? 'foe'
-                  : sheet?.kind === 'blockadeTarget' || dragCard === 'blockader'
-              }
+              targeting={boardTargetingOf(
+                sheet?.kind === 'slotTarget'
+                  ? sheet.mode
+                  : dragCard
+                    ? slotTargetModeOf(state, active, dragCard)
+                    : null,
+              )}
               dropArmed={dragCard !== null}
               flash={incomeFlash}
               onPick={(slotId) => {
                 if (locked) return;
-                // 封鎖者の対象選択モード中は、通常の区画詳細シートを開かず、
+                // 対象選び（封鎖者・検査官・顔役・それを写す影武者）の間は、区画の詳細シートを開かず、
                 // タップした区画をそのまま対象にして確定する（要望 G3）。
-                if (sheet?.kind === 'blockadeTarget') {
-                  const slot = state.market[slotId];
-                  if (!slot || slot.owner === active) {
-                    playReject();
-                    hapticReject();
-                    return;
-                  }
-                  commitCard('blockader', { type: 'useCard', card: 'blockader', blockadeSlot: slotId });
-                  return;
-                }
-                // 検査官の対象選び: 相手の物件だけ
-                if (sheet?.kind === 'inspectTarget') {
-                  const r = inspectPick(state, active, slotId);
+                if (sheet?.kind === 'slotTarget') {
+                  const r = slotPick(state, active, sheet.card, sheet.mode, slotId, balance);
                   if (!r.ok) {
                     playReject();
                     hapticReject();
                     return;
                   }
-                  commitCard('inspector', r.action);
+                  commitCard(sheet.card, r.action);
                   return;
                 }
                 const slot = state.market[slotId];
@@ -426,12 +413,11 @@ export function PvpGame({
                 コインバーと重なるため、封鎖者と同じ場所にまとめる。実際にどこを
                 タップするかは対象側（盤面の区画／手札のカード）が光って示す。 */}
             <AnimatePresence>
-              {dragCard ? <TargetBanner key={`drag-${dragCard}`} label={dragGuide(dragCard)} /> : null}
-              {sheet?.kind === 'blockadeTarget' ? (
-                <TargetBanner key="blockadeTarget" onCancel={() => setSheet(null)} />
+              {dragCard ? (
+                <TargetBanner key={`drag-${dragCard}`} label={dragGuide(dragCard, state, active)} />
               ) : null}
-              {sheet?.kind === 'inspectTarget' ? (
-                <TargetBanner key="inspectTarget" label={TARGET_LABEL.inspect} onCancel={() => setSheet(null)} />
+              {sheet?.kind === 'slotTarget' ? (
+                <TargetBanner key={`slotTarget-${sheet.mode}`} label={TARGET_LABEL[sheet.mode]} onCancel={() => setSheet(null)} />
               ) : null}
               {sheet?.kind === 'heraldTarget' ? (
                 <TargetBanner

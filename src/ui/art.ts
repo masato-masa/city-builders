@@ -78,6 +78,14 @@ export const CARD_PLACEHOLDER: Partial<Record<CardId, CardPlaceholder>> = {
   craftsman: { mark: '職', top: '#d39a4a', bottom: '#6a3d14' },
   // 検査官: 相手を削る（妨害側の色。徴税官・封鎖者の寒色に寄せた藍）
   inspector: { mark: '検', top: '#5c7fbf', bottom: '#1d2a50' },
+  // 顔役: 称号を奪う（妨害側。紫寄りの藍）
+  boss: { mark: '顔', top: '#8a5cbf', bottom: '#2f1d50' },
+  // 密告者: 相手の手順を崩す（妨害側。くすんだ青緑）
+  informer: { mark: '密', top: '#4f9a9a', bottom: '#173838' },
+  // 影武者: 直前の札をもう一度（中立。灰がかった墨色）
+  double: { mark: '影', top: '#8c8c9c', bottom: '#2a2a36' },
+  // 番頭: 商館から即金（投資側。黄土色）
+  clerk: { mark: '番', top: '#c9a640', bottom: '#5e4a10' },
 };
 
 /** 仮の面の既定（CARD_PLACEHOLDER にも無いカード）。名前の頭の 1 文字を灰色の地に置く。 */

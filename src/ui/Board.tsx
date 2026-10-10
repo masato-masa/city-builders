@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 
 import { BUILDING_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { buildCostFor } from '@/game/reducer';
-import { districtCounts, titleHolder, vpOfSlot } from '@/game/selectors';
+import { bossDistrictsOf, districtCounts, districtOfSlot, titleHolder, vpOfSlot } from '@/game/selectors';
 import type { GameState, PlayerId } from '@/game/types';
 
 import { BUILDING_ART } from './art';
@@ -292,7 +292,13 @@ function PlotView({
   const disabled = owned && state.players[owner].disabledSlot === slotId;
   // 封鎖者の対象選択中は、自分の区画以外がタップできる対象になる。
   // 検査官（'foe'）は相手の物件だけ。空き地・自分の物件は沈める
-  const targetable = targeting === 'foe' ? owned && owner !== viewer : targeting && owner !== viewer;
+  // 顔役（'district'）は物件の数が同じ地区の区画だけ
+  const targetable =
+    targeting === 'district'
+      ? bossDistrictsOf(state, viewer, balance).includes(districtOfSlot(slotId, balance))
+      : targeting === 'foe'
+        ? owned && owner !== viewer
+        : targeting && owner !== viewer;
   const targetInvalid = !!targeting && !targetable;
   const art = BUILDING_ART[slot.buildingId];
   // 建った区画は plot-art の alt="" で物件名が読み上げに出ないので、
@@ -510,8 +516,13 @@ function PlotView({
   );
 }
 
-/** 区画の対象選び。true は封鎖者（自分の区画以外）、'foe' は検査官（相手の物件だけ）。 */
-export type Targeting = boolean | 'foe';
+/** 区画の対象選び。true は封鎖者（自分の区画以外）、'foe' は検査官（相手の物件だけ）、'district' は顔役（同数の地区）。 */
+export type Targeting = boolean | 'foe' | 'district';
+
+/** 対象選びの種類 → 盤面の光らせ方。 */
+export function boardTargetingOf(mode: 'blockade' | 'inspect' | 'district' | null): Targeting {
+  return mode === 'inspect' ? 'foe' : mode === 'district' ? 'district' : mode === 'blockade';
+}
 
 export function Board({
   state,

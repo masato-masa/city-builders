@@ -3,6 +3,7 @@ import { chooseAction } from '@/ai/choose';
 import { BUILDING_NAMES, CARD_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { incomeStageStates, reduce, type IncomeStage } from '@/game/reducer';
 import type { Rng } from '@/game/rng';
+import { doubleSourceOf } from '@/game/selectors';
 import type { Action, GameState } from '@/game/types';
 
 import { stageText } from './income-text';
@@ -20,10 +21,20 @@ export interface CpuStep {
 /** 1 手を短い日本語の実況文にする。表示専用で、ゲームの判定には使わない。 */
 export function describeAction(before: GameState, action: Action): string {
   if (action.type === 'useCard') {
+    // 影武者は「影武者で建築家をもう一度」のように、写した札を言う
+    const src = action.card === 'double' ? doubleSourceOf(before, before.current) : null;
+    const name = src ? `${CARD_NAMES.double}で${CARD_NAMES[src]}をもう一度` : null;
     if (action.inspectSlot !== undefined) {
       const slot = before.market[action.inspectSlot];
-      return slot ? `${CARD_NAMES[action.card]}であなたの${BUILDING_NAMES[slot.buildingId]}を検査` : `${CARD_NAMES[action.card]}を使った`;
+      if (!slot) return `${CARD_NAMES[action.card]}を使った`;
+      return name
+        ? `${name}（あなたの${BUILDING_NAMES[slot.buildingId]}を検査）`
+        : `${CARD_NAMES[action.card]}であなたの${BUILDING_NAMES[slot.buildingId]}を検査`;
     }
+    if (action.district !== undefined) {
+      return `${name ?? CARD_NAMES[action.card]}（${DEFAULT_BALANCE.districts[action.district]?.name ?? ''}の称号を取りに）`;
+    }
+    if (name) return name;
     return action.heraldTarget
       ? `${CARD_NAMES[action.card]}で${CARD_NAMES[action.heraldTarget]}を山の底へ`
       : `${CARD_NAMES[action.card]}を使った`;

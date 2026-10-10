@@ -1,6 +1,6 @@
 import type { Difficulty } from '@/ai/choose';
 import type { CardId, GameState, PlayerId } from '@/game/types';
-import type { MatchLog } from '@/ui/match-log';
+import { isSlotEvent, type MatchLog } from '@/ui/match-log';
 
 /** 実績の判定に使うもの。すべて「あなた」（CPU 戦の人間側）から見る。 */
 export interface AchievementContext {
@@ -27,10 +27,7 @@ function myCards(c: AchievementContext) {
 }
 
 function mySlotEvents(c: AchievementContext, kind?: 'build' | 'upgrade' | 'acquire') {
-  return c.log.events.filter(
-    (e): e is Extract<typeof e, { kind: 'build' | 'upgrade' | 'acquire' }> =>
-      e.kind !== 'card' && e.kind !== 'title' && e.actor === ME && (kind === undefined || e.kind === kind),
-  );
+  return c.log.events.filter(isSlotEvent).filter((e) => e.actor === ME && (kind === undefined || e.kind === kind));
 }
 
 const won = (c: AchievementContext) => c.outcome === 'win';
