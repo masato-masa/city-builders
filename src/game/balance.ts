@@ -230,8 +230,12 @@ export const DEFAULT_BALANCE: Balance = {
     taxman: { cost: 3 },
     blockader: { cost: 5 },
     // 新しいカード（既定のデッキには入っていない。NEW_CARDS_DECK で測る）
-    craftsman: { cost: 2 },
-    inspector: { cost: 3 },
+    // 職人: 設計書の 2 コスト・−5 は優先 34.1%（上げる物件が無い手番にも撃つ損）。0 コスト・−3 で禁止 44.1 / 優先 49.4%
+    // （card-value 400 --deck=new。1/−5 は 37.4/36.3、0/−5 は 39.1/54.3、0/−2 は 45.6/51.0）
+    craftsman: { cost: 0 },
+    // 検査官: 設計書の 3 は全体の幅が 35.0〜55.6%（封鎖者の優先 35.0・伝令の禁止 55.6）。4 で 39.0〜51.4%。
+    // 払われた額の減り 5 → 3 は 37.0〜51.7%（card-value 400 --deck=new）
+    inspector: { cost: 4 },
   },
   minerIncome: 3,
   // 銀行家 5 → 4・採掘師のコスト 2 → 3: 盲点を直した後の回転（ゲーム内 CPU）は銀行家・採掘師を禁止すると
@@ -243,7 +247,7 @@ export const DEFAULT_BALANCE: Balance = {
   spyAcquireDiscount: 3,
   guardCostWithWall: 0,
   heraldCostWithRoad: 0,
-  craftsmanDiscount: 5,
+  craftsmanDiscount: 3,
   inspectorPaidCut: 5,
   buildings: {
     tradingHouse: { cost: 7, vp: 2 },
