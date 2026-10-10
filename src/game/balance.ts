@@ -186,7 +186,7 @@ export const DEFAULT_BALANCE: Balance = {
   cards: {
     miner: { cost: 2 },
     banker: { cost: 5 },
-    architect: { cost: 3 },
+    architect: { cost: 2 },
     herald: { cost: 1 },
     festival: { cost: 3 },
     guard: { cost: 1 },
@@ -217,8 +217,9 @@ export const DEFAULT_BALANCE: Balance = {
   factoryDiscount: 2,
   cathedralVpPerBuilding: 2,
   exchangeBonus: 2,
-  usurerGain: 5,
-  usurerDebt: 7,
+  // 5 だと先手の 1 ターン目に商館（7）が建ち、地区の称号を先取りできて必須級だった（card-value 禁止 35.8%）
+  usurerGain: 4,
+  usurerDebt: 6,
   festivalMultiplier: 2,
   festivalIncomeBonus: 2,
   fortressToll: 2,

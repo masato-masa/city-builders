@@ -157,14 +157,20 @@ function scenario(cpuFirstCard: CardId): GameState {
 
 describe('lookaheadScore: 相手の想定応手を読む', () => {
   it('相手の手札に何があるかで、自分視点の先読みスコアが変わる（徴税官 vs 建築家）', () => {
-    const afterA = reduce(scenario('taxman'), { type: 'endTurn' }, DEFAULT_BALANCE);
-    const afterB = reduce(scenario('architect'), { type: 'endTurn' }, DEFAULT_BALANCE);
+    // 建築家と徴税官を同じコストにそろえた数値で読む（手札の中身以外が同じ局面にするため）。
+    // 既定の建築家（コスト 2）だと、cpu は残り 1 コインで割引後の商館を建ててしまい「無害な札」にならない
+    const B: Balance = {
+      ...DEFAULT_BALANCE,
+      cards: { ...DEFAULT_BALANCE.cards, architect: { cost: DEFAULT_BALANCE.cards.taxman.cost } },
+    };
+    const afterA = reduce(scenario('taxman'), { type: 'endTurn' }, B);
+    const afterB = reduce(scenario('architect'), { type: 'endTurn' }, B);
 
     // 前提確認: 手番を渡した直後の cpu は、まだ徴税官を払えない。払えるのは収入を受け取ってから。
     // （1 手ずつ読んでいた旧版は相手の startTurn を挟まなかったので、この徴税官を読めなかった）
-    expect(legalActions(afterA, DEFAULT_BALANCE)).not.toContainEqual({ type: 'useCard', card: 'taxman' });
-    const startedA = reduce(afterA, { type: 'startTurn' }, DEFAULT_BALANCE);
-    const startedB = reduce(afterB, { type: 'startTurn' }, DEFAULT_BALANCE);
+    expect(legalActions(afterA, B)).not.toContainEqual({ type: 'useCard', card: 'taxman' });
+    const startedA = reduce(afterA, { type: 'startTurn' }, B);
+    const startedB = reduce(afterB, { type: 'startTurn' }, B);
 
     // 前提確認: 収入を受け取った cpu にとって最善の一手は、想定どおりのカードである
     // （徴税官は相手の次の収入を削るので cpu にとって得。建築家はこのターンの建設費を
@@ -175,17 +181,17 @@ describe('lookaheadScore: 相手の想定応手を読む', () => {
     const bestFor = (state: GameState): CardId | 'endTurn' => {
       let best: CardId | 'endTurn' = 'endTurn';
       let bestScore = evaluateState(
-        reduce(state, { type: 'endTurn' }, DEFAULT_BALANCE),
+        reduce(state, { type: 'endTurn' }, B),
         'cpu',
-        DEFAULT_BALANCE,
+        B,
         DEFAULT_WEIGHTS,
       );
-      for (const action of legalActions(state, DEFAULT_BALANCE)) {
+      for (const action of legalActions(state, B)) {
         if (action.type !== 'useCard') continue;
         const score = evaluateState(
-          reduce(state, action, DEFAULT_BALANCE),
+          reduce(state, action, B),
           'cpu',
-          DEFAULT_BALANCE,
+          B,
           DEFAULT_WEIGHTS,
         );
         if (score > bestScore) {
@@ -201,21 +207,21 @@ describe('lookaheadScore: 相手の想定応手を読む', () => {
     // 手番が相手に渡った直後の「静的な」評価（相手がまだ何もしていない時点の評価）は、
     // 徴税官と建築家を入れ替えただけでは変わらない。どちらもコスト 3 のカードで、
     // evaluateState は手札の中身（何が書かれたカードか）までは見ないため。
-    const staticA = evaluateState(afterA, 'you', DEFAULT_BALANCE, DEFAULT_WEIGHTS);
-    const staticB = evaluateState(afterB, 'you', DEFAULT_BALANCE, DEFAULT_WEIGHTS);
+    const staticA = evaluateState(afterA, 'you', B, DEFAULT_WEIGHTS);
+    const staticB = evaluateState(afterB, 'you', B, DEFAULT_WEIGHTS);
     expect(staticA).toBe(staticB);
 
     // ところが lookaheadScore（つよいが使う手番単位の先読み: 自分の手番の残り →
     // 収入を受け取った相手の手番）は、相手が実際に徴税官を撃ってくることを読んで、
     // 自分視点のスコアを下げる。
-    const lookA = lookaheadScore(afterA, 'you', DEFAULT_WEIGHTS, DEFAULT_BALANCE);
-    const lookB = lookaheadScore(afterB, 'you', DEFAULT_WEIGHTS, DEFAULT_BALANCE);
+    const lookA = lookaheadScore(afterA, 'you', DEFAULT_WEIGHTS, B);
+    const lookB = lookaheadScore(afterB, 'you', DEFAULT_WEIGHTS, B);
     expect(lookA).toBeLessThan(lookB);
 
     // 建築家のほうは相手が結局何もしない（cpu の最善手は endTurn）ので、
     // 先読みの結果は、相手が収入を受け取って手番を終えただけの局面になる。
-    const quiet = reduce(startedB, { type: 'endTurn' }, DEFAULT_BALANCE);
-    expect(lookB).toBe(evaluateState(quiet, 'you', DEFAULT_BALANCE, DEFAULT_WEIGHTS));
+    const quiet = reduce(startedB, { type: 'endTurn' }, B);
+    expect(lookB).toBe(evaluateState(quiet, 'you', B, DEFAULT_WEIGHTS));
   });
 
   it('手番の途中の局面からは、自分の残りの手を打ち切ってから相手を読む', () => {
