@@ -2,6 +2,7 @@ import { animate, motion, useMotionValue, useTransform } from 'motion/react';
 import { useEffect, useMemo } from 'react';
 
 import type { PlayerId } from '@/game/types';
+import { formatScore } from '@/meta/daily';
 import type { RankChange } from '@/meta/rank';
 
 import { hapticTap } from './haptics';
@@ -18,6 +19,19 @@ export interface ResultSide {
   tone: 'you' | 'cpu';
 }
 
+/** 日替わりの結果。段位の行と同じ場所・同じ高さに出す（ある・なしで画面が伸びない）。 */
+export interface DailyResult {
+  /** その日の条件の 1 行。 */
+  label: string;
+  /** 今回の VP 差。 */
+  score: number;
+  /** 今日の自己ベスト（今回を含む）。 */
+  best: number;
+  improved: boolean;
+  /** 今日の挑戦回数（今回を含む）。 */
+  plays: number;
+}
+
 /** 結果画面。クラロワの勝利画面（refs/image2.png）の構成に合わせた:
  *  上に相手の赤い帯、中央に VS、下に自分の青い帯。勝った側の帯に王冠が降り、
  *  VP は 0 から数え上がる。勝ったときは金の紙吹雪。
@@ -31,6 +45,7 @@ export function ResultScreen({
   winner,
   review,
   rank,
+  daily,
   onRestart,
   onExit,
 }: {
@@ -39,6 +54,8 @@ export function ResultScreen({
   review?: ResultReview;
   /** 段位の増減と、新しく手に入った実績（CPU 戦のみ。2 人対戦は渡さない）。 */
   rank?: { change: RankChange; unlocked: string[] };
+  /** 日替わりの一戦の結果（日替わりのときだけ。段位の代わりに出す）。 */
+  daily?: DailyResult;
   /** 見出しの色。win = 金、lose = 灰青、draw = 白。 */
   tone: 'win' | 'lose' | 'draw';
   top: ResultSide;
@@ -79,6 +96,7 @@ export function ResultScreen({
       </div>
 
       {rank ? <RankResult change={rank.change} unlocked={rank.unlocked} delay={1.45} /> : null}
+      {daily ? <DailyBest daily={daily} delay={1.45} /> : null}
 
       <div className="result-sides">
         <ResultRibbon side={top} crowned={winner === 'top'} delay={0.3} from={-1} />
@@ -134,6 +152,36 @@ export function ResultScreen({
         </button>
       </motion.div>
     </motion.div>
+  );
+}
+
+/** 日替わり: 「VP 差 +5 ／ 今日のベスト +8」と、その日の条件。段位の行（.result-rank）と同じ 48px。 */
+function DailyBest({ daily, delay }: { daily: DailyResult; delay: number }) {
+  return (
+    <div className="result-rank result-daily">
+      <motion.div
+        className="result-rank-row"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay, type: 'spring', stiffness: 420, damping: 30 }}
+      >
+        <span className="rank-badge result-daily-badge">日替わり</span>
+        <span className="result-daily-score">VP差 {formatScore(daily.score)}</span>
+        <motion.span
+          className={`result-rank-delta ${daily.improved ? 'is-up' : 'is-floor'}`}
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: delay + 0.45, type: 'spring', stiffness: 520, damping: 18 }}
+        >
+          {daily.improved && daily.plays > 1 ? 'ベスト更新！' : `今日のベスト ${formatScore(daily.best)}`}
+        </motion.span>
+      </motion.div>
+      <div className="result-achv-slot">
+        <span className="result-daily-rule">
+          今日の条件: {daily.label}・{daily.plays} 回目
+        </span>
+      </div>
+    </div>
   );
 }
 

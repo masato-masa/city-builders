@@ -189,3 +189,17 @@ export function VersusIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
+/** 日替わり。日めくりに今日の日付。 */
+export function CalendarIcon({ className, day }: { className?: string; day: number }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="4.5" width="18" height="17" rx="3" fill="#ffffff" stroke="#1d2a3a" strokeWidth="1.6" />
+      <path d="M3.8 9.5 V7.5 a3 3 0 0 1 3 -3 h10.4 a3 3 0 0 1 3 3 V9.5 Z" fill="#ff6a5a" stroke="#1d2a3a" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M8 2.5 V6.5 M16 2.5 V6.5" stroke="#1d2a3a" strokeWidth="2" strokeLinecap="round" />
+      <text x="12" y="19" textAnchor="middle" fontSize="9.5" fontWeight="900" fill="#1d2a3a">
+        {day}
+      </text>
+    </svg>
+  );
+}

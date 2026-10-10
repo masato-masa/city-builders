@@ -1555,3 +1555,55 @@ button.home-progress:active {
   stroke: #8a4f00;
   stroke-width: 1.5;
 }
+/* 結果画面の日替わりの行（段位の行と同じ枠 .result-rank を使う）。 */
+.result-daily-badge {
+  color: #fff;
+  background: linear-gradient(to bottom, #6fdc7a, #2fa548);
+  box-shadow: 0 2px 0 #17682a;
+  -webkit-text-stroke: 2px #0f4a1d;
+  paint-order: stroke fill;
+}
+
+.result-daily-score {
+  font-size: 16px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.result-daily-rule {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 18px;
+  color: rgb(232 238 243 / 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ホームの日替わりボタン（緑）。 */
+.btn3d-green {
+  --face-hi: #8ef08f;
+  --face-1: #45c35a;
+  --face-2: #2fa548;
+  --ledge: #17682a;
+  --ink-stroke: #0f4a1d;
+}
+
+.btn3d-green .home-mode-desc {
+  -webkit-text-stroke-color: rgb(10 60 24 / 0.6);
+}
+
+.home-mode-cal {
+  width: 32px;
+  height: 32px;
+  filter: drop-shadow(0 2px 0 rgb(0 0 0 / 0.35));
+}
+
+.home-mode-tag.is-best {
+  background: linear-gradient(to bottom, #fff2a8, #ffd84a);
+  color: #3a1e00;
+  -webkit-text-stroke: 0;
+}

@@ -7,9 +7,11 @@ import { canAcquire, canBuild, canUpgrade, canUseCard, reduce } from '@/game/red
 import { createRng, type Rng } from '@/game/rng';
 import { handSlotsOf, ownedSlots, scoreOf, turnsRemaining, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
-import type { Action, CardId, GameState } from '@/game/types';
+import type { Action, CardId, GameState, PlayerId } from '@/game/types';
+import { dailyScore } from '@/meta/daily';
 import type { RankChange } from '@/meta/rank';
 import { settleMatch } from '@/meta/settle';
+import { loadDaily, saveDaily, withDailyResult } from '@/storage/daily';
 import { loadMeta, saveMeta } from '@/storage/meta';
 import { loadProgress, saveProgress, withResult } from '@/storage/storage';
 
@@ -44,7 +46,7 @@ import { OpponentStrip } from './OpponentStrip';
 import { stageCallout, playStageCue } from './income-stages';
 import { playIncome, runIncomeSequence, slotAtPoint, useLater } from './play-helpers';
 import { buildReview, recordTransition, streakLine } from './match-log';
-import { ResultScreen } from './ResultScreen';
+import { type DailyResult, ResultScreen } from './ResultScreen';
 import { useMatchLog } from './use-match-log';
 import { Sheet } from './Sheets';
 import { cpuActionCallout } from './slot-actions';
@@ -100,12 +102,18 @@ export function Game({
   seed,
   difficulty,
   balance = DEFAULT_BALANCE,
+  first,
+  daily,
   onExit,
   onRestart,
 }: {
   seed: number;
   difficulty: Difficulty;
   balance?: Balance;
+  /** 先手を決め打ちする（日替わり）。省略時は seed から決まる。 */
+  first?: PlayerId;
+  /** 日替わりの一戦。段位・勝敗・連勝は動かさず、その日の自己ベスト（VP 差）だけを記録する。 */
+  daily?: { dateKey: string; label: string };
   onExit: () => void;
   onRestart: () => void;
 }) {
@@ -113,7 +121,7 @@ export function Game({
   const [state, setState] = useState<GameState>(() => {
     // 開始処理（収入）はここでは済ませない。手番の帯を見せてから、下の useEffect が反映する。
     // 後手（CPU が先手）のときも同じで、CPU の手番は収入から 1 手ずつ出す。
-    return createGame(seed, balance);
+    return createGame(seed, balance, first);
   });
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -207,9 +215,19 @@ export function Game({
 
   // 結果画面に出す段位の増減と、新しく手に入った実績。
   const [rankResult, setRankResult] = useState<{ change: RankChange; unlocked: string[] } | null>(null);
+  // 日替わりの結果（今回の VP 差と今日のベスト）。
+  const [dailyResult, setDailyResult] = useState<DailyResult | null>(null);
 
   const recordIfFinished = (result: GameState) => {
     if (result.phase !== 'finished') return;
+    if (daily) {
+      // 日替わりは通常の CPU 戦と分ける: 勝敗・連勝・段位・実績は動かさない。
+      const score = dailyScore(scoreOf(result, 'you', balance), scoreOf(result, 'cpu', balance));
+      const r = withDailyResult(loadDaily(daily.dateKey), daily.dateKey, score);
+      saveDaily(r.record);
+      setDailyResult({ label: daily.label, score, best: r.record.best ?? score, improved: r.improved, plays: r.record.plays });
+      return;
+    }
     const progress = loadProgress();
     const winner = winnerOf(result, balance);
     const outcome = winner === 'you' ? 'win' : winner === 'cpu' ? 'lose' : 'draw';
@@ -812,6 +830,7 @@ export function Game({
                   winner={w === 'you' ? 'bottom' : w === 'cpu' ? 'top' : null}
                   review={buildReview(matchLog(), state, balance, { you: 'あなた', cpu: 'CPU' }, 'you', streakText)}
                   rank={rankResult ?? undefined}
+                  daily={dailyResult ?? undefined}
                   onRestart={onRestart}
                   onExit={onExit}
                 />
