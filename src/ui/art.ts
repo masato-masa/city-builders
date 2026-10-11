@@ -35,8 +35,9 @@ export interface BuildingArt {
   scale: number;
 }
 
-/** まだ素材が無い物件は登録しない。Board はその区画を空き地として描く。 */
-export const BUILDING_ART: Partial<Record<BuildingId, BuildingArt>> = {
+/** 物件の絵。まだ素材が無い物件は BUILDING_ART_STANDIN で近い物件の絵を仮に使う
+ *  （どちらにも無ければ Board はその区画を空き地として描く）。 */
+const OWN_BUILDING_ART: Partial<Record<BuildingId, BuildingArt>> = {
   fortress: { url: fortressUrl, scale: 1.0 },
   cathedral: { url: cathedralUrl, scale: 1.08 },
   tradingHouse: { url: tradingHouseUrl, scale: 0.88 },
@@ -46,6 +47,22 @@ export const BUILDING_ART: Partial<Record<BuildingId, BuildingArt>> = {
   exchange: { url: exchangeUrl, scale: 0.95 },
   quarry: { url: quarryUrl, scale: 0.97 },
 };
+
+/** 絵がまだ無い物件に仮に使う、近い物件の絵。鉱山は石切場（同じ「掘る」場所）。
+ *  空き地のように描かれると「建っていない」と読めてしまうため（2026-10-11）。本物の絵ができたら OWN_BUILDING_ART に足し、ここから消す。 */
+export const BUILDING_ART_STANDIN: Partial<Record<BuildingId, BuildingId>> = {
+  mine: 'quarry',
+};
+
+export const BUILDING_ART: Partial<Record<BuildingId, BuildingArt>> = { ...OWN_BUILDING_ART };
+for (const [id, from] of Object.entries(BUILDING_ART_STANDIN) as [BuildingId, BuildingId][]) {
+  if (!BUILDING_ART[id] && OWN_BUILDING_ART[from]) BUILDING_ART[id] = OWN_BUILDING_ART[from];
+}
+
+/** 本物の絵があるか（仮の絵ではないか）。 */
+export function hasBuildingArt(id: BuildingId): boolean {
+  return !!OWN_BUILDING_ART[id];
+}
 
 /** 人物カードの絵。建物と違い scale は持たない。カードの枠いっぱいに
  *  object-fit: cover で敷くので、素材ごとの倍率調整が要らない。

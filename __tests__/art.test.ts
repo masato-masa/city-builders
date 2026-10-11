@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_BALANCE, DEFAULT_DECK } from '@/game/balance';
 import type { CardId } from '@/game/types';
-import { BUILDING_ART, CARD_ART, CARD_PLACEHOLDER, cardArtOf, FIELD_URL, hasCardArt } from '@/ui/art';
+import { BUILDING_ART, CARD_ART, CARD_PLACEHOLDER, cardArtOf, FIELD_URL, hasBuildingArt, hasCardArt } from '@/ui/art';
 
 describe('素材の対応表', () => {
   it('盤面の地の URL がある', () => {
@@ -28,6 +28,14 @@ describe('素材の対応表', () => {
     const done = Object.keys(BUILDING_ART).length;
     expect(done).toBeGreaterThan(0);
     expect(done).toBeLessThanOrEqual(new Set(DEFAULT_BALANCE.market).size);
+  });
+
+  it('市場の物件はすべて絵を持つ（鉱山は石切場の絵を仮に使い、空き地に見えない）', () => {
+    for (const id of new Set(DEFAULT_BALANCE.market)) {
+      expect(BUILDING_ART[id]?.url, id).toBeTruthy();
+    }
+    expect(hasBuildingArt('mine')).toBe(false);
+    expect(BUILDING_ART.mine?.url).toBe(BUILDING_ART.quarry?.url);
   });
 
   it('登録されているカード絵は、すべて実在するカード ID のもの', () => {
