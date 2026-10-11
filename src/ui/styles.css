@@ -1970,3 +1970,150 @@
   font-weight: 700;
   color: #8a6a30;
 }
+
+/* あそびかた（?）: 要点 3 行 + 項目ごとに開く見出し。シートの高さを超えたらこの中だけが流れる。 */
+.help-list {
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.help-summary {
+  margin: 0 0 6px;
+  padding: 10px 12px 10px 28px;
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--title);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+/* 縦に流す列の中で縮ませない（縮むと閉じた見出しが潰れる。あふれた分は .help-list が流す）。 */
+.help-list > * {
+  flex: none;
+}
+
+.help-acc {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.help-acc-head {
+  width: 100%;
+  min-height: var(--hit);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border: 0;
+  background: var(--surface);
+  color: var(--title);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.help-acc-chev {
+  font-size: 18px;
+  color: var(--muted);
+  transition: rotate 0.18s var(--ease);
+}
+
+.help-acc.is-open .help-acc-chev {
+  rotate: 90deg;
+}
+
+.help-acc-body {
+  overflow: hidden;
+}
+
+.help-acc-inner {
+  padding: 2px 14px 12px;
+}
+
+.help-acc-inner .sheet-text {
+  margin-bottom: 8px;
+}
+
+.help-steps {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.help-steps-note {
+  list-style: none;
+  margin: 6px 0 0 -20px;
+  font-size: 12px;
+}
+
+.help-cards {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.help-card {
+  display: flex;
+  gap: 10px;
+}
+
+.help-card-art {
+  flex: none;
+  width: 40px;
+  aspect-ratio: 68 / 84;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--line);
+}
+
+.help-card-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.help-card-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--title);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.help-card-cost {
+  font-size: 11px;
+  font-weight: 700;
+  color: #a87a12;
+}
+
+.help-card-text {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.help-card-note {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.help-foot {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}

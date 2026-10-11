@@ -172,4 +172,10 @@ export function doubleNoteOf(state: GameState, viewer: PlayerId, card: CardId, b
 }
 
 /** カードをタップしただけのときの案内。 */
+/** 長押しの説明に添える、札そのものの補足（状態によらない）。あそびかたのカード一覧も同じ文を使う。 */
+export function cardStaticNoteOf(card: CardId): string | null {
+  if (card === 'blockader') return '永続する効果です。解除する手段はいまはありません。';
+  return null;
+}
+
 export const TAP_HINT = '盤面へドラッグで使う・長押しで説明';

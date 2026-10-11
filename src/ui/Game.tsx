@@ -757,7 +757,7 @@ export function Game({
       <AnimatePresence>
         {sheet?.kind === 'help' ? (
           <Sheet key="help" title="あそびかた" onClose={() => setSheet(null)}>
-            <HelpText balance={balance} />
+            <HelpText balance={balance} deck={deck} />
           </Sheet>
         ) : null}
       </AnimatePresence>

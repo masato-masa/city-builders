@@ -7,7 +7,7 @@ import { handSlotsOf, nextCardOf } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
 import { cardArtOf } from './art';
-import { classifyPress, doubleNoteOf, DRAG_THRESHOLD_PX, LONG_PRESS_MS, TAP_HINT, useHintOf, type PressKind } from './card-input';
+import { cardStaticNoteOf, classifyPress, doubleNoteOf, DRAG_THRESHOLD_PX, LONG_PRESS_MS, TAP_HINT, useHintOf, type PressKind } from './card-input';
 import { hapticTap } from './haptics';
 import { MenuIcon } from './icons';
 import { playSelect } from './sound';
@@ -168,7 +168,7 @@ function CardPeek({
           <span className="card-peek-cost">コスト {cardCostFor(state, viewer, card, balance)}</span>
         </p>
         <p className="card-peek-text">{cardTextFor(card, balance)}</p>
-        {card === 'blockader' ? <p className="card-peek-note">永続する効果です。解除する手段はいまはありません。</p> : null}
+        {cardStaticNoteOf(card) ? <p className="card-peek-note">{cardStaticNoteOf(card)}</p> : null}
         {card === 'double' ? <p className="card-peek-note">{doubleNoteOf(state, viewer, card, balance)}</p> : null}
         <p className="card-peek-note">{useHintOf(state, viewer, card)}</p>
       </div>
