@@ -940,12 +940,6 @@
 /* 建った物件の 2 つの数字。市場価値（買収に要るコイン）は金の文字＋袋の印、
    アップグレード費は緑の文字＋上矢印。地は VP と同じ暗幕で、色と印の 2 つで見分ける
    （凡例が無くても読める）。台座・旗・道の識別色には触らない。 */
-.plot-value {
-  color: #e8eeeb;
-  font-size: 0.85em;
-  letter-spacing: 0.02em;
-}
-
 /* 最終段階（買収不可）。文字の代わりに鍵の印だけの小さな札（VP の札と同じ高さ・同じ暗幕）。 */
 .plot-value.is-locked {
   display: inline-flex;
@@ -959,6 +953,7 @@
   box-shadow: 0 0.5cqw 0 rgb(0 0 0 / 0.35);
 }
 
+.plot-value,
 .plot-upgrade {
   display: inline-flex;
   align-items: center;
