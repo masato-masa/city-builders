@@ -9,9 +9,11 @@ import { Sheet } from './Sheets';
 import {
   acquireButton,
   acquireNote,
+  buildingSpecRows,
   districtNote,
   isMaxLevel,
   levelEffects,
+  slotStatusLine,
   upgradeButton,
   type SlotButton,
 } from './slot-actions';
@@ -54,12 +56,19 @@ export function SlotSheet({
   const disabledByBlockade = owned && slotEffectStopped(state, slot, balance);
   const buildBlocked = !owned && slotBuildBlocked(state, viewer, slotId, balance);
   const district = districtNote(state, slotId, viewer, balance, ownerName);
-  const subtitle = owned
-    ? `${ownerName[slot.owner!]}の物件 ・ Lv${current.level} ・ ${current.vp}`
-    : `コスト ${buildCostFor(state, viewer, slotId, balance)} ・ ${current.vp}`;
+  // 一番上に今の状態（持ち主・Lv・今の市場価値）、その下に建物の固定の数値（いつも同じ並び）、その下に効果文
+  const subtitle = slotStatusLine(state, slotId, viewer, balance, ownerName, buildCostFor(state, viewer, slotId, balance));
 
   return (
     <Sheet title={BUILDING_NAMES[slot.buildingId]} subtitle={subtitle} onClose={onClose} anchor="bottom">
+      <dl className="spec-table">
+        {buildingSpecRows(slot.buildingId, balance).map((r) => (
+          <div key={r.label} className="spec-row">
+            <dt>{r.label}</dt>
+            <dd>{r.value}</dd>
+          </div>
+        ))}
+      </dl>
       {next ? (
         // いまの Lv と、上げたあとの Lv を左右に並べる（何が増えるかを比べて決められるように）。
         <div className="level-compare">

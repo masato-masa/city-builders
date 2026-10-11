@@ -12,6 +12,7 @@
 // - 影武者: 写す札（このターン直前に使った札）と同じ対象の取り方。対象の要らない札なら盤面のどこでも。
 
 import { CARD_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
+import { canUseCard, cardCostFor } from '@/game/reducer';
 import { blockadeDistrictsOf, bossDistrictsOf, districtOfSlot, doubleSourceOf, effectiveCardOf } from '@/game/selectors';
 import type { Action, CardId, GameState, PlayerId } from '@/game/types';
 
@@ -174,6 +175,39 @@ export function doubleNoteOf(state: GameState, viewer: PlayerId, card: CardId, b
   const src = doubleSourceOf(state, viewer);
   if (!src) return 'いま写せる札はありません（このターンにまだ使っていないか、伝令・祝祭・衛兵のあと）';
   return `いま写す札: ${CARD_NAMES[src]}（コスト ${balance.cards.double.cost} + ${balance.cards[src].cost}）`;
+}
+
+/** 手札の札をいま使えない理由（短い 1 行）。使えるなら null。
+ *  使えるかどうかの判定は src/game の canUseCard に任せ、ここは「なぜ」を言葉にするだけ
+ *  （canUseCard が false なのに理由が分からないときも、必ず何か言う）。locked は演出の途中など。 */
+export function cardBlockReason(
+  state: GameState,
+  viewer: PlayerId,
+  card: CardId,
+  locked: boolean,
+  balance: Balance = DEFAULT_BALANCE,
+): string | null {
+  if (state.phase !== 'playing') return '試合は終わりました';
+  if (state.current !== viewer) return '相手の番です';
+  if (locked) return '演出中（終わってから使えます）';
+  if (canUseCard(state, card, balance)) return null;
+  const p = state.players[viewer];
+  if (p.usedThisTurn.includes(card)) return 'このターンは使用済み（同じカードは 1 ターン 1 回）';
+  const eff = effectiveCardOf(state, viewer, card, balance);
+  if (eff === null) return '写せる札がありません（先に別の札を使う）';
+  if (eff === 'inspector' && !state.market.some((s) => s.owner !== null && s.owner !== viewer)) {
+    return '相手の物件がありません';
+  }
+  if (eff === 'boss' && bossDistrictsOf(state, viewer, balance).length === 0) return 'VP の合計が同じ地区がありません';
+  const cost = cardCostFor(state, viewer, card, balance);
+  if (cost > 0 && p.coins < cost) return `コインが足りない（あと ${cost - p.coins}）`;
+  return 'いまは使えません';
+}
+
+/** 長押しの説明に添える、札そのものの補足（状態によらない）。あそびかたのカード一覧も同じ文を使う。 */
+export function cardStaticNoteOf(card: CardId): string | null {
+  if (card === 'blockader') return '効くのは次の相手のターンだけです（地区全体。自分の物件には何も起きない）。';
+  return null;
 }
 
 /** カードをタップしただけのときの案内。 */

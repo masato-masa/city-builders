@@ -7,7 +7,6 @@ import {
   blockadeDistrictsOf,
   bossDistrictsOf,
   districtOfSlot,
-  districtVpOf,
   slotBuildBlocked,
   slotEffectStopped,
   titleHolder,
@@ -28,7 +27,7 @@ import {
   rowOf,
   type Segment,
 } from './board-layout';
-import { ChainIcon, CoinBagIcon, UpArrowIcon } from './icons';
+import { ChainIcon, CoinBagIcon, LockIcon, UpArrowIcon } from './icons';
 import { isMaxLevel, plotFigures } from './slot-actions';
 import { playTitle } from './sound';
 
@@ -153,23 +152,24 @@ function Roads({ state, borders }: { state: GameState; borders: Segment[] }) {
 }
 
 /** 地区の名札と称号の旗。盤面の端（建物の無いところ）に縦書きで置く。
+ *  盤面には名前と称号の旗（持ち主の色）だけを出し、内訳（件数・VP の合計・称号の VP）はタップした地区のシートで見せる
+ *  （ユーザーの感想 第 2 弾: 盤面の文字を減らす）。
  *  称号の持ち主が替わった瞬間だけ、名札が弾んで「称号 +N」の札が浮かぶ（どちらも絶対配置で、寸法は動かない）。 */
 function DistrictTag({
   index,
   name,
   holder,
-  counts,
   titleVp,
   viewer,
+  onPick,
 }: {
   index: number;
   name: string;
   holder: PlayerId | null;
-  counts: Record<PlayerId, number>;
   titleVp: number;
   viewer: PlayerId;
+  onPick?: (index: number) => void;
 }) {
-  const foe = viewer === 'you' ? 'cpu' : 'you';
   const pos = DISTRICT_TAGS[Math.min(index, DISTRICT_TAGS.length - 1)]!;
   const [prev, setPrev] = useState(holder);
   const [moved, setMoved] = useState(0);
@@ -179,11 +179,13 @@ function DistrictTag({
   }
   const style: CSSProperties = { top: `${pos.top * 100}%`, [pos.side]: '1.2%' };
   return (
-    <span
+    <button
+      type="button"
       className={`district-tag side-${pos.side}${holder ? ` owner-${holder}` : ' is-unclaimed'}`}
       style={style}
       data-district={index}
-      aria-label={`${name} ${holder ? `称号 ${holder === viewer ? '自分' : '相手'}` : '称号なし'}（自分 ${counts[viewer]} 件・相手 ${counts[foe]} 件）`}
+      aria-label={`${name} ${holder ? `称号 ${holder === viewer ? '自分' : '相手'}` : '称号なし'}（タップで地区の詳細）`}
+      onClick={() => onPick?.(index)}
     >
       <motion.span
         key={`pop-${moved}`}
@@ -196,13 +198,6 @@ function DistrictTag({
           {holder ? <Flag owner={holder} /> : <span className="district-flag-empty" />}
         </span>
         <span className="district-name">{name}</span>
-        {/* 件数「自分 対 相手」。多い側に称号（+N VP）。色は持ち主の明るい版（識別色そのものは変えない）。 */}
-        <span className="district-count" aria-hidden="true">
-          <span className={`district-count-n owner-${viewer}`}>{counts[viewer]}</span>
-          <span className="district-count-vs">対</span>
-          <span className={`district-count-n owner-${foe}`}>{counts[foe]}</span>
-        </span>
-        <span className="district-vp">+{titleVp}</span>
       </motion.span>
       {moved > 0 && holder ? (
         <motion.span
@@ -216,7 +211,7 @@ function DistrictTag({
           称号 +{titleVp}
         </motion.span>
       ) : null}
-    </span>
+    </button>
   );
 }
 
@@ -288,7 +283,7 @@ function PlotView({
   const maxed = owned && isMaxLevel(state, slotId, balance);
   const figures = plotFigures(state, slotId, viewer, balance, (id) => buildCostFor(state, viewer, id, balance));
 
-  // 封鎖中の空き地。blockedSlot は「押せない」判定のためプレイヤーごとに
+  // 封鎖中の空き地。封鎖は「押せない」判定のため受ける側ごとに
   // 持つ値だが、盤面はどちらの操作でも同じ 1 枚を共有しているので、
   // 自分が押さえた／相手に押さえられたのどちらでも見えるよう、両者を見る
   // （disabled と同じ考え方。viewer 側だけ見ると、自分が封鎖者を使って
@@ -316,7 +311,7 @@ function PlotView({
   const figureText =
     figures.kind === 'unbuilt'
       ? ` 建設 ${figures.build} コイン`
-      : ` ${figures.value === null ? '買収不可' : `買収 ${figures.value} コイン`}${figures.upgrade !== null ? `・アップグレード ${figures.upgrade} コイン` : ''}`;
+      : ` ${figures.value === null ? '最終段階のため買収不可' : `買収 ${figures.value} コイン`}${figures.upgrade !== null ? `・アップグレード ${figures.upgrade} コイン` : ''}`;
   const ariaLabel = `${BUILDING_NAMES[slot.buildingId]}${leveled ? ` Lv${slot.level}` : ''}${maxed ? '（最大）' : ''} ${vpText}${figureText}${disabled ? ' 効果停止中' : ''}${blocked ? ' 封鎖中' : ''}`;
   const stateClass = [
     blocked ? 'is-blocked' : null,
@@ -505,7 +500,11 @@ function PlotView({
               凡例が無くても分かるよう、色だけでなく印を添える。最大レベルならアップグレードは出さない。 */}
           {figures.kind === 'built' ? (
             figures.value === null ? (
-              <span className="plot-value is-locked">買収不可</span>
+              // 最終段階は買収できない。盤面では文字を出さず鍵の印だけ（理由は区画の詳細シートで言う）。
+              // 数字の札と同じ高さの小さな札にして、名札が下へ伸びないようにする。
+              <span className="plot-value is-locked" title="最終段階のため買収不可">
+                <LockIcon />
+              </span>
             ) : (
               <span className="plot-value">
                 <CoinBagIcon />
@@ -542,6 +541,7 @@ export function Board({
   dropArmed = false,
   flash = null,
   onPick,
+  onPickDistrict,
 }: {
   state: GameState;
   balance?: Balance;
@@ -560,6 +560,8 @@ export function Board({
   /** 収入の段で光らせる区画。 */
   flash?: IncomeFlash | null;
   onPick: (slotId: number) => void;
+  /** 地区の名札をタップした（地区の詳細シートを開く）。 */
+  onPickDistrict?: (index: number) => void;
 }) {
   const districts = balance.districts;
   const borders = useMemo(
@@ -577,9 +579,9 @@ export function Board({
           index={i}
           name={d.name}
           holder={titleHolder(state, i)}
-          counts={districtVpOf(state, i, balance)}
           titleVp={balance.districtTitleVp}
           viewer={viewer}
+          onPick={onPickDistrict}
         />
       ))}
       {state.market.map((slot) =>

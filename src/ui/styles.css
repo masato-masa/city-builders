@@ -940,13 +940,20 @@
 /* 建った物件の 2 つの数字。市場価値（買収に要るコイン）は金の文字＋袋の印、
    アップグレード費は緑の文字＋上矢印。地は VP と同じ暗幕で、色と印の 2 つで見分ける
    （凡例が無くても読める）。台座・旗・道の識別色には触らない。 */
-.plot-value,
+/* 最終段階（買収不可）。文字の代わりに鍵の印だけの小さな札（VP の札と同じ高さ・同じ暗幕）。 */
 .plot-value.is-locked {
-  color: #e8eeeb;
-  font-size: 0.85em;
-  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35cqw 1cqw;
+  border-radius: 3cqw;
+  background: rgb(20 16 12 / 0.78);
+  color: #ffd34d;
+  font-size: max(9.5px, 3.2cqw);
+  line-height: 1.2;
+  box-shadow: 0 0.5cqw 0 rgb(0 0 0 / 0.35);
 }
 
+.plot-value,
 .plot-upgrade {
   display: inline-flex;
   align-items: center;
@@ -994,7 +1001,21 @@
   position: absolute;
   z-index: 6;
   width: 7.5cqw;
-  pointer-events: none;
+  /* タップで地区の詳細。button の既定の見た目を消す（寸法は中身が決める） */
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 指で押しやすいよう、見た目より少し広く当たり判定を取る（寸法は動かさない） */
+.district-tag::before {
+  content: '';
+  position: absolute;
+  inset: -1.5cqw -2cqw;
 }
 
 .district-tag-body {
@@ -1029,48 +1050,6 @@
   height: 100%;
   border-left: 0.5cqw solid rgb(255 238 204 / 0.35);
   margin-left: 0.4cqw;
-}
-
-/* 地区の件数（自分 対 相手）。縦に積む。数字の色は持ち主の明るい版。 */
-.district-count {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 1;
-}
-
-.district-count-n {
-  font-size: max(11px, 3.8cqw);
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 0 rgb(0 0 0 / 0.8);
-}
-
-.district-count-n.owner-you {
-  color: var(--owner-you-glow);
-}
-
-.district-count-n.owner-cpu {
-  color: var(--owner-cpu-glow);
-}
-
-.district-count-vs {
-  color: rgb(255 246 228 / 0.7);
-  font-size: max(8px, 2.4cqw);
-  font-weight: 800;
-  margin: 0.3cqw 0;
-}
-
-/* 称号の VP。多く持つ側に入る点数。 */
-.district-vp {
-  padding: 0.3cqw 0.8cqw;
-  border-radius: 2cqw;
-  background: #ffd34d;
-  color: #4a3300;
-  font-size: max(8.5px, 2.6cqw);
-  font-weight: 900;
-  line-height: 1.2;
-  white-space: nowrap;
 }
 
 .district-name {
@@ -1320,12 +1299,7 @@
   z-index: 2;
 }
 
-/* 「使えない」の表現。絵の有無にかかわらず同じ 2 段構え：
-   暗くするだけでは絵のある札で差が付きにくいので、彩度も落とす。
-   opacity/filter/transform だけを使い、寸法には触れない（CLAUDE.md）。 */
-.card.is-dim {
-  filter: grayscale(0.85) brightness(0.6);
-}
+/* 使えない札も暗くしない（ユーザーの感想 第 2 弾）。使えないまま離したら、手札の上に理由を出す（.hand-hint.is-reject）。 */
 
 /* 絵と名前を収める内側の層。コストバッジ（.card-cost、下端で少しはみ出す）は
    この層の外・.card 直下に置くので、この層だけを overflow: hidden で切っても
@@ -1476,6 +1450,126 @@
 .level-max {
   margin-right: 6px;
   color: #a86f00;
+}
+
+/* 建物の固定の数値（VP・建築・買収・増築・収益）。いつも同じ並びの 2 列の表 */
+.spec-table {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.05);
+}
+
+.spec-row {
+  display: grid;
+  grid-template-columns: 5.5em minmax(0, 1fr);
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.spec-row dt {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.spec-row dd {
+  margin: 0;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 地区の詳細シート: 自分と相手の値を左右に、称号を持つ側を縁取る */
+.district-tally {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.district-tally-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px;
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.05);
+  box-shadow: inset 0 0 0 2px transparent;
+}
+
+.district-tally-col.is-holder.owner-you {
+  box-shadow: inset 0 0 0 2px var(--owner-you);
+}
+
+.district-tally-col.is-holder.owner-cpu {
+  box-shadow: inset 0 0 0 2px var(--owner-cpu);
+}
+
+.district-tally-who {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.district-tally-n {
+  font-size: 20px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.district-tally-col.owner-you .district-tally-n {
+  color: var(--owner-you);
+}
+
+.district-tally-col.owner-cpu .district-tally-n {
+  color: var(--owner-cpu);
+}
+
+.district-slots {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.district-slot {
+  display: grid;
+  grid-template-columns: 10px 4em minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.district-slot-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.18);
+}
+
+.district-slot.owner-you .district-slot-dot {
+  background: var(--owner-you);
+}
+
+.district-slot.owner-cpu .district-slot-dot {
+  background: var(--owner-cpu);
+}
+
+.district-slot-name {
+  font-weight: 800;
+}
+
+.district-slot-meta {
+  color: var(--muted);
+}
+
+.sheet-text.district-rule {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 /* 押せない理由の 1 行。中身が無くても 1 行ぶんの高さを取る（ボタンが上下しない）。 */
@@ -1839,6 +1933,13 @@
   box-shadow: 0 4px 14px rgb(0 0 0 / 0.4);
 }
 
+/* 使えなかった理由。案内と同じ形で、縁だけ赤みにして「はじかれた」と分かるようにする。 */
+.hand-hint.is-reject {
+  box-shadow:
+    inset 0 0 0 1.5px #ff7a5c,
+    0 4px 14px rgb(0 0 0 / 0.4);
+}
+
 /* 持ち上げている札。指で動かすのでスクロールに取られない（.card-drag の touch-action と同じ）。 */
 .card-drag.is-lifted {
   cursor: grabbing;
@@ -1905,4 +2006,215 @@
 
 .app.app-home .dev-pill:active {
   opacity: 0.5;
+}
+
+/* 最初の 1 戦の手引き（TipBubble）。相手の情報ボード（.opponent-wrap）にぴったり重ねる。
+   盤面・自分のコイン・手札は隠さない。CPU の 1 手の帯（z-index 4〜5）より上。
+   相手の赤い帯と見分けるため、明るい羊皮紙色にする。 */
+.tip-bubble {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 2px solid #e0a526;
+  border-radius: var(--card-radius);
+  background: linear-gradient(to bottom, #fff8e2, #f4e3b4);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.45);
+  color: #3a2a10;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tip-bubble-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #e0a526;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.2);
+}
+
+.tip-bubble-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tip-bubble-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #7a4a00;
+}
+
+.tip-bubble-text {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.tip-bubble-close {
+  position: absolute;
+  right: 10px;
+  top: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #8a6a30;
+}
+
+/* あそびかた（?）: 要点 3 行 + 項目ごとに開く見出し。シートの高さを超えたらこの中だけが流れる。 */
+.help-list {
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.help-summary {
+  margin: 0 0 6px;
+  padding: 10px 12px 10px 28px;
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--title);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+/* 縦に流す列の中で縮ませない（縮むと閉じた見出しが潰れる。あふれた分は .help-list が流す）。 */
+.help-list > * {
+  flex: none;
+}
+
+.help-acc {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.help-acc-head {
+  width: 100%;
+  min-height: var(--hit);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border: 0;
+  background: var(--surface);
+  color: var(--title);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.help-acc-chev {
+  font-size: 18px;
+  color: var(--muted);
+  transition: rotate 0.18s var(--ease);
+}
+
+.help-acc.is-open .help-acc-chev {
+  rotate: 90deg;
+}
+
+.help-acc-body {
+  overflow: hidden;
+}
+
+.help-acc-inner {
+  padding: 2px 14px 12px;
+}
+
+.help-acc-inner .sheet-text {
+  margin-bottom: 8px;
+}
+
+.help-steps {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.help-steps-note {
+  list-style: none;
+  margin: 6px 0 0 -20px;
+  font-size: 12px;
+}
+
+.help-cards {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.help-card {
+  display: flex;
+  gap: 10px;
+}
+
+.help-card-art {
+  flex: none;
+  width: 40px;
+  aspect-ratio: 68 / 84;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--line);
+}
+
+.help-card-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.help-card-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--title);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.help-card-cost {
+  font-size: 11px;
+  font-weight: 700;
+  color: #a87a12;
+}
+
+.help-card-text {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.help-card-note {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.help-foot {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
 }

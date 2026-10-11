@@ -13,11 +13,14 @@ import type { RankChange } from '@/meta/rank';
 import { settleMatch } from '@/meta/settle';
 import { loadDaily, saveDaily, withDailyResult } from '@/storage/daily';
 import { loadMeta, saveMeta } from '@/storage/meta';
+import { nextTip, type TipId, tipClosedBy, tipsActive, withFinished, withSeen } from '@/meta/onboarding';
+import { loadOnboarding, saveOnboarding } from '@/storage/onboarding';
 import { loadProgress, saveProgress, withResult } from '@/storage/storage';
 
 import { BUILDING_ART, cardArtOf, FIELD_URL } from './art';
 import { Board, boardTargetingOf, type IncomeFlash } from './Board';
-import { dragGuide, resolveDrop, slotPick, slotTargetModeOf, type SlotTargetMode } from './card-input';
+import { cardBlockReason, dragGuide, resolveDrop, slotPick, slotTargetModeOf, type SlotTargetMode } from './card-input';
+import { DistrictSheet } from './DistrictSheet';
 import { CoinBar } from './CoinBar';
 import { type CpuStep, playTurnSteps } from './cpu-turn';
 import { cardAftermath, cardSequence, TARGET_LABEL } from './feel';
@@ -41,7 +44,7 @@ import {
   hapticWin,
   hapticYourTurn,
 } from './haptics';
-import { Hand } from './Hand';
+import { Hand, type HandNotice } from './Hand';
 import { OpponentStrip } from './OpponentStrip';
 import { stageCallout, playStageCue } from './income-stages';
 import { dropHitAt, playIncome, runIncomeSequence, useLater } from './play-helpers';
@@ -52,6 +55,7 @@ import { Sheet } from './Sheets';
 import { cpuActionCallout } from './slot-actions';
 import { SlotSheet } from './SlotSheet';
 import { TargetBanner } from './TargetBanner';
+import { TipBubble } from './TipBubble';
 import { HelpText } from './HelpText';
 import { SpeedRow } from './SpeedRow';
 import { RESULT_DELAY_MS, tempo } from './tempo';
@@ -78,8 +82,13 @@ import {
   playYourTurn,
 } from './sound';
 
+/** 手引きを出すまでの間（自分が操作できるようになってから）。 */
+const TIP_DELAY_MS = 700;
+
 type Pending =
   | { kind: 'slot'; slotId: number }
+  /** 地区の名札をタップした: その地区の詳細 */
+  | { kind: 'district'; index: number }
   | { kind: 'heraldTarget' }
   /** 区画を対象に取る札（封鎖者・検査官・顔役と、それを写す影武者）の対象選び。card は実際に使う札 */
   | { kind: 'slotTarget'; card: CardId; mode: SlotTargetMode }
@@ -135,6 +144,13 @@ export function Game({
   const flashSeq = useRef(0);
   // 手札をドラッグ中の札。盤面に「ここへ落とす」表示を出す。
   const [dragCard, setDragCard] = useState<CardId | null>(null);
+  // 使えなかった理由（手札の上に短く出す）
+  const [handNotice, setHandNotice] = useState<HandNotice | null>(null);
+  const rejectWith = (text: string) => {
+    playReject();
+    hapticReject();
+    setHandNotice((n) => ({ id: (n?.id ?? 0) + 1, text }));
+  };
   const [sheet, setSheet] = useState<Pending>(null);
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
   const [hapticsOn, setHapticsOn] = useState(() => isHapticsEnabled());
@@ -154,6 +170,15 @@ export function Game({
   const locked = cpuActing || introPending || busy;
 
   const finished = state.phase === 'finished';
+
+  // 最初の 1 戦の手引き（初回だけ）。場面の判定は meta/onboarding の純粋関数。
+  // 自分が操作できる間（演出・シート・ドラッグの最中でない）に、まだ見ていないものを 1 つずつ出す。
+  const [tipsOn] = useState(() => {
+    const p = loadProgress();
+    return tipsActive(loadOnboarding(), p.wins + p.losses);
+  });
+  const [tipsSeen, setTipsSeen] = useState<TipId[]>(() => loadOnboarding().seen);
+  const [tip, setTip] = useState<TipId | null>(null);
   // 結果画面は、最後の 1 手（建物の着地・数字の弾み）を見せてから出す。
   const [resultReady, setResultReady] = useState(false);
   useEffect(() => {
@@ -161,6 +186,23 @@ export function Game({
     const t = window.setTimeout(() => setResultReady(true), RESULT_DELAY_MS);
     return () => window.clearTimeout(t);
   }, [finished]);
+
+  const tipReady = tipsOn && !locked && !finished && sheet === null && dragCard === null;
+  const tipCandidate = tipsOn ? nextTip(state, tipsSeen, tipReady, balance) : null;
+  useEffect(() => {
+    if (tip !== null || tipCandidate === null) return;
+    // 収入や着地の動きが落ち着いてから出す（出た瞬間に盤面が動くと読めない）。
+    const t = window.setTimeout(() => setTip(tipCandidate), TIP_DELAY_MS);
+    return () => window.clearTimeout(t);
+  }, [tip, tipCandidate]);
+  /** 出ている手引きを閉じて「見た」にする。only を渡すと、その操作で閉じる手引きのときだけ閉じる。 */
+  const closeTip = (only?: Action['type']) => {
+    if (tip === null || (only !== undefined && !tipClosedBy(tip, only))) return;
+    const onb = withSeen(loadOnboarding(), tip);
+    saveOnboarding(onb);
+    setTipsSeen(onb.seen);
+    setTip(null);
+  };
 
   const boardAreaRef = useRef<HTMLDivElement>(null);
   // 衝撃（ヒットストップ・盤面の揺れ）と決着の静止。盤面にだけ 1 手前を一瞬見せる。
@@ -216,6 +258,9 @@ export function Game({
 
   const recordIfFinished = (result: GameState) => {
     if (result.phase !== 'finished') return;
+    // 手引きつきの 1 戦を最後まで終えたら、次からは出さない。
+    if (tipsOn) saveOnboarding(withFinished(loadOnboarding()));
+    setTip(null);
     if (daily) {
       // 日替わりは通常の CPU 戦と分ける: 勝敗・連勝・段位・実績は動かさない。
       const score = dailyScore(scoreOf(result, 'you', balance), scoreOf(result, 'cpu', balance));
@@ -272,6 +317,7 @@ export function Game({
   }, [introPending]);
 
   const endTurn = () => {
+    closeTip();
     playEndTurn();
     const next = reduce(state, { type: 'endTurn' }, balance);
     recordIfFinished(next);
@@ -425,6 +471,7 @@ export function Game({
   const commitCard = (card: CardId, action: Action) => {
     const discard = action.type === 'useCard' ? action.heraldTarget : undefined;
     const timing = cardSequence(discard !== undefined);
+    closeTip('useCard');
     // 影武者は写した札の音で鳴らす（何が起きたか耳で分かる）
     playUseCard(effectiveCardOf(stateRef.current, stateRef.current.current, card) ?? card);
     hapticUseCard();
@@ -465,6 +512,7 @@ export function Game({
 
   /** 物件を建てる。指示のあと少し置いて、着地とコインの減りを一緒に出す。 */
   const commitBuild = (slotId: number) => {
+    closeTip('build');
     hapticBuild();
     setBusy(true);
     setSheet(null);
@@ -479,6 +527,7 @@ export function Game({
    *  （演出は Board が Lv・持ち主の変化を見て出す。コインの増減は DELTA_POP に乗る。
    *  買収の衝撃（ヒットストップ・揺れ・触覚）は useBoardFeel が状態の変化を見て出す）。 */
   const commitSlotAction = (action: Extract<Action, { type: 'upgrade' | 'acquire' }>) => {
+    closeTip(action.type);
     hapticBuild();
     setBusy(true);
     setSheet(null);
@@ -496,11 +545,10 @@ export function Game({
   const dropCard = (card: CardId, point: { x: number; y: number }) => {
     const r = resolveDrop(state, 'you', card, dropHitAt(point.x, point.y, boardAreaRef.current, card), balance);
     if (r.kind === 'cancel') return;
-    if (locked || !canUseCard(state, card, balance) || r.kind === 'reject') {
-      playReject();
-      hapticReject();
-      return;
-    }
+    // 使えない理由を必ず言葉で返す（音と振動だけでは「0 コストなのに使えない」が分からない）。
+    const blocked = cardBlockReason(state, 'you', card, locked, balance) ?? (r.kind === 'reject' ? r.reason : null);
+    if (blocked) return rejectWith(blocked);
+    if (r.kind === 'reject') return;
     if (r.kind === 'target') {
       return setSheet(r.mode === 'herald' ? { kind: 'heraldTarget' } : { kind: 'slotTarget', card, mode: r.mode });
     }
@@ -543,7 +591,14 @@ export function Game({
             log={cpuLog}
             active={!finished && (cpuActing || state.current === 'cpu')}
             // CPU の 1 手は相手の情報ボードの右側（行動ログの上）に出す。盤面の中央に出すと建物を隠す。
-            overlay={<CpuCallout info={cpuCallout?.tone === 'you' ? null : cpuCallout} placement="strip" />}
+            overlay={
+              <>
+                <CpuCallout info={cpuCallout?.tone === 'you' ? null : cpuCallout} placement="strip" />
+                <AnimatePresence mode="wait">
+                  {tip !== null ? <TipBubble key={tip} tip={tip} balance={balance} onClose={() => closeTip()} /> : null}
+                </AnimatePresence>
+              </>
+            }
           />
           <div className={`board-area${dragCard ? ' is-drop-armed' : ''}`} ref={boardAreaRef}>
             <Board
@@ -559,17 +614,19 @@ export function Game({
               )}
               dropArmed={dragCard !== null}
               flash={incomeFlash}
+              onPickDistrict={(index) => {
+                if (sheet?.kind === 'slotTarget') return;
+                playSelect();
+                hapticTap();
+                setSheet({ kind: 'district', index });
+              }}
               onPick={(slotId) => {
                 if (locked) return;
                 // 対象選び（封鎖者・検査官・顔役・それを写す影武者）の間は、区画の詳細シートを開かず、
                 // タップした区画をそのまま対象にして確定する（要望 G3）。
                 if (sheet?.kind === 'slotTarget') {
                   const r = slotPick(state, 'you', sheet.card, sheet.mode, slotId, balance);
-                  if (!r.ok) {
-                    playReject();
-                    hapticReject();
-                    return;
-                  }
+                  if (!r.ok) return rejectWith(r.reason);
                   commitCard(sheet.card, r.action);
                   return;
                 }
@@ -638,15 +695,14 @@ export function Game({
             using={using}
             onDrop={dropCard}
             onDragActive={setDragCard}
+            notice={handNotice}
             targeting={sheet?.kind === 'heraldTarget'}
             onPick={(card) => {
               // 伝令の対象選び（盤面で離したあと）。タップした手札をそのまま対象にする。伝令自身は対象にできない。
               if (locked || sheet?.kind !== 'heraldTarget') return;
-              if (card === 'herald' || !canUseCard(state, 'herald', balance)) {
-                playReject();
-                hapticReject();
-                return;
-              }
+              if (card === 'herald') return rejectWith('伝令は自分自身を送れません');
+              const why = cardBlockReason(state, 'you', 'herald', locked, balance);
+              if (why) return rejectWith(why);
               commitCard('herald', { type: 'useCard', card: 'herald', heraldTarget: card });
             }}
             onMenu={() => {
@@ -671,6 +727,20 @@ export function Game({
             onUpgrade={() => commitSlotAction({ type: 'upgrade', slotId: sheet.slotId })}
             onAcquire={() => commitSlotAction({ type: 'acquire', slotId: sheet.slotId })}
             onRoad={commitRoad}
+            onClose={() => setSheet(null)}
+          />
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {sheet?.kind === 'district' ? (
+          <DistrictSheet
+            key="district"
+            state={state}
+            district={sheet.index}
+            viewer={'you'}
+            balance={balance}
+            ownerName={{ you: 'あなた', cpu: 'CPU' }}
             onClose={() => setSheet(null)}
           />
         ) : null}
@@ -711,7 +781,7 @@ export function Game({
       <AnimatePresence>
         {sheet?.kind === 'help' ? (
           <Sheet key="help" title="あそびかた" onClose={() => setSheet(null)}>
-            <HelpText balance={balance} />
+            <HelpText balance={balance} deck={deck} />
           </Sheet>
         ) : null}
       </AnimatePresence>
