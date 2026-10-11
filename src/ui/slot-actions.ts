@@ -2,23 +2,25 @@
 // 画面に直書きせず、ここで決めてテストする。判定そのものは src/game の canUpgrade / canAcquire に任せ、
 // ここは「なぜ押せないか」を言葉にするだけ。
 
-import { BUILDING_NAMES, buildingTextFor, buildingVp, type Balance } from '@/game/balance';
+import { BUILDING_NAMES, buildingEffect, buildingTextFor, buildingVp, type Balance } from '@/game/balance';
 import { canAcquire, canUpgrade } from '@/game/reducer';
 import {
   acquireBlockOf,
   acquireCostFor,
   acquirePriceOf,
-  districtCounts,
   districtOfSlot,
   opponentOf,
   slotLocked,
+  slotMaxed,
   titleHolder,
   titleVpSwing,
   upgradeCostFor,
   upgradePriceOf,
   vpOfSlot,
 } from '@/game/selectors';
-import type { Action, GameState, PlayerId } from '@/game/types';
+import type { Action, BuildingId, GameState, PlayerId } from '@/game/types';
+
+import { districtMeasureLabel, districtTally, tallyText } from './district-view';
 
 /** これ以上上げられないか。上限のレベル数は直書きせず、upgradePriceOf が Infinity を返すかで見る
  *  （Lv の上限は src/game 側が決める）。 */
@@ -171,12 +173,67 @@ export function districtNote(
   } else if (titleVpSwing(state, slotId, foe, viewer, balance) < 0) {
     return `買収されると${name}の称号（${vp} VP）を失います`;
   }
-  const counts = districtCounts(state, d, balance);
+  // 件数か VP の合計か（いまのルールで称号を決める値）は district-view が決める
+  const { measure, values } = districtTally(state, d, balance);
   const holder = titleHolder(state, d);
-  const tally = `${names[viewer]} ${counts[viewer]} 件・${names[foe]} ${counts[foe]} 件`;
+  const tally = `${names[viewer]} ${tallyText(measure, values[viewer])}・${names[foe]} ${tallyText(measure, values[foe])}`;
   return holder === null
-    ? `${name}: ${tally}。多く持つ側に称号（+${vp} VP）`
+    ? `${name}: ${tally}。${districtMeasureLabel(balance)}が多い側に称号（+${vp} VP）`
     : `${name}: ${tally}。称号は${names[holder]}`;
+}
+
+/** 建物の詳細に並べる固定の数値の 1 行。label は常に同じ並び（VP・建築コスト・買収コスト・増築コスト・収益）。 */
+export interface SpecRow {
+  label: string;
+  value: string;
+}
+
+/** 建物の収益（毎ターン入るコイン）を balance から読む。balance.buildings[id] に数の income があれば Lv1 の値、
+ *  無ければ null（行を出さない）。ルール変更で収益が入ったら、ここだけ合わせればよい。 */
+export function buildingIncomeOf(balance: Balance, id: BuildingId): number | null {
+  const v = (balance.buildings[id] as { income?: unknown }).income;
+  return typeof v === 'number' ? v : null;
+}
+
+/** 建物そのものの固定の数値（盤面の状態によらない）。Lv ごとに変わる値は「Lv1 / Lv2 / Lv3」の順に並べる。
+ *  レベル数は balance.maxLevel から（直書きしない）。 */
+export function buildingSpecRows(id: BuildingId, balance: Balance): SpecRow[] {
+  const levels = Array.from({ length: Math.max(1, balance.maxLevel) }, (_, i) => i + 1);
+  const vp =
+    id === 'cathedral'
+      ? `他の物件 1 件につき ${levels.map((lv) => buildingEffect(balance, 'cathedralVpPerBuilding', lv)).join(' / ')}`
+      : levels.map((lv) => buildingVp(balance, id, lv)).join(' / ');
+  const upgrades = levels
+    .slice(1)
+    .map((lv) => `Lv${lv} ${lv >= 3 ? balance.upgrades3[id].cost : balance.upgrades[id].cost}`)
+    .join(' ・ ');
+  const rows: SpecRow[] = [
+    { label: 'VP', value: levels.length > 1 ? `${vp}（Lv${levels.join('/')}）` : vp },
+    { label: '建築コスト', value: `${balance.buildings[id].cost}` },
+    { label: '買収コスト', value: `払われた額 ＋${balance.acquireMarkup}` },
+  ];
+  if (upgrades) rows.push({ label: '増築コスト', value: upgrades });
+  const income = buildingIncomeOf(balance, id);
+  if (income !== null) rows.push({ label: '収益', value: `毎ターン +${income}` });
+  return rows;
+}
+
+/** 区画の今の状態の 1 行（建物の詳細の一番上）。持ち主・Lv・今の市場価値（＝買収に要るコイン）。
+ *  最終段階なら「最終段階のため買収不可」。未建設なら今の建設費。 */
+export function slotStatusLine(
+  state: GameState,
+  slotId: number,
+  viewer: PlayerId,
+  balance: Balance,
+  names: Record<PlayerId, string>,
+  buildCost: number,
+): string {
+  const slot = state.market[slotId]!;
+  if (slot.owner === null) return `空き地 ・ いま建てると ${buildCost} コイン`;
+  const head = `${names[slot.owner]}の物件 ・ Lv${slot.level}`;
+  if (slotMaxed(slot, balance)) return `${head} ・ 最終段階のため買収不可`;
+  const price = slot.owner === viewer ? acquirePriceOf(slot, balance) : acquireCostFor(state, viewer, slot, balance);
+  return `${head} ・ 市場価値 ${price}（払われた ${slot.paid} ＋${balance.acquireMarkup}）`;
 }
 
 export interface LevelEffect {
