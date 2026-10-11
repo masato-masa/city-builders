@@ -285,7 +285,8 @@ export const DEFAULT_BALANCE: Balance = {
     usurer: { cost: 0 },
     spy: { cost: 1 },
     taxman: { cost: 3 },
-    blockader: { cost: 5 },
+    // 封鎖者 5 → 3: 効果が「次の相手のターンだけ」になったので（card-value 200 で 5: 禁止 46.0 / 優先 30.0%、3: 43.5 / 40.0%、2: 38.5 / 32.0%）
+    blockader: { cost: 3 },
     // 新しいカード（既定のデッキには入っていない。NEW_CARDS_DECK で測る）
     // 職人: 設計書の 2 コスト・−5 は優先 34.1%（上げる物件が無い手番にも撃つ損）。0 コスト・−3 で禁止 44.1 / 優先 49.4%
     // （card-value 400 --deck=new。1/−5 は 37.4/36.3、0/−5 は 39.1/54.3、0/−2 は 45.6/51.0）
@@ -303,8 +304,9 @@ export const DEFAULT_BALANCE: Balance = {
   },
   // 採掘師 3 コスト・次の収入 +4（ユーザー指定 2026-10-11）
   minerIncome: 4,
-  // 銀行家: 次の収入 = 自分の VP（ユーザー指定「獲得 VP の分だけ」）
-  bankerIncome: 0,
+  // 銀行家: 次の収入 = 2 + 自分の VP（ユーザー指定「獲得 VP の分だけ増やす」。VP の倍率は 1 のまま）。
+  // 基本 0 は使う手番を選ぶ札になりすぎた（card-value 200: 基本 0 で 禁止 45.0 / 優先 31.5%、2 で 42.0 / 35.0%、4 で 36.3 / 38.3%）
+  bankerIncome: 2,
   bankerVpRate: 1,
   architectDiscount: 6,
   taxmanAmount: 5,
@@ -333,8 +335,9 @@ export const DEFAULT_BALANCE: Balance = {
   cathedralVpPerBuilding: 2,
   exchangeBonus: 2,
   // 5 だと先手の 1 ターン目に商館（7）が建ち、地区の称号を先取りできて必須級だった（card-value 禁止 35.8%）
-  usurerGain: 4,
-  usurerDebt: 6,
+  // 4/6 → 3/5: 建物に収益が付き、先手の 1 ターン目の商館（1 + 2 + 4 = 7）の価値が上がった（card-value 300: 4/6 で 禁止 37.7 / 優先 55.8%、3/5 で 42.0 / 50.3%）
+  usurerGain: 3,
+  usurerDebt: 5,
   festivalMultiplier: 2,
   festivalIncomeBonus: 2,
   mineMinerBonus: 2,

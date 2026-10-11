@@ -10,6 +10,7 @@
  * 乱数は src/game/rng.ts の seeded PRNG のみを使う。試合の seed は
  * 「出発点の番号・パス番号・項目番号・試した値の番号・先手後手・何試合目か」という
  * 「引数」だけから決まるので、同じコマンドを 2 回走らせれば必ず同じ結果になる。 */
+import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -258,8 +259,30 @@ function search(startIdx: number, start: StartingPoint, games: number, balance: 
 const GAMES_PER_EVAL = Number(process.argv[2] ?? 200);
 const balance = DEFAULT_BALANCE;
 
+// 4 つの出発点は互いに独立（seed は出発点の番号から決まる）なので、子プロセスで並列に回す。
+// 結果は直列で回したときと同じ。子プロセスは SEARCH_WORKER=<番号> で 1 つだけ探索し、結果を JSON で返す
+const worker = process.env.SEARCH_WORKER;
+if (worker !== undefined) {
+  const i = Number(worker);
+  process.stdout.write(JSON.stringify(search(i, STARTING_POINTS[i]!, GAMES_PER_EVAL, balance)));
+  process.exit(0);
+}
+
 const startedAt = Date.now();
-const results = STARTING_POINTS.map((sp, i) => search(i, sp, GAMES_PER_EVAL, balance));
+const results: SearchResult[] = await Promise.all(
+  STARTING_POINTS.map(
+    (_, i) =>
+      new Promise<SearchResult>((resolve, reject) => {
+        const child = spawn(process.execPath, [...process.execArgv, fileURLToPath(import.meta.url), String(GAMES_PER_EVAL)], {
+          env: { ...process.env, SEARCH_WORKER: String(i) },
+          stdio: ['ignore', 'pipe', 'inherit'],
+        });
+        let out = '';
+        child.stdout.on('data', (d) => (out += d));
+        child.on('close', (code) => (code === 0 ? resolve(JSON.parse(out) as SearchResult) : reject(new Error(`worker ${i}: ${code}`))));
+      }),
+  ),
+);
 const elapsedMs = Date.now() - startedAt;
 
 // ---------------------------------------------------------------------------
