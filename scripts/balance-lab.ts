@@ -15,12 +15,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { chooseAction, type AiOptions } from '../src/ai/choose';
-import { DEFAULT_WEIGHTS, type Profile, type Weights } from '../src/ai/evaluate';
+import { chooseAction, optionsFor, type AiOptions } from '../src/ai/choose';
+import { DEFAULT_PROFILE, DEFAULT_WEIGHTS, type Profile, type Weights } from '../src/ai/evaluate';
 import { CARD_NAMES, type Balance } from '../src/game/balance';
 import { reduce } from '../src/game/reducer';
 import { createRng } from '../src/game/rng';
-import { doubleSourceOf, handOf, opponentOf, winnerOf } from '../src/game/selectors';
+import { doubleSourceOf, handOf, opponentOf, scoreOf, winnerOf } from '../src/game/selectors';
 import { createGame } from '../src/game/setup';
 import type { CardId, GameState, PlayerId } from '../src/game/types';
 
@@ -149,6 +149,31 @@ interface GameStats {
   deck: readonly CardId[];
   /** 影武者が写した札の回数 */
   doubleSources: Partial<Record<CardId, number>>;
+  /** 試合の形（長さ・大差・逆転）。shapeOf で集計する */
+  shape: MatchShape;
+}
+
+/** 試合の形。「楽しい」の代わりに測る: 短すぎないか・一方的でないか・逆転があるか（2026-10-11 雪だるまの問題）。 */
+interface MatchShape {
+  /** 終了時の VP（勝者・敗者）。引き分けは同じ値 */
+  winnerVp: number;
+  loserVp: number;
+  /** 両者合計の手番の半分の時点で VP が多かった側が、最後に負けたか。半分の時点で同点・引き分けの試合は null */
+  comeback: boolean | null;
+}
+
+/** 手番ごとの VP（各手番の終わり、A・B）から試合の形を出す。 */
+function shapeOf(vps: [number, number][], winner: 'A' | 'B' | 'draw'): MatchShape {
+  const last = vps[vps.length - 1] ?? [0, 0];
+  const winnerVp = Math.max(last[0], last[1]);
+  const loserVp = Math.min(last[0], last[1]);
+  const mid = vps[Math.max(0, Math.floor(vps.length / 2) - 1)] ?? [0, 0];
+  let comeback: boolean | null = null;
+  if (winner !== 'draw' && mid[0] !== mid[1]) {
+    const midLeader = mid[0] > mid[1] ? 'A' : 'B';
+    comeback = midLeader !== winner;
+  }
+  return { winnerVp, loserVp, comeback };
 }
 
 /** 先手を強制的に決める。createGame は seed から先手をランダムに決めるが、
@@ -210,6 +235,7 @@ function runOne(
     });
   };
 
+  const vps: [number, number][] = [];
   let guard = 0;
   // maxTurnsPerPlayer * 2 （既定 40）が本来の上限。guard はその安全網
   while (g.phase === 'playing' && guard < 100) {
@@ -283,6 +309,7 @@ function runOne(
     }
 
     g = reduce(next, { type: 'endTurn' }, balance);
+    vps.push([scoreOf(g, 'you', balance), scoreOf(g, 'cpu', balance)]);
   }
 
   const rawWinner = winnerOf(g, balance);
@@ -324,6 +351,7 @@ function runOne(
     },
     deck: deck ?? [...g.players.you.hand, ...g.players.you.queue].filter((c): c is CardId => c !== null),
     doubleSources,
+    shape: shapeOf(vps, winner),
   };
 }
 
@@ -399,7 +427,50 @@ const emptyWith = () => ({
 });
 let acquiresTotal = 0;
 
-for (let i = 0; i < N; i++) {
+/** 試合の形の集計（性格の総当たり・ふつう同士を別々に） */
+class ShapeTally {
+  games = 0;
+  turnsSum = 0;
+  blowouts = 0;
+  comebacks = 0;
+  comebackBase = 0;
+  diffs: number[] = [];
+  add(r: GameStats): void {
+    this.games++;
+    this.turnsSum += r.turnsPerPlayer;
+    const { winnerVp, loserVp, comeback } = r.shape;
+    // 大差: 敗者の VP が勝者の 1/3 未満（引き分けは数えない）
+    if (r.winner !== 'draw' && loserVp * 3 < winnerVp) this.blowouts++;
+    if (comeback !== null) {
+      this.comebackBase++;
+      if (comeback) this.comebacks++;
+    }
+    this.diffs.push(winnerVp - loserVp);
+  }
+  get turns(): number {
+    return this.turnsSum / Math.max(1, this.games);
+  }
+  get blowoutRate(): number {
+    return this.blowouts / Math.max(1, this.games);
+  }
+  get comebackRate(): number {
+    return this.comebacks / Math.max(1, this.comebackBase);
+  }
+  get medianDiff(): number {
+    const d = [...this.diffs].sort((a, b) => a - b);
+    if (d.length === 0) return NaN;
+    const m = Math.floor(d.length / 2);
+    return d.length % 2 ? d[m]! : (d[m - 1]! + d[m]!) / 2;
+  }
+}
+const personaShape = new ShapeTally();
+let normalFirst = 0;
+const normalShape = new ShapeTally();
+
+/** --shape: 性格の総当たりを飛ばし、ふつう同士の試合の形だけを測る（数値を振るときの速い確認用） */
+const SHAPE_ONLY = process.argv.includes('--shape');
+
+for (let i = 0; i < (SHAPE_ONLY ? 0 : N); i++) {
   for (let j = i + 1; j < N; j++) {
     const personaI = PERSONAS[i]!;
     const personaJ = PERSONAS[j]!;
@@ -455,6 +526,7 @@ for (let i = 0; i < N; i++) {
           }
         }
         acquiresTotal += result.acquires.A + result.acquires.B;
+        personaShape.add(result);
         turnsPerPlayerSum += result.turnsPerPlayer;
         globalTurns += result.totalTurns;
         bankedTurns += result.bankedTurns.A + result.bankedTurns.B;
@@ -515,6 +587,28 @@ for (let i = 0; i < N; i++) {
       }
     }
   }
+}
+
+// ふつう同士（ゲーム内の CPU。揺らぎ 8・妨害 0.8）。試合の形はこちらが実際の対戦に近い
+// （性格の総当たりは揺らぎ 0 で、同じ局面から同じ手を打つ）。seed は性格の組と重ならない系列
+{
+  // --shape-profile=default: ゲーム内の重み（CPU_PROFILE）の代わりに DEFAULT_PROFILE で測る（重みの癖と規則の癖を分けるため）
+  const normal = process.argv.includes('--shape-profile=default')
+    ? { ...optionsFor('normal'), profile: DEFAULT_PROFILE }
+    : optionsFor('normal');
+  for (let g = 0; g < GAMES_PER_PAIR; g++) {
+    const seed = 900_000_000 + g;
+    const r = runOne(seed, normal, normal, g % 2 === 0, DEFAULT_BALANCE);
+    normalShape.add(r);
+    normalFirst += r.winner === 'draw' ? 0.5 : r.winner === r.firstMover ? 1 : 0;
+  }
+}
+if (SHAPE_ONLY) {
+  const pct1 = (v: number) => `${(v * 100).toFixed(1)}%`;
+  console.log(
+    `ふつう同士 ${GAMES_PER_PAIR} 試合: 手番 ${normalShape.turns.toFixed(1)} / 大差 ${pct1(normalShape.blowoutRate)} / 逆転 ${pct1(normalShape.comebackRate)} / VP 差の中央値 ${normalShape.medianDiff.toFixed(1)} / 先手 ${pct1(normalFirst / GAMES_PER_PAIR)}`,
+  );
+  process.exit(0);
 }
 
 // ---------------------------------------------------------------------------
@@ -749,6 +843,18 @@ if (DECK.kind === 'draw') {
   console.log('');
 }
 
+console.log('## 表 9: 試合の形（長さ・大差・逆転）');
+console.log('');
+console.log('大差 = 敗者の VP が勝者の 1/3 未満。逆転 = 両者合計の手番の半分の時点で VP が少なかった側が勝った割合（同点・引き分けを除く）。');
+console.log('');
+console.log('| 項目 | 性格の総当たり | ふつう同士 | 目標 |');
+console.log('|---|---|---|---|');
+console.log(`| 1 人あたりの手番 | ${personaShape.turns.toFixed(1)} | ${normalShape.turns.toFixed(1)} | 14〜18 |`);
+console.log(`| 大差の試合 | ${pct(personaShape.blowoutRate)} | ${pct(normalShape.blowoutRate)} | 60% 以下 |`);
+console.log(`| 中盤の劣勢からの逆転 | ${pct(personaShape.comebackRate)} | ${pct(normalShape.comebackRate)} | 25% 以上 |`);
+console.log(`| 最終 VP 差の中央値 | ${personaShape.medianDiff.toFixed(1)} | ${normalShape.medianDiff.toFixed(1)} | ― |`);
+console.log('');
+
 console.log('## 合格条件（今の姿を記録する基準線。いまは全部 ❌ でも構わない）');
 console.log('');
 console.log('| 条件 | 基準 | 実測 | 判定 |');
@@ -789,4 +895,12 @@ const minMax = (values: number[]): [number, number] => [Math.min(...values), Mat
   console.log(
     `| 1 周が速すぎない | デッキ 1 周 2.5 ターン以上 | ${Number.isFinite(deckCycleAvg) ? deckCycleAvg.toFixed(2) : '(サンプル無し)'} | ${ok ? '✅' : '❌'} |`,
   );
+}
+{
+  const t = normalShape.turns;
+  console.log(`| 試合が短すぎない（ふつう同士） | 1 人あたり 14〜18 手番 | ${t.toFixed(1)} | ${t >= 14 && t <= 18 ? '✅' : '❌'} |`);
+  const b = normalShape.blowoutRate;
+  console.log(`| 一方的でない（ふつう同士） | 大差 60% 以下 | ${pct(b)} | ${b <= 0.6 ? '✅' : '❌'} |`);
+  const c = normalShape.comebackRate;
+  console.log(`| 逆転がある（ふつう同士） | 中盤の劣勢から 25% 以上 | ${pct(c)} | ${c >= 0.25 ? '✅' : '❌'} |`);
 }
