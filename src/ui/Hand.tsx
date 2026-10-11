@@ -19,6 +19,15 @@ const SLOTS = [0, 1, 2, 3] as const;
 /** タップしたときの案内を出しておく時間。 */
 const TAP_HINT_MS = 1600;
 
+/** 使えなかった理由を出しておく時間（読み切れる長さ。演出は既定でゆっくり）。 */
+const NOTICE_MS = 2400;
+
+/** 手札の上に出す「使えなかった理由」。id は出し直しの合図。 */
+export interface HandNotice {
+  id: number;
+  text: string;
+}
+
 export function Hand({
   state,
   balance = DEFAULT_BALANCE,
@@ -30,6 +39,7 @@ export function Hand({
   using = [],
   onDrop,
   onDragActive,
+  notice = null,
 }: {
   state: GameState;
   balance?: Balance;
@@ -49,6 +59,8 @@ export function Hand({
   onDrop?: (card: CardId, point: { x: number; y: number }) => void;
   /** ドラッグの開始・終了。盤面の「ここへ落とす」表示と案内に使う。 */
   onDragActive?: (card: CardId | null) => void;
+  /** 使えなかった理由（離した直後に手札の上へ短く出す）。id が変わるたびに出し直す。 */
+  notice?: HandNotice | null;
 }) {
   const hand = handSlotsOf(state, viewer);
   const next = nextCardOf(state, viewer, balance);
@@ -64,6 +76,15 @@ export function Hand({
     const t = window.setTimeout(() => setHint(0), TAP_HINT_MS);
     return () => window.clearTimeout(t);
   }, [hint]);
+
+  // 使えなかった理由。届いたら NOTICE_MS だけ出す（タップの案内より優先）。
+  const [shownNotice, setShownNotice] = useState<HandNotice | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    setShownNotice(notice);
+    const t = window.setTimeout(() => setShownNotice((n) => (n?.id === notice.id ? null : n)), NOTICE_MS);
+    return () => window.clearTimeout(t);
+  }, [notice]);
 
   const heraldDrag = dragging === 'herald';
   return (
@@ -120,6 +141,18 @@ export function Hand({
       <AnimatePresence>
         {peek ? (
           <CardPeek key={`peek-${peek}`} card={peek} state={state} viewer={viewer} balance={balance} />
+        ) : shownNotice ? (
+          <motion.div
+            key={`notice-${shownNotice.id}`}
+            className="hand-hint is-reject"
+            role="status"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' }}
+            transition={{ duration: 0.16 }}
+          >
+            {shownNotice.text}
+          </motion.div>
         ) : hint > 0 && !targeting ? (
           <motion.div
             key="hint"
@@ -244,10 +277,11 @@ function CardButton({
     }
   };
 
+  // 使えない札も暗くしない（ユーザーの感想: 暗い札は「何か壊れている」に見える）。
+  // 使えないまま離したら、手札の上に理由を 1 行で出す（呼び出し側が notice で渡す）。
   const className = [
     'card',
     art ? 'has-art' : null,
-    !targeting && !usable ? 'is-dim' : null,
     targeting && card !== 'herald' ? 'is-targetable' : null,
     targeting && card === 'herald' && !lifted ? 'is-target-invalid' : null,
     lifted ? 'is-selected' : null,

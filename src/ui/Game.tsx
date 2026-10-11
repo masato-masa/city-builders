@@ -19,7 +19,8 @@ import { loadProgress, saveProgress, withResult } from '@/storage/storage';
 
 import { BUILDING_ART, cardArtOf, FIELD_URL } from './art';
 import { Board, boardTargetingOf, type IncomeFlash } from './Board';
-import { dragGuide, resolveDrop, slotPick, slotTargetModeOf, type SlotTargetMode } from './card-input';
+import { cardBlockReason, dragGuide, resolveDrop, slotPick, slotTargetModeOf, type SlotTargetMode } from './card-input';
+import { DistrictSheet } from './DistrictSheet';
 import { CoinBar } from './CoinBar';
 import { type CpuStep, playTurnSteps } from './cpu-turn';
 import { cardAftermath, cardSequence, TARGET_LABEL } from './feel';
@@ -43,7 +44,7 @@ import {
   hapticWin,
   hapticYourTurn,
 } from './haptics';
-import { Hand } from './Hand';
+import { Hand, type HandNotice } from './Hand';
 import { OpponentStrip } from './OpponentStrip';
 import { stageCallout, playStageCue } from './income-stages';
 import { dropHitAt, playIncome, runIncomeSequence, useLater } from './play-helpers';
@@ -86,6 +87,8 @@ const TIP_DELAY_MS = 700;
 
 type Pending =
   | { kind: 'slot'; slotId: number }
+  /** 地区の名札をタップした: その地区の詳細 */
+  | { kind: 'district'; index: number }
   | { kind: 'heraldTarget' }
   /** 区画を対象に取る札（封鎖者・検査官・顔役と、それを写す影武者）の対象選び。card は実際に使う札 */
   | { kind: 'slotTarget'; card: CardId; mode: SlotTargetMode }
@@ -141,6 +144,13 @@ export function Game({
   const flashSeq = useRef(0);
   // 手札をドラッグ中の札。盤面に「ここへ落とす」表示を出す。
   const [dragCard, setDragCard] = useState<CardId | null>(null);
+  // 使えなかった理由（手札の上に短く出す）
+  const [handNotice, setHandNotice] = useState<HandNotice | null>(null);
+  const rejectWith = (text: string) => {
+    playReject();
+    hapticReject();
+    setHandNotice((n) => ({ id: (n?.id ?? 0) + 1, text }));
+  };
   const [sheet, setSheet] = useState<Pending>(null);
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
   const [hapticsOn, setHapticsOn] = useState(() => isHapticsEnabled());
@@ -535,11 +545,10 @@ export function Game({
   const dropCard = (card: CardId, point: { x: number; y: number }) => {
     const r = resolveDrop(state, 'you', card, dropHitAt(point.x, point.y, boardAreaRef.current, card), balance);
     if (r.kind === 'cancel') return;
-    if (locked || !canUseCard(state, card, balance) || r.kind === 'reject') {
-      playReject();
-      hapticReject();
-      return;
-    }
+    // 使えない理由を必ず言葉で返す（音と振動だけでは「0 コストなのに使えない」が分からない）。
+    const blocked = cardBlockReason(state, 'you', card, locked, balance) ?? (r.kind === 'reject' ? r.reason : null);
+    if (blocked) return rejectWith(blocked);
+    if (r.kind === 'reject') return;
     if (r.kind === 'target') {
       return setSheet(r.mode === 'herald' ? { kind: 'heraldTarget' } : { kind: 'slotTarget', card, mode: r.mode });
     }
@@ -605,17 +614,19 @@ export function Game({
               )}
               dropArmed={dragCard !== null}
               flash={incomeFlash}
+              onPickDistrict={(index) => {
+                if (sheet?.kind === 'slotTarget') return;
+                playSelect();
+                hapticTap();
+                setSheet({ kind: 'district', index });
+              }}
               onPick={(slotId) => {
                 if (locked) return;
                 // 対象選び（封鎖者・検査官・顔役・それを写す影武者）の間は、区画の詳細シートを開かず、
                 // タップした区画をそのまま対象にして確定する（要望 G3）。
                 if (sheet?.kind === 'slotTarget') {
                   const r = slotPick(state, 'you', sheet.card, sheet.mode, slotId, balance);
-                  if (!r.ok) {
-                    playReject();
-                    hapticReject();
-                    return;
-                  }
+                  if (!r.ok) return rejectWith(r.reason);
                   commitCard(sheet.card, r.action);
                   return;
                 }
@@ -684,15 +695,14 @@ export function Game({
             using={using}
             onDrop={dropCard}
             onDragActive={setDragCard}
+            notice={handNotice}
             targeting={sheet?.kind === 'heraldTarget'}
             onPick={(card) => {
               // 伝令の対象選び（盤面で離したあと）。タップした手札をそのまま対象にする。伝令自身は対象にできない。
               if (locked || sheet?.kind !== 'heraldTarget') return;
-              if (card === 'herald' || !canUseCard(state, 'herald', balance)) {
-                playReject();
-                hapticReject();
-                return;
-              }
+              if (card === 'herald') return rejectWith('伝令は自分自身を送れません');
+              const why = cardBlockReason(state, 'you', 'herald', locked, balance);
+              if (why) return rejectWith(why);
               commitCard('herald', { type: 'useCard', card: 'herald', heraldTarget: card });
             }}
             onMenu={() => {
@@ -717,6 +727,20 @@ export function Game({
             onUpgrade={() => commitSlotAction({ type: 'upgrade', slotId: sheet.slotId })}
             onAcquire={() => commitSlotAction({ type: 'acquire', slotId: sheet.slotId })}
             onRoad={commitRoad}
+            onClose={() => setSheet(null)}
+          />
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {sheet?.kind === 'district' ? (
+          <DistrictSheet
+            key="district"
+            state={state}
+            district={sheet.index}
+            viewer={'you'}
+            balance={balance}
+            ownerName={{ you: 'あなた', cpu: 'CPU' }}
             onClose={() => setSheet(null)}
           />
         ) : null}

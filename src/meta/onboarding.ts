@@ -10,6 +10,7 @@ import type { Difficulty } from '@/ai/choose';
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { canBuild, canUpgrade } from '@/game/reducer';
 import type { Action, GameState, PlayerId } from '@/game/types';
+import { districtMeasureLabel } from '@/ui/district-view';
 
 export type TipId = 'drag' | 'build' | 'invest' | 'acquire' | 'district' | 'upgrade';
 
@@ -102,7 +103,8 @@ export function tipText(id: TipId, balance: Balance = DEFAULT_BALANCE): { title:
     case 'district':
       return {
         title: '地区の称号',
-        body: `名札の数字は件数（自分 対 相手）。多いほうに +${balance.districtTitleVp}VP`,
+        // 盤面の名札は名前と旗だけ。内訳（件数か VP の合計）はタップした地区のシートで見せる
+        body: `名札をタップで内訳。${districtMeasureLabel(balance)}が多いほうに+${balance.districtTitleVp}VP`,
       };
     case 'upgrade':
       return {

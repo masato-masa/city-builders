@@ -76,6 +76,17 @@ export function UpArrowIcon() {
   );
 }
 
+/** 区画の名札の「最終段階のため買収不可」の鍵。文字の代わりに出す（理由は詳細シートで言う）。 */
+export function LockIcon() {
+  return (
+    <svg className="fig-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7.5 10.5V7.8a4.5 4.5 0 0 1 9 0v2.7" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+      <rect x="4.5" y="10" width="15" height="11.5" rx="2.6" fill="currentColor" />
+      <circle cx="12" cy="15.2" r="1.8" fill="rgb(0 0 0 / 0.5)" />
+    </svg>
+  );
+}
+
 /** 設定ボタン（? の隣）に置く歯車。 */
 export function SettingsIcon() {
   return (

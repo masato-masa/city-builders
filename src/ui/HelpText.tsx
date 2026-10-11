@@ -5,6 +5,7 @@ import type { Balance } from '@/game/balance';
 import type { CardId } from '@/game/types';
 
 import { cardArtOf } from './art';
+import { districtRuleText } from './district-view';
 import { HELP_SECTIONS, helpCards, helpSummary, type HelpSectionId } from './help-content';
 import { CoinBagIcon, UpArrowIcon } from './icons';
 import { playUiTap } from './sound';
@@ -103,7 +104,7 @@ function HelpSection({ id, balance, deck }: { id: HelpSectionId; balance: Balanc
               <UpArrowIcon />
               アップグレード費
             </span>{' '}
-            で 1 段上げる（Lv{balance.maxLevel} まで。VP と効果が増える）。Lv{balance.maxLevel} は買収されない。
+            で 1 段上げる（Lv{balance.maxLevel} まで。VP と効果が増える）。Lv{balance.maxLevel} は買収されない（名札に鍵の印）。
           </p>
           <p className="sheet-text">
             <b>相手の物件</b>:{' '}
@@ -113,15 +114,18 @@ function HelpSection({ id, balance, deck }: { id: HelpSectionId; balance: Balanc
             </span>{' '}
             を払うと自分のものになる（代金は相手に渡る）。
           </p>
-          <p className="sheet-text">同じ区画は 1 ターンに 1 回だけ動かせます。</p>
+          <p className="sheet-text">同じ区画は 1 ターンに 1 回だけ動かせます。区画をタップすると、VP・建築・買収・増築のコストが見られます。</p>
         </>
       );
     case 'districts':
       return (
-        <p className="sheet-text">
-          盤面は{balance.districts.map((d) => d.name).join('・')}の {balance.districts.length} 地区。端の名札の数字は
-          件数（自分 対 相手）で、多いほうに<b>称号 +{balance.districtTitleVp} VP</b>。同数なら今の持ち主のまま。
-        </p>
+        <>
+          <p className="sheet-text">
+            盤面は{balance.districts.map((d) => d.name).join('・')}の {balance.districts.length} 地区。
+            地区ごとに<b>称号 +{balance.districtTitleVp} VP</b>があります。{districtRuleText(balance)}
+          </p>
+          <p className="sheet-text">端の名札（旗の色が称号の持ち主）をタップすると、自分と相手の値と区画の一覧が見られます。</p>
+        </>
       );
     case 'cards':
       return (
