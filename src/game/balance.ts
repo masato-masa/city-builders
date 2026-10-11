@@ -280,7 +280,8 @@ export const DEFAULT_BALANCE: Balance = {
     banker: { cost: 5 },
     architect: { cost: 2 },
     herald: { cost: 1 },
-    festival: { cost: 3 },
+    // 祝祭 3 → 2: 建物の収益で倍の対象は増えたが、使う手番を選ぶ札になった（card-value 400: 3 で 禁止 38.3 / 優先 34.6%、2 で 37.5 / 46.0%）
+    festival: { cost: 2 },
     guard: { cost: 1 },
     usurer: { cost: 0 },
     spy: { cost: 1 },
