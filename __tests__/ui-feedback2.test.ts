@@ -104,6 +104,16 @@ describe('地区の見せ方（district-view）', () => {
     expect(districtNote(g, b, 'cpu', B, NAMES)).toContain('CPU 1 件・あなた 1 件');
   });
 
+  it('最終段階の物件では「買収されると称号を失う」と言わない', () => {
+    const g = board();
+    const s0 = B.districts[0]!.slots[0]!;
+    g.market[s0] = { ...g.market[s0]!, owner: 'you', level: 1 };
+    g.titles[0] = 'you';
+    expect(districtNote(g, s0, 'you', B, NAMES)).toContain('失います');
+    g.market[s0]!.level = B.maxLevel;
+    expect(districtNote(g, s0, 'you', B, NAMES)).not.toContain('失います');
+  });
+
   it('手引きは「名札をタップで内訳」と言い、件数の話をしない', () => {
     const t = tipText('district', B).body;
     expect(t).toContain('名札をタップ');

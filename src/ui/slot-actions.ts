@@ -166,11 +166,12 @@ export function districtNote(
   const name = balance.districts[d]!.name;
   const foe = opponentOf(viewer);
   const vp = balance.districtTitleVp;
-  if (slot.owner !== viewer) {
-    if (titleVpSwing(state, slotId, viewer, viewer, balance) > 0) {
-      return `${slot.owner === null ? '建てる' : '買収する'}と${name}の称号（+${vp} VP）が${names[viewer]}に来ます`;
-    }
-  } else if (titleVpSwing(state, slotId, foe, viewer, balance) < 0) {
+  // 最終段階の物件は買収されないので、「買収すると／されると称号が動く」は言わない
+  const movable = !slotMaxed(slot, balance);
+  if (movable && slot.owner !== viewer && titleVpSwing(state, slotId, viewer, viewer, balance) > 0) {
+    return `${slot.owner === null ? '建てる' : '買収する'}と${name}の称号（+${vp} VP）が${names[viewer]}に来ます`;
+  }
+  if (movable && slot.owner === viewer && titleVpSwing(state, slotId, foe, viewer, balance) < 0) {
     return `買収されると${name}の称号（${vp} VP）を失います`;
   }
   // 件数か VP の合計か（いまのルールで称号を決める値）は district-view が決める
