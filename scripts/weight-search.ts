@@ -11,7 +11,7 @@
  * 「出発点の番号・パス番号・項目番号・試した値の番号・先手後手・何試合目か」という
  * 「引数」だけから決まるので、同じコマンドを 2 回走らせれば必ず同じ結果になる。 */
 import { spawn } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { type AiOptions } from '../src/ai/choose';
@@ -262,6 +262,16 @@ const balance = DEFAULT_BALANCE;
 // 4 つの出発点は互いに独立（seed は出発点の番号から決まる）なので、子プロセスで並列に回す。
 // 結果は直列で回したときと同じ。子プロセスは SEARCH_WORKER=<番号> で 1 つだけ探索し、結果を JSON で返す
 const worker = process.env.SEARCH_WORKER;
+// SEARCH_FROM_SAVED=1 なら、出発点を前回の探索結果（searched-profiles.json）にして続きから探す（名前の順は同じ）
+if (process.env.SEARCH_FROM_SAVED === '1') {
+  const saved = JSON.parse(
+    readFileSync(fileURLToPath(new URL('./searched-profiles.json', import.meta.url)), 'utf-8'),
+  ) as { name: string; profile: Profile }[];
+  STARTING_POINTS.forEach((sp, i) => {
+    const hit = saved.find((x) => x.name === sp.name) ?? saved[i];
+    if (hit) STARTING_POINTS[i] = { name: sp.name, profile: hit.profile };
+  });
+}
 if (worker !== undefined) {
   const i = Number(worker);
   process.stdout.write(JSON.stringify(search(i, STARTING_POINTS[i]!, GAMES_PER_EVAL, balance)));

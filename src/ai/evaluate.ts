@@ -276,6 +276,9 @@ function deckHas(p: PlayerState, card: CardId): boolean {
   return p.hand.includes(card) || p.queue.includes(card);
 }
 
+/** 試合が終わった局面の評価の大きさ。途中の局面の評価（数百点）より十分に大きく、勝ちを必ず選び、負けを必ず避ける。 */
+export const FINISHED_SCORE = 100_000;
+
 export function evaluateState(
   state: GameState,
   player: PlayerId,
@@ -283,6 +286,16 @@ export function evaluateState(
   weights: Weights = DEFAULT_WEIGHTS,
 ): number {
   const foe = opponentOf(player);
+  // 試合が終わった局面は勝ち負けそのもので測る。以前は終わった局面も途中の局面と同じ式で測っていたので、
+  // 建物の収益で稼げるようになると、勝っている側が最後の区画を建てて試合を終えず、コインを積み続けた
+  // （2026-10-11、ふつう同士で 9 区画のまま 40 手番・終了時 1000 コイン超）
+  // 全区画が埋まった局面も、この手番の終わりで試合が終わるので同じに扱う（最後の区画を建てる手を、勝っていれば選ぶ）
+  if (state.phase === 'finished' || state.market.every((s) => s.owner !== null)) {
+    const diff = scoreOf(state, player, balance) - scoreOf(state, foe, balance);
+    const coinDiff = state.players[player].coins - state.players[foe].coins;
+    const outcome = diff !== 0 ? Math.sign(diff) : Math.sign(coinDiff);
+    return outcome * FINISHED_SCORE + diff * weights.vp;
+  }
   const p = state.players[player];
   const foeState = state.players[foe];
   const late = lateness(state, balance);
