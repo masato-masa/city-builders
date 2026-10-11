@@ -63,12 +63,13 @@ export const DAILY_RULES: readonly DailyRule[] = [
     }),
   },
   {
-    id: 'toll2',
-    label: () => '城塞の通行料 2 倍',
+    // 城塞の通行料 2 倍（通行料は 2026-10-11 に廃止）の置き換え。収益のある建物だけ、全段で +1
+    id: 'richIncome',
+    label: () => '建物の収益 +1（収益のある建物）',
     patch: (b) => ({
-      fortressToll: b.fortressToll * 2,
-      level2: { ...b.level2, fortressToll: b.level2.fortressToll * 2 },
-      level3: { ...b.level3, fortressToll: b.level3.fortressToll * 2 },
+      buildings: mapValues(b.buildings, (v) => ({ ...v, income: v.income > 0 ? v.income + 1 : v.income })),
+      upgrades: mapValues(b.upgrades, (v) => ({ ...v, income: v.income > 0 ? v.income + 1 : v.income })),
+      upgrades3: mapValues(b.upgrades3, (v) => ({ ...v, income: v.income > 0 ? v.income + 1 : v.income })),
     }),
   },
 ];

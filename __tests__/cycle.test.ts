@@ -52,7 +52,7 @@ describe('循環', () => {
     let g = fixture(ORDER, 200);
     for (const card of ORDER) {
       // 伝令の番（手札は herald / taxman / blockader / miner）では miner が妥当な対象になる
-      g = reduce(g, { type: 'useCard', card, heraldTarget: 'miner', blockadeSlot: 0 }, DEFAULT_BALANCE);
+      g = reduce(g, { type: 'useCard', card, heraldTarget: 'miner', district: 0 }, DEFAULT_BALANCE);
     }
     // 8 枚ぶんの移動に加えて、伝令が対象をもう 1 枚底へ送るので合計 9 歩進む。
     // デッキは 8 枚なので、ちょうど 1 つぶんずれた位置になる。
@@ -62,7 +62,7 @@ describe('循環', () => {
   it('同じカードは 1 ターンに 1 回しか使えない', () => {
     let g = fixture(ORDER, 200);
     for (const card of ORDER) {
-      g = reduce(g, { type: 'useCard', card, heraldTarget: 'miner', blockadeSlot: 0 }, DEFAULT_BALANCE);
+      g = reduce(g, { type: 'useCard', card, heraldTarget: 'miner', district: 0 }, DEFAULT_BALANCE);
     }
     // 一巡して高利貸が手札に戻っているが、このターンはもう使えない
     expect(handOf(g, 'you')).toContain('usurer');
@@ -146,8 +146,8 @@ describe('10 枚デッキでの循環', () => {
         const target = handOf(g, 'you').find((c) => c !== 'herald')!;
         g = reduce(g, { type: 'useCard', card, heraldTarget: target }, DEFAULT_BALANCE);
       } else if (card === 'blockader') {
-        const slot = g.market.find((s) => s.owner === null)!.slotId;
-        g = reduce(g, { type: 'useCard', card, blockadeSlot: slot }, DEFAULT_BALANCE);
+        const slot = 0;
+        g = reduce(g, { type: 'useCard', card, district: slot }, DEFAULT_BALANCE);
       } else {
         g = reduce(g, { type: 'useCard', card }, DEFAULT_BALANCE);
       }

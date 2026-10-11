@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_BALANCE } from '@/game/balance';
 import { canAcquire, canUseCard, canUseRoad, cardCostFor, reduce } from '@/game/reducer';
-import { handOf, scoreOf } from '@/game/selectors';
+import { districtOfSlot, handOf, scoreOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 
@@ -82,7 +82,7 @@ describe('祝祭', () => {
 
     expect(g.players.you.festivalActive).toBe(true);
     const spent = 10 - DEFAULT_BALANCE.cards.festival.cost;
-    const houseIncome = 2 * DEFAULT_BALANCE.tradingHouseIncome * DEFAULT_BALANCE.festivalMultiplier;
+    const houseIncome = 2 * DEFAULT_BALANCE.buildings.tradingHouse.income * DEFAULT_BALANCE.festivalMultiplier;
     expect(g.players.you.coins).toBe(
       spent + DEFAULT_BALANCE.baseIncome + DEFAULT_BALANCE.festivalIncomeBonus + houseIncome,
     );
@@ -147,13 +147,8 @@ describe('衛兵', () => {
     yourSlot.owner = null;
     yourSlot.paid = 0;
 
-    const emptySlot = g.market.find((s) => s.owner === null)!.slotId;
-    const afterBlockader = reduce(
-      g,
-      { type: 'useCard', card: 'blockader', blockadeSlot: emptySlot },
-      DEFAULT_BALANCE,
-    );
-    expect(afterBlockader.players.you.blockedSlot).toBeNull();
+    const afterBlockader = reduce(g, { type: 'useCard', card: 'blockader', district: 0 }, DEFAULT_BALANCE);
+    expect(afterBlockader.blockades).toEqual([]);
     expect(afterBlockader.players.cpu.coins).toBe(20 - DEFAULT_BALANCE.cards.blockader.cost);
   });
 });
@@ -219,7 +214,7 @@ describe('物件との連携', () => {
     wall.owner = 'you';
     expect(cardCostFor(g, 'you', 'guard', DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.guardCostWithWall);
     expect(canUseCard(g, 'guard', DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.guardCostWithWall <= 0);
-    g.players.you.disabledSlot = wall.slotId;
+    g.blockades = [{ district: districtOfSlot(wall.slotId), target: 'you', untilTurn: g.turn, beforeIncome: false }];
     expect(cardCostFor(g, 'you', 'guard', DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.cards.guard.cost);
   });
 
@@ -242,7 +237,7 @@ describe('効果を止められた物件', () => {
     );
     const house = g.market.find((s) => s.buildingId === 'tradingHouse')!;
     house.owner = 'you';
-    g.players.you.disabledSlot = house.slotId;
+    g.blockades = [{ district: districtOfSlot(house.slotId), target: 'you', untilTurn: g.turn, beforeIncome: true }];
 
     const after = reduce(g, { type: 'startTurn' }, DEFAULT_BALANCE);
     // 商館ぶんの収入が乗らない
@@ -266,7 +261,7 @@ describe('城塞', () => {
     'blockader',
   ];
 
-  it('相手が物件を建てると、城塞を持っている側にコインが入る。2 件持っていれば 2 倍', () => {
+  it('相手が物件を建てても、城塞を持っている側にコインは入らない（通行料は廃止）', () => {
     const g = fixture(deck, 50);
     g.market.filter((s) => s.buildingId === 'fortress').forEach((s) => (s.owner = 'you'));
     g.current = 'cpu';
@@ -275,16 +270,11 @@ describe('城塞', () => {
     const before = g.players.you.coins;
 
     const after = reduce(g, { type: 'build', slotId: slot }, DEFAULT_BALANCE);
-    expect(after.players.you.coins).toBe(before + 2 * DEFAULT_BALANCE.fortressToll);
+    expect(after.players.you.coins).toBe(before);
   });
 
-  it('城塞を持っている側が自分で建てても、自分にはコインが入らない', () => {
-    const g = fixture(deck, 50);
-    g.market.find((s) => s.buildingId === 'fortress')!.owner = 'you';
-    const slot = g.market.find((s) => s.buildingId === 'tradingHouse')!.slotId;
-    const before = g.players.you.coins;
-
-    const after = reduce(g, { type: 'build', slotId: slot }, DEFAULT_BALANCE);
-    expect(after.players.you.coins).toBe(before - DEFAULT_BALANCE.buildings.tradingHouse.cost);
+  it('市場の城塞は 1 つ（もう 1 つは鉱山）', () => {
+    expect(DEFAULT_BALANCE.market.filter((b) => b === 'fortress')).toHaveLength(1);
+    expect(DEFAULT_BALANCE.market.filter((b) => b === 'mine')).toHaveLength(1);
   });
 });

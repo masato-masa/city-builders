@@ -37,8 +37,9 @@ const FROZEN_BALANCE: Balance = {
     clerk: { cost: 1 },
   },
   minerIncome: 4,
+  // 当時の銀行家は 6 + 2/件。2026-10-11 に「VP の分」へ作り替えたので、基本の 6 だけ写す（VP 倍率 0）
   bankerIncome: 6,
-  bankerPerBuilding: 2,
+  bankerVpRate: 0,
   architectDiscount: 6,
   taxmanAmount: 5,
   spyAcquireDiscount: 3,
@@ -50,16 +51,16 @@ const FROZEN_BALANCE: Balance = {
   clerkMaxHouses: 3,
   doubleExcluded: ['herald', 'double', 'festival', 'guard'],
   buildings: {
-    tradingHouse: { cost: 7, vp: 2 },
-    wall: { cost: 10, vp: 2 },
-    factory: { cost: 12, vp: 3 },
-    road: { cost: 14, vp: 2 },
-    cathedral: { cost: 16, vp: 0 },
-    fortress: { cost: 18, vp: 6 },
-    exchange: { cost: 20, vp: 3 },
-    quarry: { cost: 13, vp: 3 },
+    tradingHouse: { cost: 7, vp: 2, income: 1 },
+    wall: { cost: 10, vp: 2, income: 0 },
+    factory: { cost: 12, vp: 3, income: 0 },
+    road: { cost: 14, vp: 2, income: 0 },
+    cathedral: { cost: 16, vp: 0, income: 0 },
+    fortress: { cost: 18, vp: 6, income: 0 },
+    exchange: { cost: 20, vp: 3, income: 0 },
+    quarry: { cost: 13, vp: 3, income: 0 },
+    mine: { cost: 15, vp: 3, income: 0 },
   },
-  tradingHouseIncome: 1,
   factoryDiscount: 2,
   cathedralVpPerBuilding: 2,
   exchangeBonus: 2,
@@ -67,48 +68,52 @@ const FROZEN_BALANCE: Balance = {
   usurerDebt: 7,
   festivalMultiplier: 2,
   festivalIncomeBonus: 2,
-  fortressToll: 2,
+  // 城塞の通行料は 2026-10-11 に廃止。鉱山は当時なかった（市場に無いので使われない）
+  mineMinerBonus: 0,
+  mineMinerDiscount: 0,
   quarryExtraDiscount: 4,
   roadUses: 1,
   secondPlayerFirstTurnBonus: 1,
   upgrades: {
-    tradingHouse: { cost: 7, vp: 4 },
-    wall: { cost: 10, vp: 4 },
-    factory: { cost: 12, vp: 5 },
-    road: { cost: 14, vp: 4 },
-    cathedral: { cost: 16, vp: 0 },
-    fortress: { cost: 18, vp: 9 },
-    exchange: { cost: 20, vp: 5 },
-    quarry: { cost: 13, vp: 5 },
+    tradingHouse: { cost: 7, vp: 4, income: 2 },
+    wall: { cost: 10, vp: 4, income: 0 },
+    factory: { cost: 12, vp: 5, income: 0 },
+    road: { cost: 14, vp: 4, income: 0 },
+    cathedral: { cost: 16, vp: 0, income: 0 },
+    fortress: { cost: 18, vp: 9, income: 0 },
+    exchange: { cost: 20, vp: 5, income: 0 },
+    quarry: { cost: 13, vp: 5, income: 0 },
+    mine: { cost: 15, vp: 5, income: 0 },
   },
   level2: {
-    tradingHouseIncome: 2,
     factoryDiscount: 4,
     cathedralVpPerBuilding: 3,
     exchangeBonus: 4,
-    fortressToll: 3,
     quarryExtraDiscount: 6,
     roadUses: 2,
+    mineMinerBonus: 0,
+    mineMinerDiscount: 0,
   },
   // Lv3 は凍結時点のルールに無かったので上限 2 のまま（表は型を満たすためだけに置く）
   upgrades3: {
-    tradingHouse: { cost: 8, vp: 6 },
-    wall: { cost: 11, vp: 6 },
-    factory: { cost: 13, vp: 7 },
-    road: { cost: 15, vp: 6 },
-    cathedral: { cost: 17, vp: 0 },
-    fortress: { cost: 19, vp: 12 },
-    exchange: { cost: 21, vp: 7 },
-    quarry: { cost: 14, vp: 7 },
+    tradingHouse: { cost: 8, vp: 6, income: 3 },
+    wall: { cost: 11, vp: 6, income: 0 },
+    factory: { cost: 13, vp: 7, income: 0 },
+    road: { cost: 15, vp: 6, income: 0 },
+    cathedral: { cost: 17, vp: 0, income: 0 },
+    fortress: { cost: 19, vp: 12, income: 0 },
+    exchange: { cost: 21, vp: 7, income: 0 },
+    quarry: { cost: 14, vp: 7, income: 0 },
+    mine: { cost: 18, vp: 7, income: 0 },
   },
   level3: {
-    tradingHouseIncome: 3,
     factoryDiscount: 6,
     cathedralVpPerBuilding: 4,
     exchangeBonus: 6,
-    fortressToll: 4,
     quarryExtraDiscount: 8,
     roadUses: 3,
+    mineMinerBonus: 0,
+    mineMinerDiscount: 0,
   },
   maxLevel: 2,
   acquireMarkup: 4,
@@ -128,8 +133,7 @@ const FROZEN_BALANCE: Balance = {
   // 地区の称号は当時なかった（地区なし = 称号なし）
   districts: [],
   districtTitleVp: 0,
-  districtMinCount: 1,
-  districtCountsDisabled: true,
+  districtMinVp: 1,
 };
 
 /** テスト用の最小プレイヤー状態。setup.ts の emptyPlayer と同じ形を手で作る。
@@ -145,7 +149,6 @@ function player(coins: number, hand: CardId[]): PlayerState {
     buildDiscount: 0,
     buildsThisTurn: 0,
     usedAnyCardThisTurn: false,
-    blockedSlot: null,
     roadUsesThisTurn: 0,
     pendingDebt: 0,
     pendingTax: 0,
@@ -154,7 +157,6 @@ function player(coins: number, hand: CardId[]): PlayerState {
     guarded: false,
     acquireDiscount: 0,
     upgradeDiscount: 0,
-    disabledSlot: null,
   };
 }
 
@@ -182,6 +184,7 @@ function scenario(cpuFirstCard: CardId): GameState {
     phase: 'playing',
     market,
     titles: DEFAULT_BALANCE.districts.map(() => null),
+    blockades: [],
     players: {
       you: player(10, ['miner', 'banker', 'architect', 'usurer']),
       cpu: player(CPU_COINS, [cpuFirstCard, 'banker', 'banker', 'banker']),
@@ -325,7 +328,7 @@ describe('easy / normal の決定性', () => {
   // DEFAULT_BALANCE の調整では動かない。ここが動いたら easy / normal の指し手（AI）が変わったということなので、
   // 意図的な変更でない限り疑うこと。祝祭を「毎ターンの収入」でなく 1 度きりの上乗せとして評価するよう直したとき、
   // 手番の後の建築家の割引・試合の終わりの投資/借りを数えないよう直したとき、最終段階の物件を買収不可にしたとき、
-  // 重みの再探索と揺らぎの変更（20/6 → 40/10）のときに更新した。
+  // 重みの再探索と揺らぎの変更（20/6 → 40/10）のとき、2026-10-11 のルール変更（封鎖の作り替え・称号を VP で・投資を額で評価）で更新した。
   it('seed 0 / 5 の最終コイン残高が既知の値と一致する（回帰検知用）', () => {
     const finish = (difficulty: 'easy' | 'normal', seed: number) => {
       let g = createGame(seed, FROZEN_BALANCE);
@@ -344,6 +347,6 @@ describe('easy / normal の決定性', () => {
       easy5: coins(finish('easy', 5)),
       normal0: coins(finish('normal', 0)),
       normal5: coins(finish('normal', 5)),
-    }).toEqual({ easy0: [20, 0], easy5: [23, 21], normal0: [28, 38], normal5: [26, 28] });
+    }).toEqual({ easy0: [11, 21], easy5: [2, 19], normal0: [18, 3], normal5: [2, 16] });
   });
 });

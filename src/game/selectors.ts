@@ -1,11 +1,13 @@
 import {
   buildingEffect,
+  buildingEffectTextFor,
+  buildingIncomeOf,
   buildingVp,
   DEFAULT_BALANCE,
   type Balance,
   type Level2EffectKey,
 } from './balance';
-import type { BuildingId, BuildingSlot, CardId, GameState, PlayerId } from './types';
+import type { Blockade, BuildingId, BuildingSlot, CardId, GameState, PlayerId } from './types';
 
 /** 勝者。まだ終わっていなければ null。 */
 export function winnerOf(
@@ -53,11 +55,154 @@ export function ownedSlots(state: GameState, player: PlayerId): BuildingSlot[] {
   return state.market.filter((s) => s.owner === player);
 }
 
-/** 効果が生きている自分の物件。封鎖者で止められている 1 件を除く。
+/** 効果が生きている自分の物件。封鎖者の封鎖で効果が止まっている物件を除く。
  *  VP の計算には使わないこと（VP は止まらない）。 */
-export function activeOwnedSlots(state: GameState, player: PlayerId): BuildingSlot[] {
-  const disabled = state.players[player].disabledSlot;
-  return ownedSlots(state, player).filter((s) => s.slotId !== disabled);
+export function activeOwnedSlots(state: GameState, player: PlayerId, balance: Balance = DEFAULT_BALANCE): BuildingSlot[] {
+  return ownedSlots(state, player).filter((s) => !slotEffectStopped(state, s, balance));
+}
+
+// ---------------------------------------------------------------------------
+// 封鎖者の封鎖（地区単位・次の相手のターンだけ）
+// ---------------------------------------------------------------------------
+
+/** いま掛かっている封鎖。古い保存（blockades が無い状態）でも空として扱う。 */
+export function blockadesOf(state: GameState): Blockade[] {
+  return state.blockades ?? [];
+}
+
+/** player が地区 district の封鎖を受けているか（城塞の守りは見ない。空き地に建てられないかの判定はこれ）。 */
+export function districtBlockedFor(state: GameState, player: PlayerId, district: number): boolean {
+  return blockadesOf(state).some((b) => b.target === player && b.district === district);
+}
+
+/** player が地区 district に城塞を持っていて、そこの自分の物件が封鎖を受けないか。 */
+export function fortressShields(
+  state: GameState,
+  player: PlayerId,
+  district: number,
+  balance: Balance = DEFAULT_BALANCE,
+): boolean {
+  const slots = balance.districts[district]?.slots ?? [];
+  return slots.some((id) => {
+    const s = state.market[id];
+    return s?.owner === player && s.buildingId === 'fortress';
+  });
+}
+
+/** 物件の効果（収益を含む）が封鎖で止まっているか。空き地は false。VP は止まらない。 */
+export function slotEffectStopped(state: GameState, slot: BuildingSlot, balance: Balance = DEFAULT_BALANCE): boolean {
+  if (slot.owner === null) return false;
+  const d = districtOfSlot(slot.slotId, balance);
+  if (d < 0 || !districtBlockedFor(state, slot.owner, d)) return false;
+  return !fortressShields(state, slot.owner, d, balance);
+}
+
+/** player がその空き地に封鎖で建てられないか。 */
+export function slotBuildBlocked(
+  state: GameState,
+  player: PlayerId,
+  slotId: number,
+  balance: Balance = DEFAULT_BALANCE,
+): boolean {
+  const d = districtOfSlot(slotId, balance);
+  return d >= 0 && districtBlockedFor(state, player, d);
+}
+
+/** 盤面に出す封鎖の 1 件。remaining は残り: 1 = 使った側の手番の中（相手の次のターンの終わりまで）、
+ *  0 = 封鎖を受けている側の手番の中（このターンの終わりで解ける）。 */
+export interface BlockadeView {
+  district: number;
+  districtName: string;
+  target: PlayerId;
+  remaining: number;
+  /** target がこの地区に城塞を持ち、物件の効果は止まらない（空き地に建てられないのは同じ） */
+  shielded: boolean;
+}
+export function blockadeViewsOf(state: GameState, balance: Balance = DEFAULT_BALANCE): BlockadeView[] {
+  return blockadesOf(state).map((b) => ({
+    district: b.district,
+    districtName: balance.districts[b.district]?.name ?? '',
+    target: b.target,
+    remaining: Math.max(0, b.untilTurn - state.turn),
+    shielded: fortressShields(state, b.target, b.district, balance),
+  }));
+}
+
+/** player が封鎖者で選べる地区（相手がまだその地区の封鎖を受けていない地区）。 */
+export function blockadeDistrictsOf(
+  state: GameState,
+  player: PlayerId,
+  balance: Balance = DEFAULT_BALANCE,
+): number[] {
+  const foe = opponentOf(player);
+  return balance.districts.map((_, i) => i).filter((i) => !districtBlockedFor(state, foe, i));
+}
+
+/** 封鎖で、target の次の開始フェーズで入らなくなる収益（CPU の見積もり用）。開始フェーズがもう済んでいれば 0。 */
+export function blockadeIncomeLossOf(
+  state: GameState,
+  target: PlayerId,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
+  if (!blockadesOf(state).some((b) => b.target === target && b.beforeIncome)) return 0;
+  return ownedSlots(state, target)
+    .filter((s) => slotEffectStopped(state, s, balance))
+    .reduce((n, s) => n + buildingIncomeOf(balance, s.buildingId, s.level), 0);
+}
+
+// ---------------------------------------------------------------------------
+// 建物の収益と固定の数値（画面の詳細用）
+// ---------------------------------------------------------------------------
+
+/** 区画の物件が持ち主にいま毎ターンもたらす収益。空き地・効果が止まっている物件は 0。 */
+export function slotIncomeOf(state: GameState, slot: BuildingSlot, balance: Balance = DEFAULT_BALANCE): number {
+  if (slot.owner === null || slotEffectStopped(state, slot, balance)) return 0;
+  return buildingIncomeOf(balance, slot.buildingId, slot.level);
+}
+
+/** player の物件の毎ターンの収益の合計（効果が止まっている物件は除く）。 */
+export function buildingIncomeTotalOf(state: GameState, player: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
+  return activeOwnedSlots(state, player, balance).reduce(
+    (n, s) => n + buildingIncomeOf(balance, s.buildingId, s.level),
+    0,
+  );
+}
+
+/** 建物の 1 段分の固定の数値。建物の詳細に並べる。 */
+export interface BuildingLevelStats {
+  level: number;
+  /** その段での VP。大聖堂は物件の数で決まるので 0（vpPerOtherBuilding を見る） */
+  vp: number;
+  /** 大聖堂だけ: 自分の他の物件 1 件あたりの VP。他は null */
+  vpPerOtherBuilding: number | null;
+  /** 毎ターンの収益 */
+  income: number;
+  /** Lv1: 建設費。Lv2・Lv3: その段へ上げる費用（アップグレード費） */
+  cost: number;
+  /** 買収の上乗せ額（払われた額 + これ が買収の価格）。最終段階は買収できないので null */
+  acquireMarkup: number | null;
+  /** 次の段へ上げる費用。最終段階は null */
+  nextUpgradeCost: number | null;
+  /** その段での効果の説明（収益は含まない） */
+  effectText: string;
+}
+export function buildingStatsOf(building: BuildingId, balance: Balance = DEFAULT_BALANCE): BuildingLevelStats[] {
+  const out: BuildingLevelStats[] = [];
+  for (let level = 1; level <= balance.maxLevel; level++) {
+    const table = level >= 3 ? balance.upgrades3 : level >= 2 ? balance.upgrades : balance.buildings;
+    const next = level + 1 > balance.maxLevel ? null : level + 1 >= 3 ? balance.upgrades3 : balance.upgrades;
+    out.push({
+      level,
+      vp: buildingVp(balance, building, level),
+      vpPerOtherBuilding: building === 'cathedral' ? buildingEffect(balance, 'cathedralVpPerBuilding', level) : null,
+      income: buildingIncomeOf(balance, building, level),
+      cost: table[building].cost,
+      acquireMarkup: level >= balance.maxLevel ? null : balance.acquireMarkup,
+      nextUpgradeCost: next ? next[building].cost : null,
+      effectText: buildingEffectTextFor(building, balance, level),
+    });
+  }
+  return out;
 }
 
 /** 効果が生きている自分の物件のうち、指定した種類の効果値の合計（レベルを見る）。
@@ -69,7 +214,7 @@ export function activeEffectSum(
   key: Level2EffectKey,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
-  return activeOwnedSlots(state, player)
+  return activeOwnedSlots(state, player, balance)
     .filter((s) => s.buildingId === id)
     .reduce((n, s) => n + buildingEffect(balance, key, s.level), 0);
 }
@@ -83,7 +228,7 @@ export function activeEffectMax(
   key: Level2EffectKey,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
-  return activeOwnedSlots(state, player)
+  return activeOwnedSlots(state, player, balance)
     .filter((s) => s.buildingId === id)
     .reduce((n, s) => Math.max(n, buildingEffect(balance, key, s.level)), 0);
 }
@@ -213,39 +358,41 @@ export function districtOfSlot(slotId: number, balance: Balance = DEFAULT_BALANC
   return balance.districts.findIndex((d) => d.slots.includes(slotId));
 }
 
-/** 地区の中で、称号の件数に数える物件の数。owners を渡すと、その持ち主の並び（区画番号 → 持ち主）で数える。 */
-export function districtCounts(
+/** 地区の中の、持ち主ごとの物件の VP の合計（称号の判定に使う）。override を渡すと、その区画だけ
+ *  持ち主・レベルを差し替えて数える（CPU の見積もり用。大聖堂の VP は今の盤面の件数で数える）。 */
+export function districtVpOf(
   state: GameState,
   district: number,
   balance: Balance = DEFAULT_BALANCE,
-  ownerOf: (slotId: number) => PlayerId | null = (id) => state.market[id]?.owner ?? null,
+  override?: { slotId: number; owner: PlayerId | null; level: number },
 ): Record<PlayerId, number> {
-  const counts: Record<PlayerId, number> = { you: 0, cpu: 0 };
+  const totals: Record<PlayerId, number> = { you: 0, cpu: 0 };
   for (const id of balance.districts[district]?.slots ?? []) {
-    const owner = ownerOf(id);
-    if (owner === null) continue;
-    if (!balance.districtCountsDisabled && state.players[owner].disabledSlot === id) continue;
-    counts[owner] += 1;
+    const real = state.market[id];
+    if (!real) continue;
+    const slot = override && override.slotId === id ? { ...real, owner: override.owner, level: override.level } : real;
+    if (slot.owner === null) continue;
+    totals[slot.owner] += vpOfSlot(state, slot, balance);
   }
-  return counts;
+  return totals;
 }
 
-/** 件数から決まる称号の持ち主。相手より多く、かつ minCount 件以上ある側が持つ。
+/** VP の合計から決まる称号の持ち主。相手より多く、かつ minVp 以上ある側が持つ。
  *  どちらも満たさなければ（同数など）今の持ち主（current）のまま。 */
 export function holderFrom(
-  counts: Record<PlayerId, number>,
+  totals: Record<PlayerId, number>,
   current: PlayerId | null,
-  minCount = 1,
+  minVp = 1,
 ): PlayerId | null {
-  if (counts.you > counts.cpu && counts.you >= minCount) return 'you';
-  if (counts.cpu > counts.you && counts.cpu >= minCount) return 'cpu';
+  if (totals.you > totals.cpu && totals.you >= minVp) return 'you';
+  if (totals.cpu > totals.you && totals.cpu >= minVp) return 'cpu';
   return current;
 }
 
 /** 盤面に合わせて称号を引き直した並び。今の持ち主は state.titles を見る（同数で保持するため）。 */
 export function nextTitles(state: GameState, balance: Balance = DEFAULT_BALANCE): (PlayerId | null)[] {
   return balance.districts.map((_, i) =>
-    holderFrom(districtCounts(state, i, balance), state.titles?.[i] ?? null, balance.districtMinCount),
+    holderFrom(districtVpOf(state, i, balance), state.titles?.[i] ?? null, balance.districtMinVp),
   );
 }
 
@@ -264,22 +411,21 @@ export function titleVpOf(state: GameState, player: PlayerId, balance: Balance =
   return titleCountOf(state, player) * balance.districtTitleVp;
 }
 
-/** 区画 slotId の持ち主が newOwner に替わったら、player の称号の VP がいくら動くか（CPU の見積もり用）。
- *  その区画の地区だけを引き直す。 */
+/** 区画 slotId の持ち主が newOwner に替わったら（level を渡すとそのレベルにもなったら）、
+ *  player の称号の VP がいくら動くか（CPU の見積もり用）。その区画の地区だけを引き直す。 */
 export function titleVpSwing(
   state: GameState,
   slotId: number,
   newOwner: PlayerId,
   player: PlayerId,
   balance: Balance = DEFAULT_BALANCE,
+  level: number = state.market[slotId]?.level ?? 1,
 ): number {
   const d = districtOfSlot(slotId, balance);
   if (d < 0) return 0;
   const current = titleHolder(state, d);
-  const counts = districtCounts(state, d, balance, (id) =>
-    id === slotId ? newOwner : (state.market[id]?.owner ?? null),
-  );
-  const after = holderFrom(counts, current, balance.districtMinCount);
+  const totals = districtVpOf(state, d, balance, { slotId, owner: newOwner, level });
+  const after = holderFrom(totals, current, balance.districtMinVp);
   return ((after === player ? 1 : 0) - (current === player ? 1 : 0)) * balance.districtTitleVp;
 }
 
@@ -307,19 +453,20 @@ export function roadUsesRemaining(
   return Math.max(0, limit - p.roadUsesThisTurn);
 }
 
-/** 1 ターンあたりの見込み収入。商館の毎ターン収入と、城塞の通行料の期待値
- *  （相手が残りの区画の半分を建てるという見込み）を織り込む。封鎖者で止まって
- *  いる物件は activeOwnedSlots が除外するのでここには含まれない。
- *  祝祭は 1 ターン限りなので、ここ（毎ターン続く収入）には入れない。祝祭の上乗せは festivalExtraOf。 */
+/** 1 ターンあたりの見込み収入。基礎収入と、物件の毎ターンの収益。
+ *  封鎖は次の 1 ターンだけなので、ここ（毎ターン続く収入）では止まっていないものとして数える。
+ *  封鎖で次に入らなくなる分は blockadeIncomeLossOf。
+ *  祝祭は 1 ターン限りなので、ここには入れない。祝祭の上乗せは festivalExtraOf。 */
 export function incomePerTurnOf(
   state: GameState,
   player: PlayerId,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
-  const houseIncome = activeEffectSum(state, player, 'tradingHouse', 'tradingHouseIncome', balance);
-  const fortressToll = activeEffectSum(state, player, 'fortress', 'fortressToll', balance);
-  const unbuiltCount = state.market.filter((s) => s.owner === null).length;
-  return balance.baseIncome + houseIncome + fortressToll * (unbuiltCount / 2);
+  const buildings = ownedSlots(state, player).reduce(
+    (n, s) => n + buildingIncomeOf(balance, s.buildingId, s.level),
+    0,
+  );
+  return balance.baseIncome + buildings;
 }
 
 /** 使った祝祭が、次の自分の収入に 1 度だけ上乗せするコインの見込み。
@@ -333,9 +480,16 @@ export function festivalExtraOf(
   const p = state.players[player];
   if (!p.festivalQueued) return 0;
   const extra = balance.festivalMultiplier - 1;
-  const houseIncome = activeEffectSum(state, player, 'tradingHouse', 'tradingHouseIncome', balance);
+  const income = buildingIncomeTotalOf(state, player, balance);
   const exchange = activeEffectMax(state, player, 'exchange', 'exchangeBonus', balance);
-  return balance.festivalIncomeBonus + houseIncome * extra + exchange * extra * p.pendingIncome.length;
+  const minerBonus = activeEffectMax(state, player, 'mine', 'mineMinerBonus', balance);
+  const miners = p.pendingIncome.filter((c) => c === 'miner').length;
+  return (
+    balance.festivalIncomeBonus +
+    income * extra +
+    exchange * extra * p.pendingIncome.length +
+    minerBonus * extra * miners
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -365,7 +519,7 @@ export function effectiveCardOf(
   return card === 'double' ? doubleSourceOf(state, player, balance) : card;
 }
 
-/** 顔役で称号を取れる地区。件数が自分と相手で同じ（1 件以上）で、称号がまだ自分のものでない地区。 */
+/** 顔役で称号を取れる地区。地区内の VP の合計が自分と相手で同じ（districtMinVp 以上）で、称号がまだ自分のものでない地区。 */
 export function bossDistrictsOf(
   state: GameState,
   player: PlayerId,
@@ -373,14 +527,44 @@ export function bossDistrictsOf(
 ): number[] {
   const out: number[] = [];
   balance.districts.forEach((_, i) => {
-    const c = districtCounts(state, i, balance);
-    if (c.you === c.cpu && c.you >= Math.max(1, balance.districtMinCount) && titleHolder(state, i) !== player) out.push(i);
+    const c = districtVpOf(state, i, balance);
+    if (c.you === c.cpu && c.you >= Math.max(1, balance.districtMinVp) && titleHolder(state, i) !== player) out.push(i);
   });
   return out;
 }
 
 /** 番頭で今すぐ入るコイン。効果が生きている商館の数（上限 clerkMaxHouses）× clerkPerHouse。 */
 export function clerkGainOf(state: GameState, player: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
-  const houses = activeOwnedSlots(state, player).filter((s) => s.buildingId === 'tradingHouse').length;
+  const houses = activeOwnedSlots(state, player, balance).filter((s) => s.buildingId === 'tradingHouse').length;
   return Math.min(houses, balance.clerkMaxHouses) * balance.clerkPerHouse;
+}
+
+// ---------------------------------------------------------------------------
+// 投資カード（採掘師・銀行家）
+// ---------------------------------------------------------------------------
+
+/** 1 枚の投資カードが、いま解決したら生むコイン。取引所・鉱山（採掘師だけ）の上乗せは物件の効果なので
+ *  祝祭中は倍。銀行家は解決時の自分の VP（称号を含む）で決まる。投資カードでなければ 0。 */
+export function investIncomeOf(
+  state: GameState,
+  player: PlayerId,
+  card: CardId,
+  balance: Balance = DEFAULT_BALANCE,
+): number {
+  const p = state.players[player];
+  const mult = p.festivalActive ? balance.festivalMultiplier : 1;
+  const exchange = activeEffectMax(state, player, 'exchange', 'exchangeBonus', balance) * mult;
+  switch (card) {
+    case 'miner':
+      return balance.minerIncome + exchange + activeEffectMax(state, player, 'mine', 'mineMinerBonus', balance) * mult;
+    case 'banker':
+      return balance.bankerIncome + Math.floor(scoreOf(state, player, balance) * balance.bankerVpRate) + exchange;
+    default:
+      return 0;
+  }
+}
+
+/** 解決待ちの投資カードが次の開始フェーズで生むコインの合計（いまの盤面で見積もる）。 */
+export function pendingInvestOf(state: GameState, player: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
+  return state.players[player].pendingIncome.reduce((n, c) => n + investIncomeOf(state, player, c, balance), 0);
 }

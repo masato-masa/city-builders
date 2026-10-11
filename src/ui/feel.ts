@@ -1,9 +1,9 @@
 // 手触り（衝撃・カード使用の 3 段・決着）の判定と数値。React や DOM に触らない純粋関数だけを置き、
 // テストで値の上限（docs/autopilot/standards.md §1）を確かめられるようにする。
 
-import { CARD_NAMES, type Balance } from '@/game/balance';
+import { CARD_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { cardCostFor } from '@/game/reducer';
-import { doubleSourceOf } from '@/game/selectors';
+import { doubleSourceOf, slotEffectStopped } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
 import { forecast } from './CoinBar';
@@ -63,9 +63,19 @@ export function impactOf(prev: GameState, next: GameState): Impact | null {
   for (const id of PLAYERS) {
     const a = prev.players[id];
     const b = next.players[id];
-    if (b.disabledSlot !== null && b.disabledSlot !== a.disabledSlot) take('heavy', b.disabledSlot);
-    if (b.blockedSlot !== null && b.blockedSlot !== a.blockedSlot) take('light', b.blockedSlot);
     if (b.pendingTax > a.pendingTax) take('light', null);
+  }
+  // 封鎖者: 地区の封鎖が新しく掛かった。相手の物件の効果が止まれば重、空き地だけなら軽
+  // （区画は地区の最初の区画で代表する）
+  const before = prev.blockades ?? [];
+  for (const bl of next.blockades ?? []) {
+    if (before.some((x) => x.district === bl.district && x.target === bl.target)) continue;
+    const slots = DEFAULT_BALANCE.districts[bl.district]?.slots ?? [];
+    const hit = slots.some((id) => {
+      const s = next.market[id];
+      return !!s && s.owner === bl.target && slotEffectStopped(next, s);
+    });
+    take(hit ? 'heavy' : 'light', slots[0] ?? null);
   }
   return best;
 }
@@ -137,8 +147,10 @@ export function cardAftermath(
   const eff = card === 'double' ? (doubleSourceOf(prev, actor) ?? card) : card;
   if (eff === 'taxman' || eff === 'blockader') {
     if (f1.pendingTax > f0.pendingTax) return { text: `相手の収入 ${sign(f0.pendingTax - f1.pendingTax)}`, tone: 'hit' };
-    if (f1.disabledSlot !== f0.disabledSlot) return { text: '物件の効果を停止', tone: 'hit' };
-    if (f1.blockedSlot !== f0.blockedSlot) return { text: '区画を封鎖', tone: 'hit' };
+    if ((next.blockades ?? []).length > (prev.blockades ?? []).length) {
+      const d = next.blockades[next.blockades.length - 1]!.district;
+      return { text: `${balance.districts[d]?.name ?? '地区'}を封鎖`, tone: 'hit' };
+    }
     return { text: '防がれた', tone: 'blocked' };
   }
   if (eff === 'inspector') {
@@ -201,8 +213,8 @@ export function roadReason(hasRoad: boolean, usesLeft: number, myTurn: boolean):
 
 /** 対象選択モードの案内（右上の時計と重ならないよう短く）。 */
 export const TARGET_LABEL = {
-  blockade: '封鎖: 相手の区画をタップ',
+  blockade: '封鎖: 地区の区画をタップ',
   inspect: '検査: 相手の物件をタップ',
-  district: '顔役: 同数の地区をタップ',
+  district: '顔役: 同点の地区をタップ',
   herald: '伝令: 山の底へ送る札をタップ',
 } as const;

@@ -45,13 +45,12 @@ describe('合法手', () => {
     expect(heralds).toHaveLength(3);
   });
 
-  it('封鎖者は自分が所有していない区画ごとに別の行動になる', () => {
+  it('封鎖者は地区ごとに別の行動になる', () => {
     const g = fixture(5);
     const blocks = legalActions(g, DEFAULT_BALANCE).filter(
       (a) => a.type === 'useCard' && a.card === 'blockader',
     );
-    // 序盤は市場が全て空き地なので、10 区画すべてが対象
-    expect(blocks).toHaveLength(10);
+    expect(blocks).toHaveLength(DEFAULT_BALANCE.districts.length);
   });
 
   it('建てられる物件が行動に出る', () => {

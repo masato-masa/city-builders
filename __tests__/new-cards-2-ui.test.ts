@@ -65,18 +65,19 @@ describe('影武者のドラッグ', () => {
     expect(doubleNoteOf(g, 'you', 'double', B)).toContain('ありません');
   });
 
-  it('封鎖者を写すと区画を取り直す（action.card は影武者）', () => {
+  it('封鎖者を写すと地区を取り直す（action.card は影武者。封鎖済みの地区ははじく）', () => {
     let g = fixture(['blockader', 'double', 'usurer', 'herald'], 20);
-    g = reduce(g, { type: 'useCard', card: 'blockader', blockadeSlot: 5 }, B);
+    g = reduce(g, { type: 'useCard', card: 'blockader', district: 2 }, B);
     expect(slotTargetModeOf(g, 'you', 'double')).toBe('blockade');
     expect(resolveDrop(g, 'you', 'double', hit({ onBoard: true, slotId: 6 }))).toEqual({
       kind: 'use',
-      action: { type: 'useCard', card: 'double', blockadeSlot: 6 },
+      action: { type: 'useCard', card: 'double', district: 1 },
     });
     expect(resolveDrop(g, 'you', 'double', hit({ onBoard: true }))).toEqual({ kind: 'target', mode: 'blockade' });
-    const pick = slotPick(g, 'you', 'double', 'blockade', 7, B);
-    expect(pick.ok && pick.action).toEqual({ type: 'useCard', card: 'double', blockadeSlot: 7 });
-    expect(dragGuide('double', g, 'you')).toBe(`影武者（${CARD_NAMES.blockader}）: 区画の上で離す`);
+    const pick = slotPick(g, 'you', 'double', 'blockade', 0, B);
+    expect(pick.ok && pick.action).toEqual({ type: 'useCard', card: 'double', district: 0 });
+    expect(slotPick(g, 'you', 'double', 'blockade', 7, B).ok).toBe(false);
+    expect(dragGuide('double', g, 'you')).toBe(`影武者（${CARD_NAMES.blockader}）: 地区の上で離す`);
     expect(dragGuide('double', g, 'you').length).toBeLessThanOrEqual(22);
     expect(doubleNoteOf(g, 'you', 'double', B)).toContain(CARD_NAMES.blockader);
   });

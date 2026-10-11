@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_BALANCE } from '@/game/balance';
-import { reduce } from '@/game/reducer';
+import { canBuild, reduce } from '@/game/reducer';
+import { districtOfSlot, slotBuildBlocked, slotEffectStopped } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 
@@ -118,62 +119,67 @@ describe('徴税官', () => {
 });
 
 describe('封鎖者', () => {
-  it('空き地を指定すると、相手はそこに建設できなくなる', () => {
-    const g = fixture(['blockader', 'miner', 'usurer', 'banker', 'architect', 'spy', 'herald', 'taxman'], 10);
-    const target = g.market.find((s) => s.buildingId === 'fortress')!.slotId;
-    const after = reduce(
-      g,
-      { type: 'useCard', card: 'blockader', blockadeSlot: target },
-      DEFAULT_BALANCE,
-    );
-    expect(after.players.cpu.blockedSlot).toBe(target);
-    expect(after.players.cpu.disabledSlot).toBeNull();
+  const DECK: CardId[] = ['blockader', 'miner', 'usurer', 'banker', 'architect', 'spy', 'herald', 'taxman'];
+  // 商人街（地区 0）は区画 0・1（商館）・2（石切場）
+  const MERCHANT = 0;
+
+  it('地区を封鎖すると、次の相手のターンだけ、相手はその地区の空き地に建てられない（他の地区には建てられる）', () => {
+    const g = fixture(DECK, 10);
+    const after = reduce(g, { type: 'useCard', card: 'blockader', district: MERCHANT }, DEFAULT_BALANCE);
+    expect(after.blockades).toEqual([{ district: MERCHANT, target: 'cpu', untilTurn: g.turn + 1, beforeIncome: true }]);
+    let foe = reduce(reduce(after, { type: 'endTurn' }, DEFAULT_BALANCE), { type: 'startTurn' }, DEFAULT_BALANCE);
+    foe.players.cpu.coins = 50;
+    expect(canBuild(foe, 0, DEFAULT_BALANCE)).toBe(false);
+    expect(canBuild(foe, 3, DEFAULT_BALANCE)).toBe(true);
+    // 相手のターンの終わりで解ける
+    foe = reduce(foe, { type: 'endTurn' }, DEFAULT_BALANCE);
+    expect(foe.blockades).toEqual([]);
   });
 
-  it('相手が建設済みの区画を指定すると、その効果が止まる（建設不可にはならない）', () => {
-    const g = fixture(['blockader', 'miner', 'usurer', 'banker', 'architect', 'spy', 'herald', 'taxman'], 10);
-    const target = g.market.find((s) => s.buildingId === 'tradingHouse')!.slotId;
-    g.market[target]!.owner = 'cpu';
-    const after = reduce(
-      g,
-      { type: 'useCard', card: 'blockader', blockadeSlot: target },
-      DEFAULT_BALANCE,
-    );
-    expect(after.players.cpu.disabledSlot).toBe(target);
-    expect(after.players.cpu.blockedSlot).toBeNull();
+  it('相手の物件は効果（収益を含む）が止まり、自分の物件には何も起きない', () => {
+    const g = fixture(DECK, 10);
+    g.turn = 5; // 後手の 1 ターン目の補正が乗らない手番
+    g.market[0]!.owner = 'cpu';
+    g.market[1]!.owner = 'you';
+    const after = reduce(g, { type: 'useCard', card: 'blockader', district: MERCHANT }, DEFAULT_BALANCE);
+    expect(slotEffectStopped(after, after.market[0]!, DEFAULT_BALANCE)).toBe(true);
+    expect(slotEffectStopped(after, after.market[1]!, DEFAULT_BALANCE)).toBe(false);
+    // 相手の次の収入に商館の収益が入らない（基礎収入だけ）
+    const handed = reduce(after, { type: 'endTurn' }, DEFAULT_BALANCE);
+    const coins = handed.players.cpu.coins;
+    const started = reduce(handed, { type: 'startTurn' }, DEFAULT_BALANCE);
+    expect(started.players.cpu.coins - coins).toBe(DEFAULT_BALANCE.baseIncome);
+    expect(started.blockades[0]!.beforeIncome).toBe(false);
+    // 解けた後は止まらない
+    const done = reduce(started, { type: 'endTurn' }, DEFAULT_BALANCE);
+    expect(slotEffectStopped(done, done.market[0]!, DEFAULT_BALANCE)).toBe(false);
+  });
+
+  it('城塞を持つ地区（城下）の物件は効果が止まらない（空き地に建てられないのは同じ）', () => {
+    const g = fixture(DECK, 10);
+    const district = districtOfSlot(g.market.find((s) => s.buildingId === 'fortress')!.slotId, DEFAULT_BALANCE);
+    const fortress = g.market.find((s) => s.buildingId === 'fortress')!;
+    const road = g.market.find((s) => s.buildingId === 'road')!;
+    expect(districtOfSlot(road.slotId, DEFAULT_BALANCE)).toBe(district);
+    fortress.owner = 'cpu';
+    road.owner = 'cpu';
+    const after = reduce(g, { type: 'useCard', card: 'blockader', district }, DEFAULT_BALANCE);
+    expect(slotEffectStopped(after, after.market[road.slotId]!, DEFAULT_BALANCE)).toBe(false);
+    const empty = after.market.find((s) => s.owner === null && districtOfSlot(s.slotId, DEFAULT_BALANCE) === district)!;
+    expect(slotBuildBlocked(after, 'cpu', empty.slotId, DEFAULT_BALANCE)).toBe(true);
   });
 
   it('相手が城壁を持っていると無効。コストは払う', () => {
-    const g = fixture(['blockader', 'miner', 'usurer', 'banker', 'architect', 'spy', 'herald', 'taxman'], 10);
+    const g = fixture(DECK, 10);
     g.market.find((s) => s.buildingId === 'wall')!.owner = 'cpu';
-    const after = reduce(
-      g,
-      { type: 'useCard', card: 'blockader', blockadeSlot: 7 },
-      DEFAULT_BALANCE,
-    );
-    expect(after.players.cpu.blockedSlot).toBeNull();
-    expect(after.players.cpu.disabledSlot).toBeNull();
+    const after = reduce(g, { type: 'useCard', card: 'blockader', district: MERCHANT }, DEFAULT_BALANCE);
+    expect(after.blockades).toEqual([]);
     expect(after.players.you.coins).toBe(10 - DEFAULT_BALANCE.cards.blockader.cost);
   });
 
-  it('自分が所有している区画は対象にできない（状態が変わらない）', () => {
-    const g = fixture(['blockader', 'miner', 'usurer', 'banker', 'architect', 'spy', 'herald', 'taxman'], 10);
-    g.market[7]!.owner = 'you';
-    const after = reduce(
-      g,
-      { type: 'useCard', card: 'blockader', blockadeSlot: 7 },
-      DEFAULT_BALANCE,
-    );
-    expect(after).toEqual(g);
-  });
-
-  it('存在しないスロットは封鎖できない（状態が変わらない）', () => {
-    const g = fixture(['blockader', 'miner', 'usurer', 'banker', 'architect', 'spy', 'herald', 'taxman'], 10);
-    const after = reduce(
-      g,
-      { type: 'useCard', card: 'blockader', blockadeSlot: 99 },
-      DEFAULT_BALANCE,
-    );
-    expect(after).toEqual(g);
+  it('存在しない地区は封鎖できない（状態が変わらない）', () => {
+    const g = fixture(DECK, 10);
+    expect(reduce(g, { type: 'useCard', card: 'blockader', district: 99 }, DEFAULT_BALANCE)).toEqual(g);
+    expect(reduce(g, { type: 'useCard', card: 'blockader' }, DEFAULT_BALANCE)).toEqual(g);
   });
 });

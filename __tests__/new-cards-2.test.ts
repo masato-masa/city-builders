@@ -216,9 +216,10 @@ describe('番頭', () => {
     own(g, 0, 'you');
     own(g, 1, 'you');
     expect(clerkGainOf(g, 'you', B)).toBe(2 * B.clerkPerHouse);
-    g.players.you.disabledSlot = 1;
-    expect(clerkGainOf(g, 'you', B)).toBe(B.clerkPerHouse);
-    g.players.you.disabledSlot = null;
+    // 封鎖で効果が止まった商館は数えない（商人街を封鎖されると 2 件とも止まる）
+    g.blockades = [{ district: 0, target: 'you', untilTurn: g.turn + 1, beforeIncome: true }];
+    expect(clerkGainOf(g, 'you', B)).toBe(0);
+    g.blockades = [];
     g = reduce(g, { type: 'useCard', card: 'clerk' }, B);
     expect(g.players.you.coins).toBe(1 - B.cards.clerk.cost + 2 * B.clerkPerHouse);
   });

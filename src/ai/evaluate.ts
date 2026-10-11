@@ -4,13 +4,16 @@ import {
   acquireCostFor,
   acquirePriceOf,
   activeEffectMax,
+  blockadeIncomeLossOf,
   bossDistrictsOf,
   festivalExtraOf,
   handOf,
   incomePerTurnOf,
   opponentOf,
   ownedSlots,
+  pendingInvestOf,
   scoreOf,
+  slotBuildBlocked,
   slotLocked,
   slotMaxed,
   titleVpSwing,
@@ -135,7 +138,8 @@ export function reachOf(
   const candidates: Candidate[] = [];
   for (const s of state.market) {
     if (s.owner === null) {
-      if (s.slotId === p.blockedSlot) continue;
+      // 封鎖者に地区を封鎖されている間は建てられない（自分の手番の中の値。次の手番には解けている）
+      if (slotBuildBlocked(state, player, s.slotId, balance)) continue;
       const b = balance.buildings[s.buildingId];
       candidates.push({
         // 建てると地区の称号が取れるなら、その VP も込みで測る（あと 1 件で取れる）
@@ -153,7 +157,11 @@ export function reachOf(
     if (s.owner === player && s.level < balance.maxLevel) {
       const price = Math.max(0, upgradePriceOf(s, balance) - upgradeDiscount);
       // 大聖堂も同じ式で測れるよう、レベルだけ上げた区画を vpOfSlot に渡して差を取る
-      const gain = vpOfSlot(state, { ...s, level: s.level + 1 }, balance) - vpOfSlot(state, s, balance);
+      // 称号は地区内の VP の合計で決まるので、上げて称号が取れるならその VP も込み
+      const gain =
+        vpOfSlot(state, { ...s, level: s.level + 1 }, balance) -
+        vpOfSlot(state, s, balance) +
+        titleVpSwing(state, s.slotId, player, player, balance, s.level + 1);
       candidates.push({ vp: gain, isBuild: false, cost: () => price });
     } else if (s.owner === foe && !state.players[foe].guarded && !slotMaxed(s, balance)) {
       // 最終段階（maxLevel）の物件は買収できない
@@ -198,7 +206,7 @@ export function exposedVpOf(
     f.coins +
     incomePerTurnOf(state, foe, balance) +
     festivalExtraOf(state, foe, balance) +
-    f.pendingIncome.length * balance.minerIncome;
+    pendingInvestOf(state, foe, balance);
   // 相手の手札に買収者があれば、使ったうえで割引の効いた値段で買ってくると見る（読み合いの核）
   let discount = 0;
   if (handOf(state, foe, balance).includes('spy')) {
@@ -313,8 +321,9 @@ export function evaluateState(
     foeState.coins * weights.opponentCoin +
     stuck * weights.stuck +
     opponentStuck * weights.opponentStuck +
-    // 投資・祝祭・借り・徴税は次の開始フェーズで解決する。それが来なければ（試合の最後の手番）価値は 0
-    myNext * p.pendingIncome.length * weights.pendingIncome * 4 +
+    // 投資・祝祭・借り・徴税は次の開始フェーズで解決する。それが来なければ（試合の最後の手番）価値は 0。
+    // 投資は解決したときの額（採掘師は鉱山・取引所の上乗せ込み、銀行家は自分の VP）で数える
+    myNext * pendingInvestOf(state, player, balance) * weights.pendingIncome +
     // 祝祭は次の収入に 1 度だけ上乗せされる（毎ターンの収入ではない）。投資カードと同じ物差しで数える
     myNext * festivalExtraOf(state, player, balance) * weights.pendingIncome +
     foeNext * festivalExtraOf(state, foe, balance) * weights.opponentCoin +
@@ -326,6 +335,9 @@ export function evaluateState(
     myNext * p.pendingDebt * weights.debt +
     // 徴税官で相手に課した徴収は、自分の借りの裏返しとして得になる
     (foeNext * foeState.pendingTax - myNext * p.pendingTax) * -weights.debt +
+    // 封鎖で次の開始フェーズに入らなくなる収益も、徴税と同じ物差し（1 度きりのコインの増減）で数える
+    (foeNext * blockadeIncomeLossOf(state, foe, balance) - myNext * blockadeIncomeLossOf(state, player, balance)) *
+      -weights.debt +
     guarded * weights.guarded +
     exposed * weights.exposed * (0.5 + late)
   );

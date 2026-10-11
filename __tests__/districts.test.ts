@@ -3,7 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { exposedVpOf, reachOf } from '@/ai/evaluate';
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { reduce } from '@/game/reducer';
-import { districtOfSlot, scoreOf, titleHolder, titleVpSwing, vpOfSlot } from '@/game/selectors';
+import {
+  districtOfSlot,
+  districtVpOf,
+  scoreOf,
+  slotEffectStopped,
+  titleHolder,
+  titleVpSwing,
+  vpOfSlot,
+} from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { GameState } from '@/game/types';
 
@@ -77,25 +85,34 @@ describe('地区の称号', () => {
     expect(scoreOf(g, 'you')).toBe(0);
   });
 
-  it('封鎖者で止められた物件は、既定では称号の件数に数える（VP と同じく止まらない）', () => {
+  it('封鎖者で効果が止まった物件も、VP は止まらないので称号の合計に数える', () => {
     let g = fixture();
     g = build(g, S0);
     g = pass(g);
-    g = reduce(g, { type: 'useCard', card: 'blockader', blockadeSlot: S0 }, B);
-    expect(g.players.you.disabledSlot).toBe(S0);
+    g = reduce(g, { type: 'useCard', card: 'blockader', district: 0 }, B);
+    expect(slotEffectStopped(g, g.market[S0]!, B)).toBe(true);
     expect(titleHolder(g, 0)).toBe('you');
   });
 
-  it('数えない設定なら、止められた物件の分だけ件数が減る（同数なら保持）', () => {
-    const NO_DISABLED: Balance = { ...B, districtCountsDisabled: false };
+  it('件数ではなく VP の合計で決まる: 1 件でも VP の高い物件を持つ側が取る', () => {
     let g = fixture();
-    g = build(g, S0, NO_DISABLED);
-    g = pass(g, NO_DISABLED);
-    g = build(g, S1, NO_DISABLED);
-    // 1 対 1 で you が保持
+    g = build(g, S0); // you 商館 2 VP
+    g = pass(g);
+    g = build(g, S2); // cpu 石切場 3 VP
+    expect(districtVpOf(g, 0, B)).toEqual({ you: B.buildings.tradingHouse.vp, cpu: B.buildings.quarry.vp });
+    expect(titleHolder(g, 0)).toBe('cpu');
+  });
+
+  it('アップグレードで VP が上回ると称号が移る', () => {
+    let g = fixture();
+    g = build(g, S0);
+    g = pass(g);
+    g = build(g, S1);
     expect(titleHolder(g, 0)).toBe('you');
-    g = reduce(g, { type: 'useCard', card: 'blockader', blockadeSlot: S0 }, NO_DISABLED);
-    // you の 1 件が止まり 0 対 1 → cpu へ
+    g = pass(g);
+    g = pass(g);
+    g = reduce(g, { type: 'upgrade', slotId: S1 }, B);
+    expect(g.market[S1]!.level).toBe(2);
     expect(titleHolder(g, 0)).toBe('cpu');
   });
 });

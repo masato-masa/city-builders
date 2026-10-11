@@ -346,11 +346,12 @@ export function Home({
               />
             </label>
             <label>
-              {CARD_NAMES.banker}: 物件ごとの加算
+              {CARD_NAMES.banker}: VP の倍率
               <input
                 type="number"
-                value={balance.bankerPerBuilding}
-                onChange={(e) => put({ ...balance, bankerPerBuilding: Number(e.target.value) })}
+                step="0.25"
+                value={balance.bankerVpRate}
+                onChange={(e) => put({ ...balance, bankerVpRate: Number(e.target.value) })}
               />
             </label>
             <label>
@@ -470,11 +471,19 @@ export function Home({
 
             <div className="dev-section-title">建物: 効果</div>
             <label>
-              {BUILDING_NAMES.tradingHouse}: 収入
+              {BUILDING_NAMES.tradingHouse}: 収益（Lv1）
               <input
                 type="number"
-                value={balance.tradingHouseIncome}
-                onChange={(e) => put({ ...balance, tradingHouseIncome: Number(e.target.value) })}
+                value={balance.buildings.tradingHouse.income}
+                onChange={(e) =>
+                  put({
+                    ...balance,
+                    buildings: {
+                      ...balance.buildings,
+                      tradingHouse: { ...balance.buildings.tradingHouse, income: Number(e.target.value) },
+                    },
+                  })
+                }
               />
             </label>
             <label>
@@ -496,11 +505,11 @@ export function Home({
               />
             </label>
             <label>
-              {BUILDING_NAMES.fortress}: 通行料
+              {BUILDING_NAMES.mine}: 採掘師の上乗せ
               <input
                 type="number"
-                value={balance.fortressToll}
-                onChange={(e) => put({ ...balance, fortressToll: Number(e.target.value) })}
+                value={balance.mineMinerBonus}
+                onChange={(e) => put({ ...balance, mineMinerBonus: Number(e.target.value) })}
               />
             </label>
             <label>

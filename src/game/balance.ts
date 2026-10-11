@@ -57,9 +57,12 @@ export const CARD_NAMES: Record<CardId, string> = {
 export function cardTextFor(card: CardId, balance: Balance): string {
   switch (card) {
     case 'miner':
-      return `次の収入 コイン +${balance.minerIncome}`;
-    case 'banker':
-      return `次の収入 コイン +${balance.bankerIncome}。さらに解決時の自分の物件 1 件につき +${balance.bankerPerBuilding}`;
+      return `次の収入 コイン +${balance.minerIncome}。鉱山があれば安く、多くなる`;
+    case 'banker': {
+      const rate = balance.bankerVpRate === 1 ? '' : ` × ${balance.bankerVpRate}`;
+      const base = balance.bankerIncome > 0 ? `${balance.bankerIncome} + ` : '';
+      return `次の収入 コイン +（${base}自分の VP${rate}）。VP は収入を受け取るときの値（称号を含む）`;
+    }
     case 'architect':
       return `このターン建てる物件すべて、建設費 −${balance.architectDiscount}（アップグレード・買収には効かない）`;
     case 'herald':
@@ -75,13 +78,13 @@ export function cardTextFor(card: CardId, balance: Balance): string {
     case 'taxman':
       return `次の相手のターン、収入を受け取ったあとの相手のコイン −${balance.taxmanAmount}（手持ちが足りなければ引けた分だけ）`;
     case 'blockader':
-      return '市場の区画 1 つを指定する。空き地ならそこに建設させない。相手の物件ならその効果を止める';
+      return '地区 1 つを選ぶ。次の相手のターンだけ、その地区の空き地に相手は建てられず、地区内の相手の物件は効果（収益を含む）が止まる。自分の物件には何も起きない';
     case 'craftsman':
       return `このターン、自分の物件のアップグレード費 −${balance.craftsmanDiscount}（Lv1→2・Lv2→3 のどちらにも効く。建設・買収には効かない）`;
     case 'inspector':
       return `相手の物件 1 件の Lv を 1 段下げる（Lv3→2・Lv2→1。払われた額はそのまま）。Lv1 の物件なら払われた額 −${balance.inspectorPaidCut}（買収が安くなる）。衛兵で防がれる`;
     case 'boss':
-      return `地区 1 つを選ぶ。その地区の物件の数が自分と相手で同じ（1 件以上）なら、地区の称号（${balance.districtTitleVp} VP）を今すぐ自分のものにする。衛兵で防がれる`;
+      return `地区 1 つを選ぶ。その地区の物件の VP の合計が自分と相手で同じ（1 以上）なら、地区の称号（${balance.districtTitleVp} VP）を今すぐ自分のものにする。衛兵で防がれる`;
     case 'informer':
       return `相手の「次」の札を見て、相手の山の底へ送る（相手が次に補充する札が 1 枚うしろにずれる）。衛兵で防がれる`;
     case 'double':
@@ -103,15 +106,24 @@ export const BUILDING_NAMES: Record<BuildingId, string> = {
   fortress: '城塞',
   exchange: '取引所',
   quarry: '石切場',
+  mine: '鉱山',
 };
 
-/** 建物の説明文。カードと同じ理由で balance から組み立てる。
- *  level を渡すと、そのレベルでの効果値で書く（既定は Lv1）。 */
+/** 建物の説明文（収益の 1 文 + 効果）。カードと同じ理由で balance から組み立てる。
+ *  level を渡すと、そのレベルでの値で書く（既定は Lv1）。収益と効果を分けて出す画面は
+ *  buildingIncomeOf と buildingEffectTextFor を使う。 */
 export function buildingTextFor(building: BuildingId, balance: Balance, level = 1): string {
+  const income = buildingIncomeOf(balance, building, level);
+  const head = income !== 0 ? `毎ターン 収益 コイン ${income > 0 ? '+' : '−'}${Math.abs(income)}。` : '';
+  return head + buildingEffectTextFor(building, balance, level);
+}
+
+/** 建物の効果だけの説明文（収益は含まない）。level を渡すと、そのレベルでの効果値で書く。 */
+export function buildingEffectTextFor(building: BuildingId, balance: Balance, level = 1): string {
   const v = (key: Level2EffectKey) => buildingEffect(balance, key, level);
   switch (building) {
     case 'tradingHouse':
-      return `毎ターン開始時 コイン +${v('tradingHouseIncome')}`;
+      return '特別な効果は無い（収益が高い）';
     case 'wall':
       return `徴税官・封鎖者の効果を受けない。衛兵のコスト ${balance.guardCostWithWall}`;
     case 'factory':
@@ -125,24 +137,34 @@ export function buildingTextFor(building: BuildingId, balance: Balance, level = 
     }
     case 'cathedral':
       return `自分の他の物件 1 件につき +${v('cathedralVpPerBuilding')} VP`;
-    case 'fortress':
-      return `相手が物件を建てるたび コイン +${v('fortressToll')}`;
+    case 'fortress': {
+      const d = balance.districts.find((x) => x.slots.some((id) => balance.market[id] === 'fortress'));
+      return `${d ? d.name : 'この地区'}の自分の物件は、封鎖者の封鎖を受けない`;
+    }
     case 'exchange':
       return `人物カードの「次の収入 コイン +X」がすべて +${v('exchangeBonus')}`;
     case 'quarry':
       return `建築家を使ったターン、2 件目以降の建設費がさらに −${v('quarryExtraDiscount')}`;
+    case 'mine':
+      return `採掘師のコスト −${v('mineMinerDiscount')}、採掘師の次の収入 +${v('mineMinerBonus')}`;
   }
+}
+
+/** レベルに応じた物件の毎ターンの収益（手番の開始で入る。封鎖で効果が止まっている物件は入らない）。 */
+export function buildingIncomeOf(balance: Balance, building: BuildingId, level: number): number {
+  if (level >= 3) return balance.upgrades3[building].income;
+  return level >= 2 ? balance.upgrades[building].income : balance.buildings[building].income;
 }
 
 /** レベルで値が変わる物件の効果。Lv1 の値は Balance の同名の項目、Lv2 は Balance.level2、Lv3 は Balance.level3 にある。 */
 export type Level2EffectKey =
-  | 'tradingHouseIncome'
   | 'factoryDiscount'
   | 'cathedralVpPerBuilding'
   | 'exchangeBonus'
-  | 'fortressToll'
   | 'quarryExtraDiscount'
-  | 'roadUses';
+  | 'roadUses'
+  | 'mineMinerBonus'
+  | 'mineMinerDiscount';
 
 /** レベルに応じた物件の効果値。数値はすべて balance から引く（ロジックに直書きしない）。 */
 export function buildingEffect(balance: Balance, key: Level2EffectKey, level: number): number {
@@ -163,8 +185,9 @@ export interface Balance {
   maxTurnsPerPlayer: number;
   cards: Record<CardId, { cost: number }>;
   minerIncome: number;
+  /** 銀行家: 次の収入 = bankerIncome + floor(解決時の自分の VP × bankerVpRate) */
   bankerIncome: number;
-  bankerPerBuilding: number;
+  bankerVpRate: number;
   architectDiscount: number;
   taxmanAmount: number;
   /** 買収者: このターンの買収価格の割引 */
@@ -183,8 +206,8 @@ export interface Balance {
   /** 影武者で写せない札。伝令（対象が手札で、写すと手札の並びが崩れる）・影武者自身・
    *  祝祭と衛兵（2 回目は何も起きない: 次の手番の祝祭・守りはもう立っている）が最低限 */
   doubleExcluded: CardId[];
-  buildings: Record<BuildingId, { cost: number; vp: number }>;
-  tradingHouseIncome: number;
+  /** Lv1 の建設費・VP・毎ターンの収益 */
+  buildings: Record<BuildingId, BuildingLevel>;
   factoryDiscount: number;
   cathedralVpPerBuilding: number;
   exchangeBonus: number;
@@ -194,8 +217,9 @@ export interface Balance {
   /** 祝祭: 物件の効果に掛ける倍率と、そのターンの追加収入 */
   festivalMultiplier: number;
   festivalIncomeBonus: number;
-  /** 城塞: 相手が物件を建てたとき、城塞 1 件につき入るコイン */
-  fortressToll: number;
+  /** 鉱山: 採掘師の次の収入への上乗せと、採掘師のコストの割引 */
+  mineMinerBonus: number;
+  mineMinerDiscount: number;
   /** 石切場: 建築家を使ったターン、2 件目以降の建設費にさらに乗る割引 */
   quarryExtraDiscount: number;
   /** 街道: 1 ターンに山の底へ送れる回数（祝祭中は festivalMultiplier 倍） */
@@ -204,11 +228,11 @@ export interface Balance {
   secondPlayerFirstTurnBonus: number;
   /** アップグレード（Lv1 → Lv2）。cost は払う額、vp は Lv2 での VP（加算ではなく置き換え）。
    *  大聖堂の VP は物件数で決まるので、Lv2 では level2.cathedralVpPerBuilding が効く */
-  upgrades: Record<BuildingId, { cost: number; vp: number }>;
+  upgrades: Record<BuildingId, BuildingLevel>;
   /** Lv2 の効果値。Lv1 の値は同名の項目 */
   level2: Record<Level2EffectKey, number>;
   /** 2 回目のアップグレード（Lv2 → Lv3）。cost は払う額、vp は Lv3 での VP（置き換え） */
-  upgrades3: Record<BuildingId, { cost: number; vp: number }>;
+  upgrades3: Record<BuildingId, BuildingLevel>;
   /** Lv3 の効果値 */
   level3: Record<Level2EffectKey, number>;
   /** レベルの上限。上限まで上げた物件は買収されない */
@@ -220,14 +244,21 @@ export interface Balance {
   slotLockTurns: number;
   /** 市場のスロット順。長さ 10 */
   market: BuildingId[];
-  /** 市場を分けた地区。slots は区画の番号。地区ごとに物件の数が相手より多い側が称号を持つ */
+  /** 市場を分けた地区。slots は区画の番号。地区ごとに、地区内の物件の VP の合計が相手より多い側が称号を持つ */
   districts: District[];
   /** 称号 1 つの VP */
   districtTitleVp: number;
-  /** 称号を取るのに要る最少の件数（相手より多いことに加えて） */
-  districtMinCount: number;
-  /** 封鎖者に効果を止められた物件も、称号の件数に数えるか */
-  districtCountsDisabled: boolean;
+  /** 称号を取るのに要る、地区内の VP の合計の最少（相手より多いことに加えて） */
+  districtMinVp: number;
+}
+
+/** 建物の 1 段分の数値。建設（Lv1）では cost は建設費、アップグレードの表では cost はその段へ上げる費用。
+ *  vp・income はその段での値（加算ではなく置き換え）。 */
+export interface BuildingLevel {
+  cost: number;
+  vp: number;
+  /** 毎ターンの収益（手番の開始で入る） */
+  income: number;
 }
 
 export interface District {
@@ -270,11 +301,11 @@ export const DEFAULT_BALANCE: Balance = {
     double: { cost: 3 },
     clerk: { cost: 1 },
   },
-  minerIncome: 3,
-  // 銀行家 5 → 4・採掘師のコスト 2 → 3: 盲点を直した後の回転（ゲーム内 CPU）は銀行家・採掘師を禁止すると
-  // 勝率が 10〜12 点落ちた（投資の利回り頼み）。lab 150 で回転 63.9% → 50.3%
-  bankerIncome: 4,
-  bankerPerBuilding: 1,
+  // 採掘師 3 コスト・次の収入 +4（ユーザー指定 2026-10-11）
+  minerIncome: 4,
+  // 銀行家: 次の収入 = 自分の VP（ユーザー指定「獲得 VP の分だけ」）
+  bankerIncome: 0,
+  bankerVpRate: 1,
   architectDiscount: 6,
   taxmanAmount: 5,
   spyAcquireDiscount: 3,
@@ -285,17 +316,19 @@ export const DEFAULT_BALANCE: Balance = {
   clerkPerHouse: 2,
   clerkMaxHouses: 3,
   doubleExcluded: ['herald', 'double', 'festival', 'guard'],
+  // 建物は毎ターンの収益を持つ（ユーザー指定 2026-10-11: 商館 +3、ほかは任せる）。
+  // 城塞 25（ユーザー指定）・鉱山 15（ユーザー指定）
   buildings: {
-    tradingHouse: { cost: 7, vp: 2 },
-    wall: { cost: 10, vp: 2 },
-    factory: { cost: 12, vp: 3 },
-    road: { cost: 14, vp: 2 },
-    cathedral: { cost: 16, vp: 0 },
-    fortress: { cost: 18, vp: 6 },
-    exchange: { cost: 20, vp: 3 },
-    quarry: { cost: 13, vp: 3 },
+    tradingHouse: { cost: 7, vp: 2, income: 3 },
+    wall: { cost: 10, vp: 2, income: 1 },
+    factory: { cost: 12, vp: 3, income: 1 },
+    quarry: { cost: 13, vp: 3, income: 1 },
+    road: { cost: 14, vp: 2, income: 2 },
+    mine: { cost: 15, vp: 3, income: 2 },
+    cathedral: { cost: 18, vp: 0, income: 0 },
+    exchange: { cost: 22, vp: 4, income: 2 },
+    fortress: { cost: 25, vp: 8, income: 0 },
   },
-  tradingHouseIncome: 1,
   factoryDiscount: 2,
   cathedralVpPerBuilding: 2,
   exchangeBonus: 2,
@@ -304,50 +337,54 @@ export const DEFAULT_BALANCE: Balance = {
   usurerDebt: 6,
   festivalMultiplier: 2,
   festivalIncomeBonus: 2,
-  fortressToll: 2,
+  mineMinerBonus: 2,
+  mineMinerDiscount: 1,
   quarryExtraDiscount: 4,
   roadUses: 1,
   secondPlayerFirstTurnBonus: 1,
+  // Lv2 の費用は建設費と同じ、Lv3 は建設費 +3
   upgrades: {
-    tradingHouse: { cost: 7, vp: 4 },
-    wall: { cost: 10, vp: 4 },
-    factory: { cost: 12, vp: 5 },
-    road: { cost: 14, vp: 4 },
-    cathedral: { cost: 16, vp: 0 },
-    fortress: { cost: 18, vp: 9 },
-    exchange: { cost: 20, vp: 5 },
-    quarry: { cost: 13, vp: 5 },
+    tradingHouse: { cost: 7, vp: 4, income: 4 },
+    wall: { cost: 10, vp: 4, income: 2 },
+    factory: { cost: 12, vp: 5, income: 2 },
+    quarry: { cost: 13, vp: 5, income: 2 },
+    road: { cost: 14, vp: 4, income: 3 },
+    mine: { cost: 15, vp: 5, income: 3 },
+    cathedral: { cost: 18, vp: 0, income: 0 },
+    exchange: { cost: 22, vp: 6, income: 3 },
+    fortress: { cost: 25, vp: 11, income: 0 },
   },
   level2: {
-    tradingHouseIncome: 2,
     factoryDiscount: 4,
     cathedralVpPerBuilding: 3,
     exchangeBonus: 4,
-    fortressToll: 3,
     quarryExtraDiscount: 6,
     roadUses: 2,
+    mineMinerBonus: 3,
+    mineMinerDiscount: 2,
   },
   // Lv3 の費用は建設費 +3。lab 100（Lv3 の費用 → 終了時に Lv3 の物件の割合 / 1 試合の買収）:
   // 建設費と同額 29.2% / 3.94 回、+1 25.3% / 4.01 回、+3 15.3% / 4.39 回（Lv3 なし 4.42 回）。
   // 安いと買収されない物件ばかりになり、買収の読み合いが減る
   upgrades3: {
-    tradingHouse: { cost: 10, vp: 6 },
-    wall: { cost: 13, vp: 6 },
-    factory: { cost: 15, vp: 7 },
-    road: { cost: 17, vp: 6 },
-    cathedral: { cost: 19, vp: 0 },
-    fortress: { cost: 21, vp: 12 },
-    exchange: { cost: 23, vp: 7 },
-    quarry: { cost: 16, vp: 7 },
+    tradingHouse: { cost: 10, vp: 6, income: 5 },
+    wall: { cost: 13, vp: 6, income: 2 },
+    factory: { cost: 15, vp: 7, income: 3 },
+    quarry: { cost: 16, vp: 7, income: 3 },
+    road: { cost: 17, vp: 6, income: 4 },
+    mine: { cost: 18, vp: 7, income: 4 },
+    cathedral: { cost: 21, vp: 0, income: 0 },
+    exchange: { cost: 25, vp: 8, income: 4 },
+    fortress: { cost: 28, vp: 14, income: 0 },
   },
   level3: {
-    tradingHouseIncome: 3,
     factoryDiscount: 6,
     cathedralVpPerBuilding: 4,
     exchangeBonus: 6,
-    fortressToll: 4,
     quarryExtraDiscount: 8,
     roadUses: 3,
+    mineMinerBonus: 4,
+    mineMinerDiscount: 2,
   },
   maxLevel: 3,
   acquireMarkup: 4,
@@ -361,7 +398,7 @@ export const DEFAULT_BALANCE: Balance = {
     'road',
     'cathedral',
     'fortress',
-    'fortress',
+    'mine',
     'exchange',
   ],
   // 盤面の段（2/3/2/3）を通りで区切った形。上の段＋2 段目の左 / 2 段目の中・右＋3 段目の右 / 3 段目の左＋最下段
@@ -371,6 +408,5 @@ export const DEFAULT_BALANCE: Balance = {
     { name: '城下', slots: [5, 7, 8, 9] },
   ],
   districtTitleVp: 2,
-  districtMinCount: 1,
-  districtCountsDisabled: true,
+  districtMinVp: 1,
 };

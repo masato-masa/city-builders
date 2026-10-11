@@ -12,7 +12,7 @@
 // - 影武者: 写す札（このターン直前に使った札）と同じ対象の取り方。対象の要らない札なら盤面のどこでも。
 
 import { CARD_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
-import { bossDistrictsOf, districtOfSlot, doubleSourceOf, effectiveCardOf } from '@/game/selectors';
+import { blockadeDistrictsOf, bossDistrictsOf, districtOfSlot, doubleSourceOf, effectiveCardOf } from '@/game/selectors';
 import type { Action, CardId, GameState, PlayerId } from '@/game/types';
 
 /** これ以上動いたらドラッグ（CLAUDE.md の基準 7px 程度）。 */
@@ -110,8 +110,13 @@ export function slotPick(
 ): Pick {
   const slot = state.market[slotId];
   if (mode === 'blockade') {
-    if (!slot || slot.owner === viewer) return { ok: false, reason: '自分の区画は封鎖できません' };
-    return { ok: true, action: { type: 'useCard', card, blockadeSlot: slotId } };
+    // 封鎖者の対象は地区。地区のどの区画（空き地・自分の物件・相手の物件）で離してもその地区になる
+    const d = districtOfSlot(slotId, balance);
+    if (!slot || d < 0) return { ok: false, reason: '地区の上で離してください' };
+    if (!blockadeDistrictsOf(state, viewer, balance).includes(d)) {
+      return { ok: false, reason: 'その地区は封鎖済みです' };
+    }
+    return { ok: true, action: { type: 'useCard', card, district: d } };
   }
   if (mode === 'inspect') {
     const r = inspectPick(state, viewer, slotId);
@@ -119,7 +124,7 @@ export function slotPick(
   }
   const district = districtOfSlot(slotId, balance);
   if (district < 0 || !bossDistrictsOf(state, viewer, balance).includes(district)) {
-    return { ok: false, reason: '顔役は、物件の数が同じ地区に使います' };
+    return { ok: false, reason: '顔役は、VP の合計が同じ地区に使います' };
   }
   return { ok: true, action: { type: 'useCard', card, district } };
 }
@@ -142,13 +147,13 @@ export function dragGuide(card: CardId, state?: GameState, viewer?: PlayerId): s
     const src = state && viewer ? doubleSourceOf(state, viewer) : null;
     if (!src) return '影武者: 先に別の札を使う';
     const mode = slotTargetModeOf(state!, viewer!, card);
-    const where = mode === 'blockade' ? '区画の上' : mode === 'inspect' ? '相手の物件の上' : mode === 'district' ? '地区の上' : '盤面';
+    const where = mode === 'blockade' ? '地区の上' : mode === 'inspect' ? '相手の物件の上' : mode === 'district' ? '地区の上' : '盤面';
     return `影武者（${CARD_NAMES[src]}）: ${where}で離す`;
   }
   if (card === 'herald') return '伝令: 山の底へ送る札の上で離す';
-  if (card === 'blockader') return '封鎖者: 相手の区画か空き地の上で離す';
+  if (card === 'blockader') return '封鎖者: 封鎖する地区の上で離す';
   if (card === 'inspector') return '検査官: 相手の物件の上で離す';
-  if (card === 'boss') return '顔役: 物件の数が同じ地区の上で離す';
+  if (card === 'boss') return '顔役: VP が同じ地区の上で離す';
   return '盤面の上で離すと使う';
 }
 
@@ -159,7 +164,7 @@ export function useHintOf(state: GameState, viewer: PlayerId, card: CardId): str
   const mode = slotTargetModeOf(state, viewer, card);
   if (mode === 'blockade') return '使うとき: 相手の区画か空き地の上へドラッグ';
   if (mode === 'inspect') return '使うとき: 相手の物件の上へドラッグ';
-  if (mode === 'district') return '使うとき: 物件の数が同じ地区の上へドラッグ';
+  if (mode === 'district') return '使うとき: VP の合計が同じ地区の上へドラッグ';
   return '使うとき: 盤面へドラッグ';
 }
 

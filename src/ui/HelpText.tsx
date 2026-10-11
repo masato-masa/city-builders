@@ -29,7 +29,7 @@ export function HelpText({ balance }: { balance: Balance }) {
       </p>
       <p className="sheet-text">
         <b>地区</b>: 盤面は{balance.districts.map((d) => d.name).join('・')}の 3 地区。端の名札の数字は
-        件数（自分 対 相手）で、多く持つ側に<b>称号 +{balance.districtTitleVp} VP</b>。同数なら今の持ち主のまま。
+        地区内の VP の合計（自分 対 相手）で、多い側に<b>称号 +{balance.districtTitleVp} VP</b>。同数なら今の持ち主のまま。
       </p>
       <p className="sheet-text">
         <b>街道</b>: 自分の街道をタップすると、手札の札を 1 枚山の底へ送れます（次のターンの手札を選べる）。

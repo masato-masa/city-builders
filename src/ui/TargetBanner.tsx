@@ -8,7 +8,7 @@ import { TARGET_LABEL } from './feel';
  *  浮かせる。全画面を覆うオーバーレイは持たないので、タップはそのまま
  *  この下（盤面／手札）を通る。 */
 export function TargetBanner({
-  // 以前は「（このターンだけの効果）」と添えていたが、封鎖は永続（カードの説明・シートと食い違っていた）。
+  // 封鎖は 2026-10-11 から「次の相手のターンだけ・地区全体」。
   label = TARGET_LABEL.blockade,
   onCancel,
 }: {

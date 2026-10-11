@@ -65,22 +65,26 @@ describe('離した場所の判定（resolveDrop）', () => {
     expect(resolveDrop(g, 'you', 'herald', hit({ handCard: 'herald' }))).toEqual({ kind: 'cancel' });
   });
 
-  it('封鎖者は区画の上でその区画。自分の区画ははじく。区画の外の盤面なら対象選びへ', () => {
+  it('封鎖者は区画の上でその区画の地区。封鎖済みの地区ははじく。区画の外の盤面なら対象選びへ', () => {
     expect(resolveDrop(g, 'you', 'blockader', hit({ onBoard: true, slotId: 3 }))).toEqual({
       kind: 'use',
-      action: { type: 'useCard', card: 'blockader', blockadeSlot: 3 },
+      action: { type: 'useCard', card: 'blockader', district: 1 },
     });
     expect(resolveDrop(g, 'you', 'blockader', hit({ onBoard: true, slotId: 0 })).kind).toBe('use');
-    expect(resolveDrop(g, 'you', 'blockader', hit({ onBoard: true, slotId: 4 })).kind).toBe('reject');
-    // 2 人対戦: 手番側から見る
-    expect(resolveDrop(g, 'cpu', 'blockader', hit({ onBoard: true, slotId: 3 })).kind).toBe('reject');
+    // 自分の物件の上でも、その地区を封鎖する（自分の物件には何も起きない）
+    expect(resolveDrop(g, 'you', 'blockader', hit({ onBoard: true, slotId: 4 })).kind).toBe('use');
+    const blocked = structuredClone(g);
+    blocked.blockades = [{ district: 1, target: 'cpu', untilTurn: g.turn + 1, beforeIncome: true }];
+    expect(resolveDrop(blocked, 'you', 'blockader', hit({ onBoard: true, slotId: 3 })).kind).toBe('reject');
+    // 2 人対戦: 手番側から見る（cpu から見て you は封鎖を受けていない）
+    expect(resolveDrop(blocked, 'cpu', 'blockader', hit({ onBoard: true, slotId: 3 })).kind).toBe('use');
     expect(resolveDrop(g, 'you', 'blockader', hit({ onBoard: true }))).toEqual({ kind: 'target', mode: 'blockade' });
     expect(resolveDrop(g, 'you', 'blockader', hit({}))).toEqual({ kind: 'cancel' });
   });
 
   it('ドラッグ中の案内は札ごとに、どこで離すかを言う（時計と重ならない長さ）', () => {
     expect(dragGuide('herald')).toContain('札の上');
-    expect(dragGuide('blockader')).toContain('区画');
+    expect(dragGuide('blockader')).toContain('地区');
     expect(dragGuide('miner')).toContain('盤面');
     for (const c of ['herald', 'blockader', 'miner'] as const) expect(dragGuide(c).length).toBeLessThanOrEqual(22);
   });

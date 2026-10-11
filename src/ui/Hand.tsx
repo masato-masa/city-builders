@@ -168,7 +168,7 @@ function CardPeek({
           <span className="card-peek-cost">コスト {cardCostFor(state, viewer, card, balance)}</span>
         </p>
         <p className="card-peek-text">{cardTextFor(card, balance)}</p>
-        {card === 'blockader' ? <p className="card-peek-note">永続する効果です。解除する手段はいまはありません。</p> : null}
+        {card === 'blockader' ? <p className="card-peek-note">効くのは次の相手のターンだけです（地区全体。自分の物件には何も起きない）。</p> : null}
         {card === 'double' ? <p className="card-peek-note">{doubleNoteOf(state, viewer, card, balance)}</p> : null}
         <p className="card-peek-note">{useHintOf(state, viewer, card)}</p>
       </div>

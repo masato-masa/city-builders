@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
+import { buildingTextFor, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { createGame } from '@/game/setup';
 import type { GameState } from '@/game/types';
 import { describeAction } from '@/ui/cpu-turn';
@@ -129,8 +129,9 @@ describe('levelEffects', () => {
   it('Lv1 の物件は、いまと上げたあと（level + 1）を並べる', () => {
     const s = board();
     const { current, next } = levelEffects(s, 0, B);
-    expect(current).toEqual({ level: 1, vp: '2 VP', text: '毎ターン開始時 コイン +1' });
-    expect(next).toEqual({ level: 2, vp: '4 VP', text: '毎ターン開始時 コイン +2' });
+    expect(current).toEqual({ level: 1, vp: '2 VP', text: buildingTextFor('tradingHouse', B, 1) });
+    expect(next).toEqual({ level: 2, vp: '4 VP', text: buildingTextFor('tradingHouse', B, 2) });
+    expect(current.text).toContain(`収益 コイン +${B.buildings.tradingHouse.income}`);
   });
 
   it('最大レベルは next を出さない。未建設も出さない', () => {

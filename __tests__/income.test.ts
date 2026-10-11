@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_BALANCE } from '@/game/balance';
-import { reduce } from '@/game/reducer';
+import { cardCostFor, reduce } from '@/game/reducer';
+import { scoreOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 
@@ -43,25 +44,42 @@ describe('遅延収入', () => {
     expect(g.players.you.pendingIncome).toEqual([]);
   });
 
-  it('商館 1 件につき開始時 +1', () => {
+  it('物件は毎ターン開始時に収益を生む（商館 1 件につき buildings.tradingHouse.income）', () => {
     const g = fixture(0);
     const houses = g.market.filter((s) => s.buildingId === 'tradingHouse');
     houses.forEach((s) => (s.owner = 'you'));
     const after = reduce(g, { type: 'startTurn' }, DEFAULT_BALANCE);
     expect(after.players.you.coins).toBe(
-      DEFAULT_BALANCE.baseIncome + houses.length * DEFAULT_BALANCE.tradingHouseIncome,
+      DEFAULT_BALANCE.baseIncome + houses.length * DEFAULT_BALANCE.buildings.tradingHouse.income,
     );
   });
 
-  it('銀行家は解決時の物件数で増える', () => {
+  it('収益はレベルで変わる（Lv2 は upgrades、Lv3 は upgrades3 の income）', () => {
+    const g = fixture(0);
+    const [a, b] = g.market.filter((s) => s.buildingId === 'tradingHouse');
+    a!.owner = 'you';
+    a!.level = 2;
+    b!.owner = 'you';
+    b!.level = 3;
+    const after = reduce(g, { type: 'startTurn' }, DEFAULT_BALANCE);
+    expect(after.players.you.coins).toBe(
+      DEFAULT_BALANCE.baseIncome +
+        DEFAULT_BALANCE.upgrades.tradingHouse.income +
+        DEFAULT_BALANCE.upgrades3.tradingHouse.income,
+    );
+  });
+
+  it('銀行家は解決時の自分の VP の分だけ増える', () => {
     let g = fixture(10);
     g = reduce(g, { type: 'useCard', card: 'banker' }, DEFAULT_BALANCE);
-    // 使ったあとに物件を 2 件持たせる（商館なので開始時収入も付く）
+    // 使ったあとに物件を 2 件持たせる（商館なので開始時の収益も付く。称号は盤面を引き直していないので無し）
     g.market.filter((s) => s.buildingId === 'tradingHouse').slice(0, 2).forEach((s) => (s.owner = 'you'));
+    const vp = scoreOf(g, 'you', DEFAULT_BALANCE);
+    expect(vp).toBe(2 * DEFAULT_BALANCE.buildings.tradingHouse.vp);
     g = reduce(g, { type: 'startTurn' }, DEFAULT_BALANCE);
     const before = 10 - DEFAULT_BALANCE.cards.banker.cost;
-    const houseIncome = 2 * DEFAULT_BALANCE.tradingHouseIncome;
-    const bankerIncome = DEFAULT_BALANCE.bankerIncome + 2 * DEFAULT_BALANCE.bankerPerBuilding;
+    const houseIncome = 2 * DEFAULT_BALANCE.buildings.tradingHouse.income;
+    const bankerIncome = DEFAULT_BALANCE.bankerIncome + Math.floor(vp * DEFAULT_BALANCE.bankerVpRate);
     expect(g.players.you.coins).toBe(before + DEFAULT_BALANCE.baseIncome + houseIncome + bankerIncome);
   });
 
@@ -73,10 +91,32 @@ describe('遅延収入', () => {
     g = reduce(g, { type: 'startTurn' }, DEFAULT_BALANCE);
     const before = 10 - DEFAULT_BALANCE.cards.miner.cost - DEFAULT_BALANCE.cards.banker.cost;
     const minerIncome = DEFAULT_BALANCE.minerIncome + DEFAULT_BALANCE.exchangeBonus;
-    // 取引所自身も所有物件数に入る
+    // 取引所自身の VP が銀行家に乗る。取引所の収益も入る
     const bankerIncome =
-      DEFAULT_BALANCE.bankerIncome + 1 * DEFAULT_BALANCE.bankerPerBuilding + DEFAULT_BALANCE.exchangeBonus;
-    expect(g.players.you.coins).toBe(before + DEFAULT_BALANCE.baseIncome + minerIncome + bankerIncome);
+      DEFAULT_BALANCE.bankerIncome +
+      Math.floor(DEFAULT_BALANCE.buildings.exchange.vp * DEFAULT_BALANCE.bankerVpRate) +
+      DEFAULT_BALANCE.exchangeBonus;
+    expect(g.players.you.coins).toBe(
+      before + DEFAULT_BALANCE.baseIncome + DEFAULT_BALANCE.buildings.exchange.income + minerIncome + bankerIncome,
+    );
+  });
+
+  it('鉱山があると採掘師が安くなり、次の収入が増える', () => {
+    let g = fixture(10);
+    g.market.find((s) => s.buildingId === 'mine')!.owner = 'you';
+    expect(cardCostFor(g, 'you', 'miner', DEFAULT_BALANCE)).toBe(
+      DEFAULT_BALANCE.cards.miner.cost - DEFAULT_BALANCE.mineMinerDiscount,
+    );
+    g = reduce(g, { type: 'useCard', card: 'miner' }, DEFAULT_BALANCE);
+    expect(g.players.you.coins).toBe(10 - (DEFAULT_BALANCE.cards.miner.cost - DEFAULT_BALANCE.mineMinerDiscount));
+    const before = g.players.you.coins;
+    g = reduce(g, { type: 'startTurn' }, DEFAULT_BALANCE);
+    expect(g.players.you.coins - before).toBe(
+      DEFAULT_BALANCE.baseIncome +
+        DEFAULT_BALANCE.buildings.mine.income +
+        DEFAULT_BALANCE.minerIncome +
+        DEFAULT_BALANCE.mineMinerBonus,
+    );
   });
 
   it('開始時にターン内の一時状態がリセットされる', () => {

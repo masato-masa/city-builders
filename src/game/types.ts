@@ -13,7 +13,7 @@ export type CardId =
   | 'craftsman'
   /** 検査官: 相手の物件の Lv を 1 段下げる／Lv1 なら払われた額を減らす（既定のデッキには入っていない） */
   | 'inspector'
-  /** 顔役: 件数が同数の地区の称号を今すぐ自分へ（既定のデッキには入っていない） */
+  /** 顔役: 地区内の VP の合計が同数の地区の称号を今すぐ自分へ（既定のデッキには入っていない） */
   | 'boss'
   /** 密告者: 相手の「次」の札を相手の山の底へ送る（既定のデッキには入っていない） */
   | 'informer'
@@ -30,7 +30,9 @@ export type BuildingId =
   | 'cathedral'
   | 'fortress'
   | 'exchange'
-  | 'quarry';
+  | 'quarry'
+  /** 鉱山: 採掘師の収入を増やし、コストを下げる（市場の城塞 2 つのうち 1 つを置き換えた） */
+  | 'mine';
 
 export type PlayerId = 'you' | 'cpu';
 
@@ -68,8 +70,6 @@ export interface PlayerState {
   buildsThisTurn: number;
   /** このターン 1 枚でもカードを使ったか（工場の割引判定） */
   usedAnyCardThisTurn: boolean;
-  /** 封鎖者に指定されたスロット。建設できない。解除する手段が無いので永続 */
-  blockedSlot: number | null;
   /** このターン、街道の循環を使った回数 */
   roadUsesThisTurn: number;
   /** 高利貸の借り。次の自分の開始フェーズで引かれる */
@@ -85,8 +85,6 @@ export interface PlayerState {
   acquireDiscount: number;
   /** このターン限りのアップグレード費の割引（職人）。Lv1→2・Lv2→3 のどちらにも効く */
   upgradeDiscount: number;
-  /** 封鎖者に効果を止められている自分の物件の区画。解除する手段が無いので永続 */
-  disabledSlot: number | null;
 }
 
 export interface GameState {
@@ -100,7 +98,21 @@ export interface GameState {
   /** 地区（balance.districts）ごとの称号の持ち主。誰も持たなければ null。
    *  同数なら今の持ち主が保持するので、盤面から毎回計算せず状態として持つ */
   titles: (PlayerId | null)[];
+  /** 封鎖者が掛けた封鎖。対象の地区の空き地に target は建てられず、地区内の target の物件は効果（収益を含む）が止まる。
+   *  使った側の物件には何も起きない。target の次の手番の終わり（turn が untilTurn の手番の終わり）で解ける */
+  blockades: Blockade[];
   phase: 'playing' | 'finished';
+}
+
+export interface Blockade {
+  /** 地区の番号（balance.districts の添字） */
+  district: number;
+  /** 封鎖を受ける側 */
+  target: PlayerId;
+  /** この手番（GameState.turn）の終わりで解ける。使った手番の次（= target の次の手番） */
+  untilTurn: number;
+  /** target の開始フェーズ（収入）がまだ来ていないか。来たら false（CPU が「次の収入が減る」を数えるため） */
+  beforeIncome: boolean;
 }
 
 export type Action =
@@ -109,9 +121,8 @@ export type Action =
       type: 'useCard';
       card: CardId;
       heraldTarget?: CardId;
-      blockadeSlot?: number;
       inspectSlot?: number;
-      /** 顔役（と、顔役を写した影武者）の対象の地区（balance.districts の番号） */
+      /** 封鎖者・顔役（と、それを写した影武者）の対象の地区（balance.districts の番号） */
       district?: number;
     }
   | { type: 'build'; slotId: number }

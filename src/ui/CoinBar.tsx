@@ -1,5 +1,6 @@
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
-import { activeEffectMax, activeEffectSum, ownedSlots, scoreOf } from '@/game/selectors';
+import { nextIncomeOf } from '@/game/reducer';
+import { scoreOf } from '@/game/selectors';
 import type { GameState, PlayerId } from '@/game/types';
 
 import { hapticTap } from './haptics';
@@ -16,28 +17,8 @@ import { InfoBoard } from './InfoBoard';
  *  封鎖者で効果を止められている物件は activeOwnedSlots が除外するので、
  *  商館・取引所の集計にはそちらを使う。 */
 export function forecast(state: GameState, viewer: PlayerId, balance: Balance): number {
-  const p = state.players[viewer];
-  const festivalNext = p.festivalQueued;
-  // Lv2 の物件は効果値が上がるので、件数 × Lv1 の値ではなくレベルを見る集計を使う
-  let bonus = activeEffectMax(state, viewer, 'exchange', 'exchangeBonus', balance);
-  if (festivalNext) bonus *= balance.festivalMultiplier;
-
-  let total = balance.baseIncome;
-  if (festivalNext) total += balance.festivalIncomeBonus;
-
-  let houseIncome = activeEffectSum(state, viewer, 'tradingHouse', 'tradingHouseIncome', balance);
-  if (festivalNext) houseIncome *= balance.festivalMultiplier;
-  total += houseIncome;
-
-  for (const card of p.pendingIncome) {
-    if (card === 'miner') total += balance.minerIncome + bonus;
-    if (card === 'banker') {
-      total += balance.bankerIncome + ownedSlots(state, viewer).length * balance.bankerPerBuilding + bonus;
-    }
-  }
-  total -= p.pendingDebt;
-  total -= Math.min(p.pendingTax, Math.max(0, p.coins + total));
-  return total;
+  // 計算は startTurn と同じ段の合計（建物の収益・投資・祝祭・借り・徴税・封鎖）。src/game/reducer.ts の nextIncomeOf
+  return nextIncomeOf(state, viewer, balance);
 }
 
 /** 自分の情報ボード（プレイ画面いちばん下、手札のすぐ上）。相手の帯と同じ骨格

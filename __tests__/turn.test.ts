@@ -34,17 +34,18 @@ describe('ターン終了', () => {
     expect(after.turn).toBe(g.turn + 1);
   });
 
-  it('祝祭・買収の結果はターン終了で消えるが、封鎖者は永続する', () => {
-    // 封鎖者は「1 ターンで解けると効果が意味をなさない」という指摘を受け、
-    // 解除する手段を持たない永続効果にした（endTurn では消さない）。
+  it('祝祭・買収の結果はターン終了で消える。封鎖者の封鎖は受けた側のターンの終わりで解ける', () => {
+    // 封鎖者は「次の相手のターンだけ」（2026-10-11 ユーザー指定。以前は永続）
     const g = fixture();
-    g.players.you.blockedSlot = 3;
-    g.players.you.disabledSlot = 5;
+    g.blockades = [
+      { district: 0, target: 'you', untilTurn: g.turn, beforeIncome: false },
+      { district: 1, target: 'cpu', untilTurn: g.turn + 1, beforeIncome: true },
+    ];
     g.players.you.festivalActive = true;
     g.players.you.acquireDiscount = 5;
     const after = reduce(g, { type: 'endTurn' }, DEFAULT_BALANCE);
-    expect(after.players.you.blockedSlot).toBe(3);
-    expect(after.players.you.disabledSlot).toBe(5);
+    // you が受けていた封鎖（このターンまで）は解け、cpu に掛けた封鎖（cpu の次のターンまで）は残る
+    expect(after.blockades).toEqual([{ district: 1, target: 'cpu', untilTurn: g.turn + 1, beforeIncome: true }]);
     expect(after.players.you.festivalActive).toBe(false);
     expect(after.players.you.acquireDiscount).toBe(0);
   });
@@ -113,10 +114,10 @@ describe('終了条件', () => {
 
   it('VP 同点なら残コインが多い方が勝つ', () => {
     const g = fixture();
-    // 城塞を 1 つずつ持たせ、他は誰のものでもない状態にすると VP は 6 対 6
-    const fortresses = g.market.filter((s) => s.buildingId === 'fortress');
-    fortresses[0]!.owner = 'you';
-    fortresses[1]!.owner = 'cpu';
+    // 商館を 1 つずつ持たせ、他は誰のものでもない状態にすると VP は同点
+    const houses = g.market.filter((s) => s.buildingId === 'tradingHouse');
+    houses[0]!.owner = 'you';
+    houses[1]!.owner = 'cpu';
     g.turn = DEFAULT_BALANCE.maxTurnsPerPlayer * 2;
     g.players.you.coins = 10;
     g.players.cpu.coins = 3;

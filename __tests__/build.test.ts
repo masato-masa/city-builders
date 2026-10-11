@@ -92,10 +92,10 @@ describe('建設', () => {
     expect(after.market[slot]!.owner).toBe('you');
   });
 
-  it('封鎖されたスロットは建てられない', () => {
+  it('封鎖された地区の空き地は建てられない', () => {
     const g = fixture(50);
     const slot = houseSlot(g);
-    g.players.you.blockedSlot = slot;
+    g.blockades = [{ district: 0, target: 'you', untilTurn: g.turn, beforeIncome: false }];
     expect(canBuild(g, slot, DEFAULT_BALANCE)).toBe(false);
     expect(canBuild(g, g.market.find((s) => s.buildingId === 'fortress')!.slotId, DEFAULT_BALANCE)).toBe(true);
   });

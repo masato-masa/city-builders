@@ -42,18 +42,16 @@ describe('衝撃の強さ（impactOf）', () => {
     expect(impactOf(g, next)).toEqual({ level: 'light', actor: 'you', slotId: null });
   });
 
-  it('封鎖者で空き地を押さえたら軽、相手の物件を止めたら重', () => {
+  it('封鎖者で空き地だけの地区を封鎖したら軽、相手の物件を止めたら重（区画は地区の最初の区画）', () => {
     const g = fixture(['blockader']);
-    const empty = reduce(g, { type: 'useCard', card: 'blockader', blockadeSlot: 3 }, B);
+    const empty = reduce(g, { type: 'useCard', card: 'blockader', district: 0 }, B);
     expect(impactOf(g, empty)?.level).toBe('light');
-    expect(impactOf(g, empty)?.slotId).toBe(3);
+    expect(impactOf(g, empty)?.slotId).toBe(B.districts[0]!.slots[0]);
 
-    // 城壁ではない物件（城壁は持ち主を封鎖から守る）
-    const slot = g.market.find((s) => s.buildingId !== 'wall')!.slotId;
     const owned = structuredClone(g);
-    owned.market[slot]!.owner = 'cpu';
-    const hit = reduce(owned, { type: 'useCard', card: 'blockader', blockadeSlot: slot }, B);
-    expect(impactOf(owned, hit)).toEqual({ level: 'heavy', actor: 'you', slotId: slot });
+    owned.market[1]!.owner = 'cpu';
+    const hit = reduce(owned, { type: 'useCard', card: 'blockader', district: 0 }, B);
+    expect(impactOf(owned, hit)).toEqual({ level: 'heavy', actor: 'you', slotId: B.districts[0]!.slots[0] });
   });
 
   it('衛兵で防がれたら出さない', () => {

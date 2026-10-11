@@ -3,7 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { exposedVpOf, reachOf } from '@/ai/evaluate';
 import { buildingTextFor, DEFAULT_BALANCE } from '@/game/balance';
 import { canAcquire, canUpgrade, canUseRoad, cardCostFor, incomeStages, legalActions, reduce } from '@/game/reducer';
-import { acquireBlockOf, acquirePriceOf, incomePerTurnOf, roadUsesRemaining, scoreOf, vpOfSlot } from '@/game/selectors';
+import {
+  acquireBlockOf,
+  acquirePriceOf,
+  districtOfSlot,
+  incomePerTurnOf,
+  roadUsesRemaining,
+  scoreOf,
+  slotEffectStopped,
+  vpOfSlot,
+} from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { BuildingId, GameState, PlayerId } from '@/game/types';
 
@@ -76,8 +85,8 @@ describe('アップグレード', () => {
       B.buildings.tradingHouse.cost + B.upgrades.tradingHouse.cost + B.upgrades3.tradingHouse.cost,
     );
     expect(vpOfSlot(g, g.market[house]!, B)).toBe(B.upgrades3.tradingHouse.vp);
-    expect(incomePerTurnOf(g, 'you', B)).toBe(B.baseIncome + B.level3.tradingHouseIncome);
-    expect(buildingTextFor('tradingHouse', B, 3)).toContain(`+${B.level3.tradingHouseIncome}`);
+    expect(incomePerTurnOf(g, 'you', B)).toBe(B.baseIncome + B.upgrades3.tradingHouse.income);
+    expect(buildingTextFor('tradingHouse', B, 3)).toContain(`+${B.upgrades3.tradingHouse.income}`);
     expect(canUpgrade(pass(pass(g)), house, B)).toBe(false);
   });
 
@@ -222,14 +231,15 @@ describe('買収', () => {
     const house = slotOf(g, 'tradingHouse');
     g.market[house]!.owner = 'cpu';
     g.market[house]!.paid = 7;
-    g.players.cpu.disabledSlot = house;
+    g.blockades = [{ district: districtOfSlot(house, B), target: 'cpu', untilTurn: g.turn, beforeIncome: false }];
+    expect(slotEffectStopped(g, g.market[house]!, B)).toBe(true);
     expect(canAcquire(g, house, B)).toBe(true);
     const after = reduce(g, { type: 'acquire', slotId: house }, B);
     expect(after.market[house]!.owner).toBe('you');
-    expect(incomePerTurnOf(after, 'you', B)).toBe(B.baseIncome + B.tradingHouseIncome);
+    expect(slotEffectStopped(after, after.market[house]!, B)).toBe(false);
   });
 
-  it('買収は城塞の通行料を払わない（建設ではない）', () => {
+  it('買収の代金は元の持ち主に入るだけ（城塞の通行料は廃止）', () => {
     const g = fixture(100, 0);
     const [f1] = g.market.filter((s) => s.buildingId === 'fortress');
     f1!.owner = 'cpu';
@@ -296,7 +306,7 @@ describe('Lv2 の効果', () => {
   it('商館: 毎ターンの収入が Lv2 の値になる', () => {
     const g = owned('tradingHouse', 'you', 2);
     const stage = incomeStages(g, B).find((s) => s.kind === 'building')!;
-    expect(stage.amount).toBe(B.level2.tradingHouseIncome);
+    expect(stage.amount).toBe(B.upgrades.tradingHouse.income);
   });
 
   it('工場: 最初のカードの割引が Lv2 の値になる', () => {
@@ -304,11 +314,9 @@ describe('Lv2 の効果', () => {
     expect(cardCostFor(g, 'you', 'banker', B)).toBe(B.cards.banker.cost - B.level2.factoryDiscount);
   });
 
-  it('城塞: 相手が建てたときの通行料が Lv2 の値になる', () => {
-    const g = owned('fortress', 'cpu', 2);
-    g.players.you.coins = 50;
-    const after = reduce(g, { type: 'build', slotId: slotOf(g, 'tradingHouse') }, B);
-    expect(after.players.cpu.coins).toBe(B.level2.fortressToll);
+  it('鉱山: 採掘師のコストの割引が Lv2 の値になる', () => {
+    const g = owned('mine', 'you', 2);
+    expect(cardCostFor(g, 'you', 'miner', B)).toBe(Math.max(0, B.cards.miner.cost - B.level2.mineMinerDiscount));
   });
 
   it('大聖堂: 他の物件 1 件あたりの VP が Lv2 の値になる', () => {
@@ -333,8 +341,9 @@ describe('Lv2 の効果', () => {
   });
 
   it('説明文はレベルの値で書かれる', () => {
-    expect(buildingTextFor('tradingHouse', B, 2)).toContain(`+${B.level2.tradingHouseIncome}`);
-    expect(buildingTextFor('tradingHouse', B)).toContain(`+${B.tradingHouseIncome}`);
+    expect(buildingTextFor('tradingHouse', B, 2)).toContain(`+${B.upgrades.tradingHouse.income}`);
+    expect(buildingTextFor('tradingHouse', B)).toContain(`+${B.buildings.tradingHouse.income}`);
+    expect(buildingTextFor('mine', B, 2)).toContain(`+${B.level2.mineMinerBonus}`);
   });
 });
 

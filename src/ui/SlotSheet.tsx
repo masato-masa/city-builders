@@ -1,6 +1,6 @@
 import { BUILDING_NAMES, CARD_NAMES, type Balance } from '@/game/balance';
 import { buildCostFor, canBuild, canUseRoad } from '@/game/reducer';
-import { handSlotsOf, roadUsesRemaining } from '@/game/selectors';
+import { handSlotsOf, roadUsesRemaining, slotBuildBlocked, slotEffectStopped } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
 import { cardArtOf } from './art';
@@ -51,7 +51,8 @@ export function SlotSheet({
   const slot = state.market[slotId]!;
   const { current, next } = levelEffects(state, slotId, balance);
   const owned = slot.owner !== null;
-  const disabledByBlockade = owned && state.players[slot.owner!].disabledSlot === slotId;
+  const disabledByBlockade = owned && slotEffectStopped(state, slot, balance);
+  const buildBlocked = !owned && slotBuildBlocked(state, viewer, slotId, balance);
   const district = districtNote(state, slotId, viewer, balance, ownerName);
   const subtitle = owned
     ? `${ownerName[slot.owner!]}の物件 ・ Lv${current.level} ・ ${current.vp}`
@@ -82,13 +83,15 @@ export function SlotSheet({
           {current.text}
         </p>
       )}
-      {disabledByBlockade ? <p className="sheet-text">封鎖者に効果を止められています（VP は残ります）。</p> : null}
+      {disabledByBlockade ? (
+        <p className="sheet-text">封鎖者の封鎖で効果（収益を含む）が止まっています（VP は残ります）。封鎖を受けた側のターンの終わりで解けます。</p>
+      ) : null}
       {district ? <p className="sheet-text district-note">{district}</p> : null}
 
       {!owned ? (
         <>
-          {state.players[viewer].blockedSlot === slotId ? (
-            <p className="sheet-text">相手の封鎖者に封鎖されています。解除されるまで建てられません。</p>
+          {buildBlocked ? (
+            <p className="sheet-text">相手の封鎖者にこの地区を封鎖されています。このターンは建てられません。</p>
           ) : null}
           <button
             className="btn3d btn3d-yellow"
@@ -96,7 +99,7 @@ export function SlotSheet({
             onClick={onBuild}
           >
             {/* 押せない理由をボタンの上で言う（灰色のボタンだけでは何が足りないか分からない）。 */}
-            {state.players[viewer].blockedSlot === slotId
+            {buildBlocked
               ? '封鎖中'
               : canBuild(state, slotId, balance) || state.current !== viewer
                 ? '建てる'
@@ -137,10 +140,11 @@ function RoadPicker({
 }) {
   const usesLeft = roadUsesRemaining(state, viewer, balance);
   const myTurn = state.phase === 'playing' && state.current === viewer;
-  const disabledHere = state.players[viewer].disabledSlot !== null &&
-    state.market[state.players[viewer].disabledSlot!]?.buildingId === 'road';
+  const disabledHere = state.market.some(
+    (s) => s.owner === viewer && s.buildingId === 'road' && slotEffectStopped(state, s, balance),
+  );
   const reason = disabledHere
-    ? '封鎖者に効果を止められています'
+    ? '封鎖者の封鎖で効果が止まっています'
     : roadReason(true, usesLeft, myTurn);
   return (
     <div className="road-picker">

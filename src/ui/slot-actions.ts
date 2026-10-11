@@ -8,8 +8,8 @@ import {
   acquireBlockOf,
   acquireCostFor,
   acquirePriceOf,
-  districtCounts,
   districtOfSlot,
+  districtVpOf,
   opponentOf,
   slotLocked,
   titleHolder,
@@ -171,11 +171,11 @@ export function districtNote(
   } else if (titleVpSwing(state, slotId, foe, viewer, balance) < 0) {
     return `買収されると${name}の称号（${vp} VP）を失います`;
   }
-  const counts = districtCounts(state, d, balance);
+  const totals = districtVpOf(state, d, balance);
   const holder = titleHolder(state, d);
-  const tally = `${names[viewer]} ${counts[viewer]} 件・${names[foe]} ${counts[foe]} 件`;
+  const tally = `${names[viewer]} ${totals[viewer]} VP・${names[foe]} ${totals[foe]} VP`;
   return holder === null
-    ? `${name}: ${tally}。多く持つ側に称号（+${vp} VP）`
+    ? `${name}: ${tally}。地区内の VP の合計が多い側に称号（+${vp} VP）`
     : `${name}: ${tally}。称号は${names[holder]}`;
 }
 

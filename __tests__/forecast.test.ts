@@ -63,7 +63,7 @@ describe('次ターン収入の見込み（forecast）', () => {
     gWithout.market.filter((s) => s.buildingId === 'tradingHouse').forEach((s) => (s.owner = 'you'));
     const withoutFestival = forecast(gWithout, 'you', DEFAULT_BALANCE);
     const houseIncome = gWithout.market.filter((s) => s.buildingId === 'tradingHouse').length
-      * DEFAULT_BALANCE.tradingHouseIncome;
+      * DEFAULT_BALANCE.buildings.tradingHouse.income;
     expect(predicted).toBe(
       withoutFestival + houseIncome * (DEFAULT_BALANCE.festivalMultiplier - 1) + DEFAULT_BALANCE.festivalIncomeBonus,
     );
@@ -97,7 +97,7 @@ describe('次ターン収入の見込み（forecast）', () => {
     const g = fixture(0);
     const house = g.market.find((s) => s.buildingId === 'tradingHouse')!;
     house.owner = 'you';
-    g.players.you.disabledSlot = house.slotId;
+    g.blockades = [{ district: 0, target: "you", untilTurn: g.turn, beforeIncome: true }];
     expect(forecast(g, 'you', DEFAULT_BALANCE)).toBe(actualNextTurnDelta(g));
   });
 });

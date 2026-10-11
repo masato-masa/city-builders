@@ -120,8 +120,10 @@ describe('派生値', () => {
     cathedral.owner = 'you';
     fortress.owner = 'you';
     house.owner = 'you';
-    // 城塞 6 + 商館 2 + 大聖堂（他 2 件 × 2）4 = 12
-    expect(scoreOf(g, 'you')).toBe(12);
+    // 城塞 + 商館 + 大聖堂（他 2 件 × 2）4
+    expect(scoreOf(g, 'you')).toBe(
+      DEFAULT_BALANCE.buildings.fortress.vp + DEFAULT_BALANCE.buildings.tradingHouse.vp + 2 * DEFAULT_BALANCE.cathedralVpPerBuilding,
+    );
   });
 
   it('区画ごとの VP を単体で取れる', () => {

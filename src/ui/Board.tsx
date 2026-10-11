@@ -3,7 +3,16 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 
 import { BUILDING_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { buildCostFor } from '@/game/reducer';
-import { bossDistrictsOf, districtCounts, districtOfSlot, titleHolder, vpOfSlot } from '@/game/selectors';
+import {
+  blockadeDistrictsOf,
+  bossDistrictsOf,
+  districtOfSlot,
+  districtVpOf,
+  slotBuildBlocked,
+  slotEffectStopped,
+  titleHolder,
+  vpOfSlot,
+} from '@/game/selectors';
 import type { GameState, PlayerId } from '@/game/types';
 
 import { BUILDING_ART } from './art';
@@ -285,20 +294,20 @@ function PlotView({
   // （disabled と同じ考え方。viewer 側だけ見ると、自分が封鎖者を使って
   // 相手を止めたときに何も見えなくなってしまう）。
   const blocked =
-    !owned && (state.players.you.blockedSlot === slotId || state.players.cpu.blockedSlot === slotId);
-  // 封鎖者に効果を止められている自分の物件（要望 G2）。所有者本人の
-  // disabledSlot で判定する（viewer とは無関係。盤面はどちらの操作でも
-  // 同じ 1 枚を共有しているため）。
-  const disabled = owned && state.players[owner].disabledSlot === slotId;
+    !owned && (slotBuildBlocked(state, 'you', slotId, balance) || slotBuildBlocked(state, 'cpu', slotId, balance));
+  // 封鎖者の封鎖で効果が止まっている物件（要望 G2）。持ち主が受けている封鎖で判定する
+  // （viewer とは無関係。盤面はどちらの操作でも同じ 1 枚を共有しているため）。
+  const disabled = owned && slotEffectStopped(state, slot, balance);
   // 封鎖者の対象選択中は、自分の区画以外がタップできる対象になる。
   // 検査官（'foe'）は相手の物件だけ。空き地・自分の物件は沈める
-  // 顔役（'district'）は物件の数が同じ地区の区画だけ
+  // 顔役（'district'）は VP の合計が同じ地区の区画だけ
   const targetable =
     targeting === 'district'
       ? bossDistrictsOf(state, viewer, balance).includes(districtOfSlot(slotId, balance))
       : targeting === 'foe'
         ? owned && owner !== viewer
-        : targeting && owner !== viewer;
+        : // 封鎖者: 対象は地区。まだ封鎖していない地区の区画すべて（自分の物件の上でもよい）
+          targeting && blockadeDistrictsOf(state, viewer, balance).includes(districtOfSlot(slotId, balance));
   const targetInvalid = !!targeting && !targetable;
   const art = BUILDING_ART[slot.buildingId];
   // 建った区画は plot-art の alt="" で物件名が読み上げに出ないので、
@@ -568,7 +577,7 @@ export function Board({
           index={i}
           name={d.name}
           holder={titleHolder(state, i)}
-          counts={districtCounts(state, i, balance)}
+          counts={districtVpOf(state, i, balance)}
           titleVp={balance.districtTitleVp}
           viewer={viewer}
         />

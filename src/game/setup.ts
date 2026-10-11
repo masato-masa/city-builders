@@ -16,7 +16,6 @@ function emptyPlayer(
     buildDiscount: 0,
     buildsThisTurn: 0,
     usedAnyCardThisTurn: false,
-    blockedSlot: null,
     roadUsesThisTurn: 0,
     pendingDebt: 0,
     pendingTax: 0,
@@ -25,7 +24,6 @@ function emptyPlayer(
     guarded: false,
     acquireDiscount: 0,
     upgradeDiscount: 0,
-    disabledSlot: null,
   };
 }
 
@@ -85,6 +83,7 @@ export function createGame(
     players,
     market,
     titles: balance.districts.map(() => null),
+    blockades: [],
     phase: 'playing',
   };
 }

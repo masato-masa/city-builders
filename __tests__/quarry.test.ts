@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { reachOf } from '@/ai/evaluate';
 import { DEFAULT_BALANCE } from '@/game/balance';
 import { buildCostFor, reduce } from '@/game/reducer';
-import { scoreOf } from '@/game/selectors';
+import { districtOfSlot, scoreOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 
@@ -97,7 +97,7 @@ describe('石切場', () => {
     const g = fixture(50);
     const qSlot = quarrySlot(g);
     g.market[qSlot]!.owner = 'you';
-    g.players.you.disabledSlot = qSlot;
+    g.blockades = [{ district: districtOfSlot(qSlot), target: 'you', untilTurn: g.turn, beforeIncome: false }];
     // 「建築家を使い、すでに 1 件建てたあと」の状態を直接作って 2 件目のコストだけを見る
     g.players.you.buildDiscount = DEFAULT_BALANCE.architectDiscount;
     g.players.you.buildsThisTurn = 1;
