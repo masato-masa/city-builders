@@ -17,11 +17,13 @@ import { fileURLToPath } from 'node:url';
 import { type AiOptions } from '../src/ai/choose';
 import { playTurn } from '../src/ai/choose';
 import { DEFAULT_PROFILE, DEFAULT_WEIGHTS, type Profile, type Weights } from '../src/ai/evaluate';
-import { DEFAULT_BALANCE, type Balance } from '../src/game/balance';
+import { type Balance } from '../src/game/balance';
 import { createRng } from '../src/game/rng';
 import { opponentOf, winnerOf } from '../src/game/selectors';
 import { createGame } from '../src/game/setup';
 import type { GameState, PlayerId } from '../src/game/types';
+
+import { balanceFromEnv } from './balance-override';
 
 // ---------------------------------------------------------------------------
 // 探索する 8 項目・出発点
@@ -206,9 +208,23 @@ function cloneProfile(p: Profile): Profile {
   return { early: { ...p.early }, late: { ...p.late } };
 }
 
-function search(startIdx: number, start: StartingPoint, games: number, balance: Balance): SearchResult {
-  const reference = DEFAULT_PROFILE;
+/** 1 つの評価（候補 1 つの適合度）を子プロセスで回す。同じ出発点の 3 つの候補を同時に測るため
+ *  （4 出発点 × 3 候補 = 12 並列）。結果は直列で回したときと同じ（seed は引数だけから決まる）。 */
+function fitnessInChild(trial: Profile, evalSeed: number, games: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [...process.execArgv, fileURLToPath(import.meta.url), String(games)], {
+      env: { ...process.env, SEARCH_WORKER: '', SEARCH_EVAL: JSON.stringify({ trial, evalSeed }) },
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
+    let out = '';
+    child.stdout.on('data', (d) => (out += d));
+    child.on('close', (code) => (code === 0 ? resolve(Number(out)) : reject(new Error(`eval ${evalSeed}: ${code}`))));
+  });
+}
 
+async function search(startIdx: number, start: StartingPoint, games: number, balance: Balance): Promise<SearchResult> {
+  // 参照相手は DEFAULT_PROFILE、数値は balance（子プロセスは同じ BALANCE を環境変数で受け取る）
+  void balance;
   let current = cloneProfile(start.profile);
   let passesRun = 0;
   // 「探索前」の勝率 = 最初に評価する候補（pass0/dim0/valIdx0 は現在値そのもの）の適合度。
@@ -228,12 +244,16 @@ function search(startIdx: number, start: StartingPoint, games: number, balance: 
 
       let bestVal = candidates[0]!;
       let bestFitness = -Infinity;
+      const fitnesses = await Promise.all(
+        candidates.map((val, valIdx) => {
+          const trial = cloneProfile(current);
+          trial[dim.phase][dim.key] = val;
+          return fitnessInChild(trial, evalSeedFor(startIdx, pass, dimIdx, valIdx), games);
+        }),
+      );
       for (let valIdx = 0; valIdx < candidates.length; valIdx++) {
         const val = candidates[valIdx]!;
-        const trial = cloneProfile(current);
-        trial[dim.phase][dim.key] = val;
-        const seed = evalSeedFor(startIdx, pass, dimIdx, valIdx);
-        const fitness = fitnessOf(trial, reference, seed, games, balance);
+        const fitness = fitnesses[valIdx]!;
         if (before === -Infinity) before = fitness; // 一番最初の評価
         if (fitness > bestFitness) {
           bestFitness = fitness;
@@ -257,11 +277,18 @@ function search(startIdx: number, start: StartingPoint, games: number, balance: 
 // ---------------------------------------------------------------------------
 
 const GAMES_PER_EVAL = Number(process.argv[2] ?? 200);
-const balance = DEFAULT_BALANCE;
+// BALANCE='{...}' で数値を上書きして探せる（lab・card-value と共通の口）
+const balance = balanceFromEnv();
 
 // 4 つの出発点は互いに独立（seed は出発点の番号から決まる）なので、子プロセスで並列に回す。
 // 結果は直列で回したときと同じ。子プロセスは SEARCH_WORKER=<番号> で 1 つだけ探索し、結果を JSON で返す
-const worker = process.env.SEARCH_WORKER;
+const worker = process.env.SEARCH_WORKER || undefined;
+// SEARCH_EVAL: 候補 1 つの適合度だけを測って返す子プロセス
+if (process.env.SEARCH_EVAL) {
+  const { trial, evalSeed } = JSON.parse(process.env.SEARCH_EVAL) as { trial: Profile; evalSeed: number };
+  process.stdout.write(String(fitnessOf(trial, DEFAULT_PROFILE, evalSeed, GAMES_PER_EVAL, balance)));
+  process.exit(0);
+}
 // SEARCH_FROM_SAVED=1 なら、出発点を前回の探索結果（searched-profiles.json）にして続きから探す（名前の順は同じ）
 if (process.env.SEARCH_FROM_SAVED === '1') {
   const saved = JSON.parse(
@@ -274,7 +301,7 @@ if (process.env.SEARCH_FROM_SAVED === '1') {
 }
 if (worker !== undefined) {
   const i = Number(worker);
-  process.stdout.write(JSON.stringify(search(i, STARTING_POINTS[i]!, GAMES_PER_EVAL, balance)));
+  process.stdout.write(JSON.stringify(await search(i, STARTING_POINTS[i]!, GAMES_PER_EVAL, balance)));
   process.exit(0);
 }
 
