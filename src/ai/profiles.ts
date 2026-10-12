@@ -7,6 +7,11 @@ import type { Profile } from './evaluate';
  *  収束した重み（scripts/searched-profiles.json の "大器晩成"）を写した。4 つのうち lab 150 の総合勝率が最も高かった（53.6%）。
  *  ゲーム本体は JSON を読まない（探索をやり直しても、ここを書き換えるまで CPU は変わらない）。
  *
+ *  2026-10-11（雪だるまの対策）: 規則を変えたあと探索し直した 4 つは、互いの試合が一方的（大差 70〜85%）になる打ち方
+ *  （VP より相手の VP を削ることとコインを重く見て、負けている側が建てなくなる）に収束した。この重みは、探索し直した 4 つに
+ *  平均 61% で勝ち（最も強い探索結果と同じ）、同士の試合は 1 人 17.6 手番・大差 36%・逆転 26〜30% なので残した。
+ *  買収されたときに受け取る代金（exposedCoins）だけ既定の 0.4 を足した。
+ *
  *  難易度の差はこの重みではなく、揺らぎ・妨害の頻度・先読みで付ける（choose.ts の optionsFor）。 */
 export const CPU_PROFILE: Profile = {
   early: {
@@ -24,6 +29,7 @@ export const CPU_PROFILE: Profile = {
     stuck: -1.5,
     opponentStuck: 1,
     exposed: -2,
+    exposedCoins: 0.4,
   },
   late: {
     vp: 0.9375,
@@ -40,5 +46,6 @@ export const CPU_PROFILE: Profile = {
     stuck: -1.5,
     opponentStuck: 1,
     exposed: -2,
+    exposedCoins: 0.4,
   },
 };

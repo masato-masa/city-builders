@@ -154,7 +154,8 @@ describe('衛兵', () => {
 });
 
 describe('買収者', () => {
-  const B = DEFAULT_BALANCE;
+  // 買収者の割引そのものを測るので、物件の数の差による上乗せの増減は切る
+  const B = { ...DEFAULT_BALANCE, acquireLeadRate: 0 };
   /** you の手番。cpu が商館を持っていて、you は割引なしでは 1 コイン足りない */
   function setup(): { g: GameState; slot: number; price: number } {
     const g = fixture(
@@ -205,17 +206,19 @@ describe('買収者', () => {
 
 describe('物件との連携', () => {
   it('城壁があると衛兵のコストが下がる。封鎖者で城壁を止められると元に戻る', () => {
+    // 守る物件 1 件ごとの上乗せは切る（上乗せは snowball.test.ts で測る）
+    const GB = { ...DEFAULT_BALANCE, guardCostPerBuilding: 0 };
     const g = fixture(
       ['guard', 'miner', 'banker', 'architect', 'herald', 'festival', 'usurer', 'spy', 'taxman', 'blockader'],
       0,
     );
-    expect(cardCostFor(g, 'you', 'guard', DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.cards.guard.cost);
+    expect(cardCostFor(g, 'you', 'guard', GB)).toBe(GB.cards.guard.cost);
     const wall = g.market.find((s) => s.buildingId === 'wall')!;
     wall.owner = 'you';
-    expect(cardCostFor(g, 'you', 'guard', DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.guardCostWithWall);
-    expect(canUseCard(g, 'guard', DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.guardCostWithWall <= 0);
+    expect(cardCostFor(g, 'you', 'guard', GB)).toBe(GB.guardCostWithWall);
+    expect(canUseCard(g, 'guard', GB)).toBe(GB.guardCostWithWall <= 0);
     g.blockades = [{ district: districtOfSlot(wall.slotId), target: 'you', untilTurn: g.turn, beforeIncome: false }];
-    expect(cardCostFor(g, 'you', 'guard', DEFAULT_BALANCE)).toBe(DEFAULT_BALANCE.cards.guard.cost);
+    expect(cardCostFor(g, 'you', 'guard', GB)).toBe(GB.cards.guard.cost);
   });
 
   it('街道があると伝令のコストが下がる', () => {

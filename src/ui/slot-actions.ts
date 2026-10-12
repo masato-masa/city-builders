@@ -7,8 +7,9 @@ import { canAcquire, canUpgrade } from '@/game/reducer';
 import {
   acquireBlockOf,
   acquireCostFor,
-  acquirePriceOf,
+  acquireMarkupFor,
   districtOfSlot,
+  ownedSlots,
   opponentOf,
   slotLocked,
   slotMaxed,
@@ -49,10 +50,11 @@ export function plotFigures(
   if (slot.owner === null) return { kind: 'unbuilt', build: buildCost(slotId) };
   const up = upgradePriceOf(slot, balance);
   const maxed = !Number.isFinite(up);
+  // 自分の物件は相手が買うときの額（上乗せは買う側の物件の数で変わる。相手の手番外なので買収者の割引は乗らない）
   const value = maxed
     ? null
     : slot.owner === viewer
-      ? acquirePriceOf(slot, balance)
+      ? acquireCostFor(state, opponentOf(viewer), slot, balance)
       : acquireCostFor(state, viewer, slot, balance);
   // 自分の物件のアップグレード費は、このターンの職人の割引込み
   const upNow = slot.owner === viewer ? upgradeCostFor(state, viewer, slot, balance) : up;
@@ -142,13 +144,24 @@ export function acquireButton(
   return { price, enabled, label: `あと ${short} コイン`, reason: null };
 }
 
+/** 上乗せの内訳。物件の数の差で動いていれば「（基本 4 ＋ 物件 3 件多い 6）」のように添える。 */
+function markupBreakdown(state: GameState, buyer: PlayerId, balance: Balance): string {
+  const markup = acquireMarkupFor(state, buyer, balance);
+  const lead = ownedSlots(state, buyer).length - ownedSlots(state, opponentOf(buyer)).length;
+  if (balance.acquireLeadRate === 0 || lead === 0) return `${markup}`;
+  const diff = markup - balance.acquireMarkup;
+  const sign = diff >= 0 ? '＋' : '−';
+  return `${markup}（基本 ${balance.acquireMarkup} ${sign} 物件 ${Math.abs(lead)} 件${lead > 0 ? '多い' : '少ない'} ${Math.abs(diff)}）`;
+}
+
 /** 買収の価格の内訳を 1 行で。手番の側が買収者を使っていれば、その割引も内訳に出す。 */
 export function acquireNote(state: GameState, slotId: number, balance: Balance): string | null {
   const slot = state.market[slotId];
   if (!slot || slot.owner === null) return null;
-  const discount = state.players[state.current].acquireDiscount;
-  const spy = discount > 0 && slot.owner !== state.current ? ` − 買収者 ${discount}` : '';
-  return `これまでに払われた ${slot.paid} コイン ＋ ${balance.acquireMarkup}${spy}。代金は相手に渡り、物件と VP が移ります`;
+  const buyer = opponentOf(slot.owner);
+  const discount = state.players[buyer].acquireDiscount;
+  const spy = discount > 0 && buyer === state.current ? ` − 買収者 ${discount}` : '';
+  return `これまでに払われた ${slot.paid} コイン ＋ ${markupBreakdown(state, buyer, balance)}${spy}。代金は相手に渡り、物件と VP が移ります`;
 }
 
 /** 区画のシートに出す地区の 1 行。取れば称号が来る／奪われると称号を失う、を先に言い、
@@ -211,7 +224,13 @@ export function buildingSpecRows(id: BuildingId, balance: Balance): SpecRow[] {
   const rows: SpecRow[] = [
     { label: 'VP', value: levels.length > 1 ? `${vp}（Lv${levels.join('/')}）` : vp },
     { label: '建築コスト', value: `${balance.buildings[id].cost}` },
-    { label: '買収コスト', value: `払われた額 ＋${balance.acquireMarkup}` },
+    {
+      label: '買収コスト',
+      value:
+        balance.acquireLeadRate > 0
+          ? `払われた額 ＋${balance.acquireMarkup}（買う側の物件が 1 件多いごとに ＋${balance.acquireLeadRate}、少ないごとに −${balance.acquireLeadRate}）`
+          : `払われた額 ＋${balance.acquireMarkup}`,
+    },
   ];
   if (upgrades) rows.push({ label: '増築コスト', value: upgrades });
   const income = buildingIncomeOf(balance, id);
@@ -233,8 +252,9 @@ export function slotStatusLine(
   if (slot.owner === null) return `空き地 ・ いま建てると ${buildCost} コイン`;
   const head = `${names[slot.owner]}の物件 ・ Lv${slot.level}`;
   if (slotMaxed(slot, balance)) return `${head} ・ 最終段階のため買収不可`;
-  const price = slot.owner === viewer ? acquirePriceOf(slot, balance) : acquireCostFor(state, viewer, slot, balance);
-  return `${head} ・ 市場価値 ${price}（払われた ${slot.paid} ＋${balance.acquireMarkup}）`;
+  const buyer = opponentOf(slot.owner);
+  const price = acquireCostFor(state, buyer, slot, balance);
+  return `${head} ・ 市場価値 ${price}（払われた ${slot.paid} ＋${acquireMarkupFor(state, buyer, balance)}）`;
 }
 
 export interface LevelEffect {

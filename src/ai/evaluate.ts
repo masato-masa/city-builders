@@ -2,6 +2,7 @@ import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { cardCostFor } from '@/game/reducer';
 import {
   acquireCostFor,
+  acquireLeadMarkupOf,
   acquirePriceOf,
   activeEffectMax,
   blockadeIncomeLossOf,
@@ -52,6 +53,8 @@ export interface Weights {
   /** 相手が次の手番で買収できてしまう自分の VP（相手の見込みの手持ちで、VP の高い順に貪欲に）。
    *  マイナスに効く。アップグレード（価格が上がる）と衛兵（買収を防ぐ）の価値をここで測る */
   exposed: number;
+  /** 相手に買収されたときに受け取る代金（exposed と同じ見込み）。正に効く */
+  exposedCoins: number;
 }
 
 export const DEFAULT_WEIGHTS: Weights = {
@@ -69,6 +72,8 @@ export const DEFAULT_WEIGHTS: Weights = {
   stuck: -1.5,
   opponentStuck: 1.0,
   exposed: -4,
+  // 買収されうる物件の代金。exposed（-4、VP の重み 10 の 4 割）と同じ見込みで、コインの重み 1 の 4 割
+  exposedCoins: 0.4,
 };
 
 /** 性格。序盤と終盤で重みが変わる。進行度で線形に補間する。 */
@@ -199,7 +204,17 @@ export function exposedVpOf(
   player: PlayerId,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
-  if (state.players[player].guarded) return 0;
+  return exposureOf(state, player, balance).vp;
+}
+
+/** exposedVpOf の中身。vp は奪われうる VP、coins はそのとき相手から受け取る代金の合計（買収の代金は元の持ち主に入る）。
+ *  代金を数えないと、少なく持つ側（安く建てて高く買われる）まで「建てても奪われるだけ」と見て建てなくなった（2026-10-11）。 */
+export function exposureOf(
+  state: GameState,
+  player: PlayerId,
+  balance: Balance = DEFAULT_BALANCE,
+): { vp: number; coins: number } {
+  if (state.players[player].guarded) return { vp: 0, coins: 0 };
   const foe = opponentOf(player);
   const f = state.players[foe];
   let budget =
@@ -221,14 +236,16 @@ export function exposedVpOf(
     .map((s) => ({
       // 奪われると地区の称号も失うなら、その VP も込みで測る（あと 1 件で奪われる）
       vp: vpOfSlot(state, s, balance) - titleVpSwing(state, s.slotId, foe, player, balance),
-      price: acquirePriceOf(s, balance, discount),
+      price: acquirePriceOf(s, balance, discount - acquireLeadMarkupOf(state, foe, balance)),
     }))
     .sort((a, b) => b.vp - a.vp);
   let total = 0;
+  let coins = 0;
   for (const m of mine) {
     if (budget < m.price) continue;
     budget -= m.price;
     total += m.vp;
+    coins += m.price;
   }
   // 相手の手札に検査官があり、払えるなら、自分の Lv2 以上の 1 件が 1 段下がる（VP の減りがいちばん大きいもの）。
   // 衛兵の価値（検査官も防ぐ）とアップグレードの危うさを、買収と同じ物差しで数える
@@ -244,7 +261,7 @@ export function exposedVpOf(
   if (handOf(state, foe, balance).includes('boss') && budget >= balance.cards.boss.cost) {
     if (bossDistrictsOf(state, foe, balance).length > 0) total += balance.districtTitleVp;
   }
-  return total;
+  return { vp: total, coins };
 }
 
 /** 相手の「次」の札が相手の手札に入ったときの脅威の目安（コインの見当）。密告者の価値の物差し。
@@ -307,7 +324,8 @@ export function evaluateState(
 
   const reach = reachOf(state, player, balance);
   const opponentReach = reachOf(state, foe, balance);
-  const exposed = exposedVpOf(state, player, balance);
+  const exposure = exposureOf(state, player, balance);
+  const exposed = exposure.vp;
 
   // 衛兵が守っているものの大きさ。持っているコインと、これから積み上がる収入が
   // 大きいほど「守れて良かった」の価値が上がる。相手の手札は読まない。
@@ -352,6 +370,7 @@ export function evaluateState(
     (foeNext * blockadeIncomeLossOf(state, foe, balance) - myNext * blockadeIncomeLossOf(state, player, balance)) *
       -weights.debt +
     guarded * weights.guarded +
-    exposed * weights.exposed * (0.5 + late)
+    exposed * weights.exposed * (0.5 + late) +
+    exposure.coins * weights.exposedCoins
   );
 }

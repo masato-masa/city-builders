@@ -4,7 +4,7 @@ import { chooseAction, optionsFor, playTurn, type Difficulty } from '@/ai/choose
 import { DEFAULT_PROFILE, DEFAULT_WEIGHTS, evaluateState, weightsAt } from '@/ai/evaluate';
 import { CPU_PROFILE } from '@/ai/profiles';
 import { DEFAULT_BALANCE } from '@/game/balance';
-import { winnerOf } from '@/game/selectors';
+import { acquireCostFor, winnerOf } from '@/game/selectors';
 import { legalActions, reduce } from '@/game/reducer';
 import { createRng } from '@/game/rng';
 import { createGame } from '@/game/setup';
@@ -111,7 +111,7 @@ describe('重み付き評価関数', () => {
     // 安く建てられた城塞（建築家・石切場）。割引なしでは 1 コイン足りず、商館しか建てられない
     fortress.paid = 5;
     g.current = 'you';
-    g.players.you.coins = fortress.paid + DEFAULT_BALANCE.acquireMarkup - 1;
+    g.players.you.coins = acquireCostFor(g, 'you', fortress, DEFAULT_BALANCE) - 1;
     const discounted = structuredClone(g);
     discounted.players.you.acquireDiscount = DEFAULT_BALANCE.spyAcquireDiscount;
     expect(evaluateState(discounted, 'you', DEFAULT_BALANCE)).toBeGreaterThan(
@@ -127,8 +127,10 @@ describe('重み付き評価関数', () => {
     const wall = walled.market.find((s) => s.buildingId === 'wall')!;
     wall.owner = 'you';
     // 盤面は同じで、連携のコストだけが違う balance と比べる（差は stuck だけに出る）
-    const noSynergy = { ...DEFAULT_BALANCE, guardCostWithWall: DEFAULT_BALANCE.cards.guard.cost };
-    expect(evaluateState(walled, 'you', DEFAULT_BALANCE)).toBeGreaterThan(
+    // 守る物件 1 件ごとの上乗せは切る（城壁 1 件で衛兵が払えなくなるため。上乗せは snowball.test.ts で測る）
+    const B = { ...DEFAULT_BALANCE, guardCostPerBuilding: 0 };
+    const noSynergy = { ...B, guardCostWithWall: B.cards.guard.cost };
+    expect(evaluateState(walled, 'you', B)).toBeGreaterThan(
       evaluateState(walled, 'you', noSynergy),
     );
   });
@@ -183,13 +185,13 @@ describe('行動選択', () => {
 describe('AiOptions への分解', () => {
   it('optionsFor は難易度ごとの値をそのまま写している（3 段とも CPU_PROFILE）', () => {
     expect(optionsFor('easy')).toEqual({
-      noise: 20,
+      noise: 25,
       harassRate: 0.5,
       lookahead: false,
       profile: CPU_PROFILE,
     });
     expect(optionsFor('normal')).toEqual({
-      noise: 8,
+      noise: 5,
       harassRate: 0.8,
       lookahead: false,
       profile: CPU_PROFILE,

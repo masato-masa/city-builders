@@ -14,9 +14,10 @@ import {
   districtRuleText,
   districtTally,
 } from '@/ui/district-view';
-import { buildingIncomeOf, buildingSpecRows, districtNote, slotStatusLine } from '@/ui/slot-actions';
+import { acquireNote, buildingIncomeOf, buildingSpecRows, districtNote, slotStatusLine } from '@/ui/slot-actions';
 
-const B = DEFAULT_BALANCE;
+// 買収の上乗せの基本を測るので、物件の数の差による増減は切る（増減は下の専用のテストで測る）
+const B = { ...DEFAULT_BALANCE, acquireLeadRate: 0 };
 const NAMES = { you: 'あなた', cpu: 'CPU' } as const;
 
 function board(): GameState {
@@ -164,5 +165,22 @@ describe('区画の今の状態（slotStatusLine）', () => {
     expect(slotStatusLine(g, 0, 'you', B, NAMES, 7)).toBe(`CPUの物件 ・ Lv2 ・ 市場価値 ${7 + B.acquireMarkup}（払われた 7 ＋${B.acquireMarkup}）`);
     g.market[0]!.level = B.maxLevel;
     expect(slotStatusLine(g, 0, 'you', B, NAMES, 7)).toBe(`CPUの物件 ・ Lv${B.maxLevel} ・ 最終段階のため買収不可`);
+  });
+});
+
+describe('買収の上乗せは物件の数の差で動く（画面の文）', () => {
+  const L = { ...DEFAULT_BALANCE, acquireLeadRate: 2 };
+  it('市場価値と内訳に、物件の数の差の分が出る', () => {
+    const g = board();
+    g.market[0] = { ...g.market[0]!, owner: 'cpu', paid: 7, level: 1 };
+    g.market[3] = { ...g.market[3]!, owner: 'you', paid: 10 };
+    g.market[4] = { ...g.market[4]!, owner: 'you', paid: 12 };
+    g.market[5] = { ...g.market[5]!, owner: 'you', paid: 14 };
+    // you 3 件、cpu 1 件。you が買う: 上乗せ 4 + 2 × 2 = 8
+    expect(slotStatusLine(g, 0, 'you', L, NAMES, 0)).toBe('CPUの物件 ・ Lv1 ・ 市場価値 15（払われた 7 ＋8）');
+    expect(acquireNote(g, 0, L)).toContain('7 コイン ＋ 8（基本 4 ＋ 物件 2 件多い 4）');
+    // cpu が you の物件を買う: 上乗せ 4 − 4 = 0
+    expect(acquireNote(g, 3, L)).toContain('10 コイン ＋ 0（基本 4 − 物件 2 件少ない 4）');
+    expect(buildingSpecRows('wall', L).find((r) => r.label === '買収コスト')!.value).toContain('1 件多いごとに ＋2');
   });
 });

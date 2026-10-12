@@ -15,7 +15,8 @@ import { isMaxLevel, plotFigures } from '@/ui/slot-actions';
 import { TEMPO } from '@/ui/tempo';
 import { acquirePriceOf, upgradePriceOf } from '@/game/selectors';
 
-const B = DEFAULT_BALANCE;
+// 買収の上乗せの基本を測るので、物件の数の差による増減は切る
+const B = { ...DEFAULT_BALANCE, acquireLeadRate: 0 };
 const hit = (h: Partial<DropHit>): DropHit => ({ onBoard: false, slotId: null, handCard: null, ...h });
 
 describe('押し方の判定（classifyPress）', () => {

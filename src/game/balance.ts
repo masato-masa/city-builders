@@ -70,13 +70,19 @@ export function cardTextFor(card: CardId, balance: Balance): string {
     case 'festival':
       return `次の自分のターン、自分の物件の効果がすべて ${balance.festivalMultiplier} 倍。さらにそのターンの収入 +${balance.festivalIncomeBonus}`;
     case 'guard':
-      return `次の自分のターンまで、相手の妨害（徴税官・封鎖者・検査官・顔役・密告者）と物件の買収を受けない。城壁があればコスト ${balance.guardCostWithWall}`;
+      return `次の自分のターンまで、相手の妨害（徴税官・封鎖者・検査官・顔役・密告者）と物件の買収を受けない。城壁があればコスト ${balance.guardCostWithWall}${
+        balance.guardCostPerBuilding > 0 ? `。守る物件 1 件につきコスト +${balance.guardCostPerBuilding}` : ''
+      }`;
     case 'usurer':
       return `このターン コイン +${balance.usurerGain}。次の自分のターン開始時 コイン −${balance.usurerDebt}（マイナスになる）`;
     case 'spy':
       return `このターン、相手の物件を買収する価格 −${balance.spyAcquireDiscount}（相手に渡る代金も減る）`;
-    case 'taxman':
-      return `次の相手のターン、収入を受け取ったあとの相手のコイン −${balance.taxmanAmount}（手持ちが足りなければ引けた分だけ）`;
+    case 'taxman': {
+      const r = balance.taxmanIncomeRate;
+      const scaled = r === 0 ? '' : r === 1 ? ' ＋ 相手の建物の収益' : r === 0.5 ? ' ＋ 相手の建物の収益の半分' : ` ＋ 相手の建物の収益 × ${r}`;
+      const amount = scaled ? `（${balance.taxmanAmount}${scaled}）` : `${balance.taxmanAmount}`;
+      return `次の相手のターン、収入を受け取ったあとの相手のコイン −${amount}（手持ちが足りなければ引けた分だけ）`;
+    }
     case 'blockader':
       return '地区 1 つを選ぶ。次の相手のターンだけ、その地区の空き地に相手は建てられず、地区内の相手の物件は効果（収益を含む）が止まる。自分の物件には何も起きない';
     case 'craftsman':
@@ -125,7 +131,7 @@ export function buildingEffectTextFor(building: BuildingId, balance: Balance, le
     case 'tradingHouse':
       return '特別な効果は無い（収益が高い）';
     case 'wall':
-      return `徴税官・封鎖者の効果を受けない。衛兵のコスト ${balance.guardCostWithWall}`;
+      return `徴税官の効果を受けない（封鎖は防げない。封鎖を防ぐのは城塞）。衛兵のコスト ${balance.guardCostWithWall}`;
     case 'factory':
       return `毎ターン、最初に使用する人物カードのコスト −${v('factoryDiscount')}`;
     case 'road': {
@@ -190,8 +196,12 @@ export interface Balance {
   bankerVpRate: number;
   architectDiscount: number;
   taxmanAmount: number;
+  /** 徴税官: 相手の建物の毎ターンの収益 1 につき、さらに引く額（多く稼ぐ側ほど強く効く。端数は切り捨て） */
+  taxmanIncomeRate: number;
   /** 買収者: このターンの買収価格の割引 */
   spyAcquireDiscount: number;
+  /** 衛兵: 自分の物件 1 件につき足すコスト（守る物件が多いほど高い） */
+  guardCostPerBuilding: number;
   /** 城壁（効果が生きているもの）を持っているときの衛兵のコスト */
   guardCostWithWall: number;
   /** 街道（効果が生きているもの）を持っているときの伝令のコスト */
@@ -239,6 +249,8 @@ export interface Balance {
   maxLevel: number;
   /** 買収の上乗せ。価格は「その物件に払われたコインの合計 + これ」 */
   acquireMarkup: number;
+  /** 買収の上乗せの増減: 買う側が売る側より多く持つ物件 1 件につき足す額（少なければ引く。上乗せは 0 未満にしない） */
+  acquireLeadRate: number;
   /** 建設・アップグレード・買収のあと、その区画を動かせないターン数（1 人の手番を 1 と数える）。
    *  1 で「同じ区画は 1 ターンに 1 回まで」 */
   slotLockTurns: number;
@@ -274,14 +286,17 @@ export const DEFAULT_BALANCE: Balance = {
   // 開始資金は両者 1。CPU の評価の盲点（手番後の建築家の割引・最後の手番の投資）を直して重みを探し直したら
   // 先手 42〜44% に下がった。先手だけ +1 は 60%、両者 +1 で 49.3%（lab 150）
   startingCoins: { first: 1, second: 1 },
-  maxTurnsPerPlayer: 20,
+  // 20 → 18（2026-10-11 雪だるまの対策の後、ふつう同士で 1 人 18.9 手番・ほぼ上限まで続いた。18 で 17.6）
+  maxTurnsPerPlayer: 18,
   cards: {
     miner: { cost: 3 },
-    banker: { cost: 5 },
+    // 銀行家 5 → 6（2026-10-11 雪だるまの対策の後 card-value 400: 5 で 禁止 34.3 / 優先 42.8%、6 で 43.9 / 44.3%）
+    banker: { cost: 6 },
     architect: { cost: 2 },
     herald: { cost: 1 },
     // 祝祭 3 → 2: 建物の収益で倍の対象は増えたが、使う手番を選ぶ札になった（card-value 400: 3 で 禁止 38.3 / 優先 34.6%、2 で 37.5 / 46.0%）
-    festival: { cost: 2 },
+    // 2 → 3（同: 2 で 禁止 37.5 / 優先 46.8%、3 で 43.3 / 47.8%）
+    festival: { cost: 3 },
     guard: { cost: 1 },
     usurer: { cost: 0 },
     spy: { cost: 1 },
@@ -310,9 +325,11 @@ export const DEFAULT_BALANCE: Balance = {
   bankerIncome: 2,
   bankerVpRate: 1,
   architectDiscount: 6,
-  taxmanAmount: 5,
+  taxmanAmount: 3,
+  taxmanIncomeRate: 0.5,
   spyAcquireDiscount: 3,
   guardCostWithWall: 0,
+  guardCostPerBuilding: 2,
   heraldCostWithRoad: 0,
   craftsmanDiscount: 3,
   inspectorPaidCut: 5,
@@ -322,14 +339,14 @@ export const DEFAULT_BALANCE: Balance = {
   // 建物は毎ターンの収益を持つ（ユーザー指定 2026-10-11: 商館 +3、ほかは任せる）。
   // 城塞 25（ユーザー指定）・鉱山 15（ユーザー指定）
   buildings: {
-    tradingHouse: { cost: 7, vp: 2, income: 3 },
-    wall: { cost: 10, vp: 2, income: 1 },
-    factory: { cost: 12, vp: 3, income: 1 },
-    quarry: { cost: 13, vp: 3, income: 1 },
-    road: { cost: 14, vp: 2, income: 2 },
-    mine: { cost: 15, vp: 3, income: 2 },
-    cathedral: { cost: 18, vp: 0, income: 0 },
-    exchange: { cost: 22, vp: 4, income: 2 },
+    tradingHouse: { cost: 8, vp: 2, income: 3 },
+    wall: { cost: 11, vp: 2, income: 1 },
+    factory: { cost: 13, vp: 3, income: 1 },
+    quarry: { cost: 14, vp: 3, income: 1 },
+    road: { cost: 15, vp: 2, income: 1 },
+    mine: { cost: 15, vp: 3, income: 1 },
+    cathedral: { cost: 20, vp: 0, income: 0 },
+    exchange: { cost: 24, vp: 4, income: 1 },
     fortress: { cost: 25, vp: 8, income: 0 },
   },
   factoryDiscount: 2,
@@ -352,10 +369,10 @@ export const DEFAULT_BALANCE: Balance = {
     wall: { cost: 10, vp: 4, income: 2 },
     factory: { cost: 12, vp: 5, income: 2 },
     quarry: { cost: 13, vp: 5, income: 2 },
-    road: { cost: 14, vp: 4, income: 3 },
-    mine: { cost: 15, vp: 5, income: 3 },
+    road: { cost: 14, vp: 4, income: 2 },
+    mine: { cost: 15, vp: 5, income: 2 },
     cathedral: { cost: 18, vp: 0, income: 0 },
-    exchange: { cost: 22, vp: 6, income: 3 },
+    exchange: { cost: 22, vp: 6, income: 2 },
     fortress: { cost: 25, vp: 11, income: 0 },
   },
   level2: {
@@ -392,6 +409,7 @@ export const DEFAULT_BALANCE: Balance = {
   },
   maxLevel: 3,
   acquireMarkup: 4,
+  acquireLeadRate: 2,
   slotLockTurns: 1,
   market: [
     'tradingHouse',

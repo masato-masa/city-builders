@@ -13,9 +13,11 @@ import {
   investIncomeOf,
   nextTitles,
   opponentOf,
+  ownedSlots,
   roadUsesRemaining,
   slotBuildBlocked,
   slotLocked,
+  taxmanAmountOf,
   upgradeCostFor,
 } from './selectors';
 import type { Action, BuildingId, CardId, GameState, PlayerId, PlayerState } from './types';
@@ -43,6 +45,8 @@ export function cardCostFor(
   if (card === 'guard' && hasActiveBuilding(state, player, 'wall', balance)) {
     base = Math.min(base, balance.guardCostWithWall);
   }
+  // 衛兵は守る物件が多いほど高い（多く持つ側が毎ターン安く全部を守り切れないように。2026-10-11 雪だるまの対策）
+  if (card === 'guard') base += ownedSlots(state, player).length * (balance.guardCostPerBuilding ?? 0);
   if (card === 'herald' && hasActiveBuilding(state, player, 'road', balance)) {
     base = Math.min(base, balance.heraldCostWithRoad);
   }
@@ -354,9 +358,10 @@ function applyCardEffect(
 
   if (card === 'taxman' && !foeGuarded && !foeWalled) {
     // 手持ちは相手の手番の合間にほぼ空なので、次の開始フェーズの収入から引く
-    next.players[foe].pendingTax += balance.taxmanAmount;
+    next.players[foe].pendingTax += taxmanAmountOf(next, player, balance);
   }
-  if (card === 'blockader' && !foeGuarded && !foeWalled) {
+  // 封鎖は城壁では防げない（城壁は徴税官だけ。封鎖を防ぐのは城塞＝城下の自分の物件。2026-10-11 役割を分けた）
+  if (card === 'blockader' && !foeGuarded) {
     // 地区を封鎖する。次の相手のターンの終わりまで、相手はその地区の空き地に建てられず、
     // 地区内の相手の物件は効果（収益を含む）が止まる。自分の物件には何も起きない。VP は止まらない（称号は動かない）
     next.blockades = [
@@ -365,7 +370,7 @@ function applyCardEffect(
     ];
   }
   if (card === 'inspector' && !foeGuarded) {
-    // 衛兵では防げるが、城壁では防げない（城壁は徴税官・封鎖者だけ。全部防ぐと強すぎる）
+    // 衛兵では防げるが、城壁では防げない（城壁は徴税官だけ。全部防ぐと強すぎる）
     const target = next.market[action.inspectSlot!]!;
     if (target.level >= 2) {
       // Lv を 1 段下げる。払われた額はそのまま（買収の価格は下がらない）。

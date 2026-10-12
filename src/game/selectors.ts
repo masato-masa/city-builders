@@ -250,7 +250,20 @@ export function acquireCostFor(
   slot: BuildingSlot,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
-  return acquirePriceOf(slot, balance, state.players[player].acquireDiscount);
+  return acquirePriceOf(slot, balance, state.players[player].acquireDiscount - acquireLeadMarkupOf(state, player, balance));
+}
+
+/** 買収の上乗せに足す額: 買う側が売る側より多く持つ物件 1 件につき acquireLeadRate（少なければ引く。上乗せ全体は 0 未満にしない）。 */
+export function acquireLeadMarkupOf(state: GameState, buyer: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
+  const rate = balance.acquireLeadRate ?? 0;
+  if (rate === 0) return 0;
+  const lead = ownedSlots(state, buyer).length - ownedSlots(state, opponentOf(buyer)).length;
+  return Math.max(-balance.acquireMarkup, lead * rate);
+}
+
+/** buyer が買収するときの上乗せ（基本 + 物件の数の差の分。0 未満にはしない）。買収者の割引は含まない。 */
+export function acquireMarkupFor(state: GameState, buyer: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
+  return balance.acquireMarkup + acquireLeadMarkupOf(state, buyer, balance);
 }
 
 /** 区画をアップグレードするときの価格。Lv1 → Lv2 は upgrades、Lv2 → Lv3 は upgrades3。
@@ -567,4 +580,15 @@ export function investIncomeOf(
 /** 解決待ちの投資カードが次の開始フェーズで生むコインの合計（いまの盤面で見積もる）。 */
 export function pendingInvestOf(state: GameState, player: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
   return state.players[player].pendingIncome.reduce((n, c) => n + investIncomeOf(state, player, c, balance), 0);
+}
+
+// ---------------------------------------------------------------------------
+// 多く稼ぐ側に強く効く妨害（徴税官）
+// ---------------------------------------------------------------------------
+
+/** player が徴税官を使ったら、相手の次の収入から引く額。基本 + 相手の建物の収益 × 率（いまの盤面で）。 */
+export function taxmanAmountOf(state: GameState, player: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
+  const foe = opponentOf(player);
+  const income = ownedSlots(state, foe).reduce((n, s) => n + buildingIncomeOf(balance, s.buildingId, s.level), 0);
+  return balance.taxmanAmount + Math.floor(income * balance.taxmanIncomeRate);
 }

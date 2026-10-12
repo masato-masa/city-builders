@@ -5,6 +5,7 @@ import { buildingTextFor, DEFAULT_BALANCE } from '@/game/balance';
 import { canAcquire, canUpgrade, canUseRoad, cardCostFor, incomeStages, legalActions, reduce } from '@/game/reducer';
 import {
   acquireBlockOf,
+  acquireCostFor,
   acquirePriceOf,
   districtOfSlot,
   incomePerTurnOf,
@@ -16,9 +17,16 @@ import {
 import { createGame } from '@/game/setup';
 import type { BuildingId, GameState, PlayerId } from '@/game/types';
 
-const B = DEFAULT_BALANCE;
+// 買収の価格の基本（払われた額 + 上乗せ）を測るので、物件の数の差による増減は切る（別のテストで測る）
+// 仕様書の例（城壁 10 で建てて 10 で上げる）に合わせ、城壁の建設費は 10 に固定する（既定値の調整で例が崩れないように）
+const B = {
+  ...DEFAULT_BALANCE,
+  acquireLeadRate: 0,
+  buildings: { ...DEFAULT_BALANCE.buildings, wall: { ...DEFAULT_BALANCE.buildings.wall, cost: 10 } },
+  upgrades: { ...DEFAULT_BALANCE.upgrades, wall: { ...DEFAULT_BALANCE.upgrades.wall, cost: 10 } },
+};
 /** 仕様書の例（10 → 11 → 12、20 → 21）を確かめるための、買収の上乗せが 1 の balance */
-const B1 = { ...DEFAULT_BALANCE, acquireMarkup: 1 };
+const B1 = { ...B, acquireMarkup: 1 };
 
 /** you の手番から始まる局面。手札・待機列は createGame のまま。 */
 function fixture(youCoins: number, cpuCoins: number): GameState {
@@ -210,10 +218,10 @@ describe('買収', () => {
   it('衛兵は相手の次の手番まで効き、自分の手番の開始で切れる', () => {
     let g = fixture(0, 0);
     g.players.you.hand = ['guard', 'miner', 'banker', 'usurer'];
-    g.players.you.coins = B.cards.guard.cost;
     const wall = slotOf(g, 'wall');
     g.market[wall]!.owner = 'you';
     g.market[wall]!.paid = 10;
+    g.players.you.coins = cardCostFor(g, 'you', 'guard', B);
     g = reduce(g, { type: 'useCard', card: 'guard' }, B);
     g = pass(g);
     g = reduce(g, { type: 'startTurn' }, B);
@@ -290,6 +298,28 @@ describe('同じ区画は 1 ターンに 1 回まで', () => {
     expect(canAcquire(g, wall, lock2)).toBe(false);
     g = pass(pass(g));
     expect(canAcquire(g, wall, lock2)).toBe(true);
+  });
+});
+
+describe('買収の上乗せは物件の数の差で動く（多く持つ側ほど高く買う）', () => {
+  const L = { ...B, acquireLeadRate: 2 };
+  it('買う側が 2 件多いと +4、2 件少ないと −4（上乗せは 0 未満にしない）', () => {
+    const g = fixture(100, 0);
+    const [a, b, c, d] = g.market;
+    a!.owner = 'cpu';
+    a!.paid = 10;
+    b!.owner = 'you';
+    c!.owner = 'you';
+    d!.owner = 'you';
+    // you は 3 件、cpu は 1 件。you が cpu の物件を買う: 上乗せ 4 + 2 × 2
+    expect(acquireCostFor(g, 'you', a!, L)).toBe(10 + 4 + 4);
+    // cpu が you の物件を買う: 上乗せ 4 − 2 × 2 = 0
+    b!.paid = 8;
+    expect(acquireCostFor(g, 'cpu', b!, L)).toBe(8);
+    // 差がもっと開いても、上乗せは 0 で止まる（払われた額より安くはならない）
+    g.market[4]!.owner = 'you';
+    g.market[5]!.owner = 'you';
+    expect(acquireCostFor(g, 'cpu', b!, L)).toBe(8);
   });
 });
 

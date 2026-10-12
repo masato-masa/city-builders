@@ -169,11 +169,12 @@ describe('封鎖者', () => {
     expect(slotBuildBlocked(after, 'cpu', empty.slotId, DEFAULT_BALANCE)).toBe(true);
   });
 
-  it('相手が城壁を持っていると無効。コストは払う', () => {
+  it('城壁では防げない（城壁は徴税官だけ。封鎖を防ぐのは城塞）', () => {
     const g = fixture(DECK, 10);
     g.market.find((s) => s.buildingId === 'wall')!.owner = 'cpu';
     const after = reduce(g, { type: 'useCard', card: 'blockader', district: MERCHANT }, DEFAULT_BALANCE);
-    expect(after.blockades).toEqual([]);
+    expect(after.blockades).toHaveLength(1);
+    expect(after.blockades[0]).toMatchObject({ district: MERCHANT, target: 'cpu' });
     expect(after.players.you.coins).toBe(10 - DEFAULT_BALANCE.cards.blockader.cost);
   });
 

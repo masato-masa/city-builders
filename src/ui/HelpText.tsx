@@ -113,6 +113,8 @@ function HelpSection({ id, balance, deck }: { id: HelpSectionId; balance: Balanc
               買収に要るコイン
             </span>{' '}
             を払うと自分のものになる（代金は相手に渡る）。
+            {balance.acquireLeadRate > 0 &&
+              `物件を多く持つ側が買うほど高く、少ない側が買うほど安い（1 件の差につき ${balance.acquireLeadRate} コイン）。`}
           </p>
           <p className="sheet-text">同じ区画は 1 ターンに 1 回だけ動かせます。区画をタップすると、VP・建築・買収・増築のコストが見られます。</p>
         </>

@@ -32,12 +32,12 @@ export const DAILY_RULES: readonly DailyRule[] = [
   },
   {
     id: 'income',
-    label: (b) => `基礎収入 +1（${b.baseIncome + 1}）・開幕資金 −1・後手の初手 +1`,
+    label: (b) => `基礎収入 +1（${b.baseIncome + 1}）・開幕資金 −1`,
     // 基礎収入だけ +1 だと先手 59.7%（開始資金 1 の後、lab 150）。後手の 1 ターン目の補正も +1 して 52.4%。
-    // 建物の収益が付いた後（2026-10-11）は補正 +1 で 59.2%、+2 で 44.1%。開幕資金も −1（両者）して 47.6%（lab 150）
+    // 建物の収益が付いた後（2026-10-11）は補正 +1 で 59.2%、+2 で 44.1%。開幕資金も −1（両者）して 47.6%（lab 150）。
+    // 雪だるまの対策（各 18 手番）の後は、補正 +1 を足すと先手 43.0%、足さないで 49.0%（audit-daily 100）。補正は足さない
     patch: (b) => ({
       baseIncome: b.baseIncome + 1,
-      secondPlayerFirstTurnBonus: b.secondPlayerFirstTurnBonus + 1,
       startingCoins: {
         first: Math.max(0, b.startingCoins.first - 1),
         second: Math.max(0, b.startingCoins.second - 1),
@@ -56,8 +56,9 @@ export const DAILY_RULES: readonly DailyRule[] = [
   },
   {
     id: 'shortGame',
-    label: (b) => `短期決戦（各 ${b.maxTurnsPerPlayer - 4} ターン）`,
-    patch: (b) => ({ maxTurnsPerPlayer: b.maxTurnsPerPlayer - 4 }),
+    // −4 → −2: 既定が各 18 手番になったので −4（14）は先手 42.2%。−2（16）で 45.2%（audit-daily 100）
+    label: (b) => `短期決戦（各 ${b.maxTurnsPerPlayer - 2} ターン）`,
+    patch: (b) => ({ maxTurnsPerPlayer: b.maxTurnsPerPlayer - 2 }),
   },
   {
     id: 'cheapUpgrade',
