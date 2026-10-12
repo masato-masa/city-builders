@@ -11,7 +11,7 @@ import {
   NEW_CARDS_DECK,
 } from '@/game/balance';
 import { canAcquire, canUpgrade, canUseCard, legalActions, reduce } from '@/game/reducer';
-import { scoreOf, slotMaxed, upgradeCostFor, upgradePriceOf } from '@/game/selectors';
+import { marketValueOf, scoreOf, slotMaxed, upgradeCostFor, upgradePriceOf } from '@/game/selectors';
 import { createGame, validateDeck } from '@/game/setup';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 import { inspectPick, resolveDrop } from '@/ui/card-input';
@@ -74,7 +74,7 @@ describe('createGame のデッキ', () => {
 });
 
 describe('職人', () => {
-  it('このターンのアップグレード費が下がり、払った実額が paid に積まれる', () => {
+  it('このターンのアップグレード費が下がる。市場価値は定価のまま', () => {
     let g = fixture(['craftsman', 'miner', 'banker', 'usurer'], 20);
     own(g, 0, 'you', 1, 7);
     const full = upgradePriceOf(g.market[0]!, B);
@@ -85,7 +85,7 @@ describe('職人', () => {
     g = reduce(g, { type: 'upgrade', slotId: 0 }, B);
     expect(g.market[0]!.level).toBe(2);
     expect(g.players.you.coins).toBe(before - (full - B.craftsmanDiscount));
-    expect(g.market[0]!.paid).toBe(7 + full - B.craftsmanDiscount);
+    expect(marketValueOf(g.market[0]!, B)).toBe(B.buildings.tradingHouse.cost + full);
   });
 
   it('Lv2→Lv3 にも効く。0 未満にはならない', () => {
@@ -122,19 +122,19 @@ describe('職人', () => {
 });
 
 describe('検査官', () => {
-  it('相手の Lv2 を Lv1 に戻す。払われた額はそのまま', () => {
+  it('相手の Lv2 を Lv1 に戻す。市場価値も 1 段ぶん下がる', () => {
     let g = fixture(['inspector', 'miner', 'banker', 'usurer'], 10);
     own(g, 7, 'cpu', 2, 36);
     const vp0 = scoreOf(g, 'cpu', B);
     g = reduce(g, { type: 'useCard', card: 'inspector', inspectSlot: 7 }, B);
     expect(g.market[7]!.level).toBe(1);
-    expect(g.market[7]!.paid).toBe(36);
+    expect(marketValueOf(g.market[7]!, B)).toBe(B.buildings[g.market[7]!.buildingId].cost);
     expect(scoreOf(g, 'cpu', B)).toBeLessThan(vp0);
     expect(g.players.you.coins).toBe(10 - B.cards.inspector.cost);
   });
 
   it('Lv3 は Lv2 に戻り、また買収できるようになる', () => {
-    let g = fixture(['inspector', 'miner', 'banker', 'usurer'], 99);
+    let g = fixture(['inspector', 'miner', 'banker', 'usurer'], 400);
     own(g, 7, 'cpu', 3, 57);
     expect(slotMaxed(g.market[7]!, B)).toBe(true);
     expect(canAcquire(g, 7, B)).toBe(false);
@@ -144,17 +144,15 @@ describe('検査官', () => {
     expect(canAcquire(g, 7, B)).toBe(true);
   });
 
-  it('Lv1 なら払われた額 −5（0 未満にはしない）', () => {
-    let g = fixture(['inspector', 'miner', 'banker', 'usurer'], 10);
+  it('Lv1 の物件には撃てない（市場価値は定価で決まり、Lv1 より下げようがない）', () => {
+    const g = fixture(['inspector', 'miner', 'banker', 'usurer'], 10);
     own(g, 0, 'cpu', 1, 7);
-    own(g, 1, 'cpu', 1, 2);
-    g = reduce(g, { type: 'useCard', card: 'inspector', inspectSlot: 0 }, B);
-    expect(g.market[0]!.level).toBe(1);
-    expect(g.market[0]!.paid).toBe(7 - B.inspectorPaidCut);
-    let h = fixture(['inspector', 'miner', 'banker', 'usurer'], 10);
-    own(h, 1, 'cpu', 1, 2);
-    h = reduce(h, { type: 'useCard', card: 'inspector', inspectSlot: 1 }, B);
-    expect(h.market[1]!.paid).toBe(0);
+    expect(canUseCard(g, 'inspector', B)).toBe(false);
+    expect(reduce(g, { type: 'useCard', card: 'inspector', inspectSlot: 0 }, B)).toBe(g);
+    own(g, 1, 'cpu', 2, 14);
+    expect(canUseCard(g, 'inspector', B)).toBe(true);
+    const targets = legalActions(g, B).filter((a) => a.type === 'useCard' && a.card === 'inspector');
+    expect(targets).toEqual([{ type: 'useCard', card: 'inspector', inspectSlot: 1 }]);
   });
 
   it('衛兵で防がれる（コストは払う）。城壁では防げない', () => {
@@ -176,7 +174,7 @@ describe('検査官', () => {
     const g = fixture(['inspector', 'miner', 'banker', 'usurer'], 10);
     expect(canUseCard(g, 'inspector', B)).toBe(false);
     own(g, 0, 'you', 1, 7);
-    own(g, 7, 'cpu', 1, 18);
+    own(g, 7, 'cpu', 2, 18);
     expect(canUseCard(g, 'inspector', B)).toBe(true);
     // 自分の物件・空き地は対象外（何も起きない）
     expect(reduce(g, { type: 'useCard', card: 'inspector', inspectSlot: 0 }, B)).toBe(g);

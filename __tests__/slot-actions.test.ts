@@ -76,12 +76,13 @@ describe('upgradeButton', () => {
 });
 
 describe('acquireButton', () => {
-  it('価格は払われた合計 + acquireMarkup', () => {
+  it('価格は市場価値（建設費の定価）× acquireMultiplier', () => {
     const s = board();
-    s.players.you.coins = 22;
+    const price = B.buildings.fortress.cost * B.acquireMultiplier;
+    s.players.you.coins = price;
     const b = acquireButton(s, 7, 'you', B)!;
-    expect(b).toEqual({ price: 22, enabled: true, label: '買収（22コイン）', reason: null });
-    expect(acquireNote(s, 7, B)).toContain('18 コイン ＋ 4');
+    expect(b).toEqual({ price, enabled: true, label: `買収（${price}コイン）`, reason: null });
+    expect(acquireNote(s, 7, B)).toContain(`市場価値 ${B.buildings.fortress.cost} × ${B.acquireMultiplier}`);
   });
 
   it('自分の物件・空き地では出さない', () => {
@@ -92,7 +93,8 @@ describe('acquireButton', () => {
 
   it('足りなければ「あと N コイン」', () => {
     const s = board();
-    s.players.you.coins = 20;
+    const price = B.buildings.fortress.cost * B.acquireMultiplier;
+    s.players.you.coins = price - 2;
     expect(acquireButton(s, 7, 'you', B)!.label).toBe('あと 2 コイン');
   });
 
@@ -118,10 +120,10 @@ describe('acquireButton', () => {
     expect(acquireButton(s, 7, 'you', B)!.enabled).toBe(true);
   });
 
-  it('上乗せは balance の値に従う', () => {
+  it('倍率は balance の値に従う', () => {
     const s = board();
     s.players.you.coins = 99;
-    expect(acquireButton(s, 7, 'you', { ...B, acquireMarkup: 1 })!.price).toBe(19);
+    expect(acquireButton(s, 7, 'you', { ...B, acquireMultiplier: 1 })!.price).toBe(B.buildings.fortress.cost);
   });
 });
 

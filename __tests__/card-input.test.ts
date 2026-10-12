@@ -99,13 +99,17 @@ describe('区画の名札の数字（plotFigures）', () => {
     expect(plotFigures(g, 0, 'you', B, cost)).toEqual({ kind: 'unbuilt', build: cost(0) });
   });
 
-  it('建った物件は市場価値（買収に要るコイン）とアップグレード費。払った額で市場価値が変わる', () => {
+  it('建った物件は買収に要るコイン（市場価値 × 倍率）とアップグレード費。Lv が上がれば上がる', () => {
     const g = createGame(1, B, 'you');
     const slot = g.market[0]!;
     slot.owner = 'you';
     const f = plotFigures(g, 0, 'you', B, cost);
-    expect(f).toEqual({ kind: 'built', value: 10 + B.acquireMarkup, upgrade: upgradePriceOf(slot, B) });
-    expect(plotFigures(g, 0, 'you', B, cost)).toMatchObject({ value: 16 + B.acquireMarkup });
+    const house = B.buildings.tradingHouse.cost;
+    expect(f).toEqual({ kind: 'built', value: house * B.acquireMultiplier, upgrade: upgradePriceOf(slot, B) });
+    slot.level = 2;
+    expect(plotFigures(g, 0, 'you', B, cost)).toMatchObject({
+      value: (house + B.upgrades.tradingHouse.cost) * B.acquireMultiplier,
+    });
   });
 
   it('相手の物件は、自分がいま払う額（買収者の割引込み）。自分の物件は相手が払う額（割引なし）', () => {

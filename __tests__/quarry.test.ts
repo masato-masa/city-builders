@@ -32,11 +32,10 @@ const houseSlots = (g: GameState) =>
   g.market.filter((s) => s.buildingId === 'tradingHouse').map((s) => s.slotId);
 
 describe('建築家（強化後）', () => {
-  it('建築家を使うとそのターンの建設費が 6 安くなる', () => {
+  it('建築家を使うとそのターンの建設費が architectDiscount 安くなる', () => {
     let g = fixture(50);
     g = reduce(g, { type: 'useCard', card: 'architect' }, DEFAULT_BALANCE);
     expect(g.players.you.buildDiscount).toBe(DEFAULT_BALANCE.architectDiscount);
-    expect(DEFAULT_BALANCE.architectDiscount).toBe(6);
 
     const slot = houseSlots(g)[0]!;
     const before = g.players.you.coins;

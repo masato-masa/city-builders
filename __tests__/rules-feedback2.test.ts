@@ -26,26 +26,29 @@ function fixture(): GameState {
 }
 
 describe('画面に渡す数値（selectors）', () => {
-  it('buildingStatsOf: Lv ごとの VP・費用・買収の上乗せ・次の増築費・収益・効果文', () => {
+  it('buildingStatsOf: Lv ごとの VP・費用・市場価値と買収費用・次の増築費・収益・効果文', () => {
     const rows = buildingStatsOf('tradingHouse', B);
     expect(rows.map((r) => r.level)).toEqual([1, 2, 3]);
     expect(rows[0]).toMatchObject({
       vp: B.buildings.tradingHouse.vp,
       cost: B.buildings.tradingHouse.cost,
       income: B.buildings.tradingHouse.income,
-      acquireMarkup: B.acquireMarkup,
+      marketValue: B.buildings.tradingHouse.cost,
+      acquireCost: B.buildings.tradingHouse.cost * B.acquireMultiplier,
       nextUpgradeCost: B.upgrades.tradingHouse.cost,
     });
     // 最終段階は買収されない・上げられない
-    expect(rows[2]).toMatchObject({ acquireMarkup: null, nextUpgradeCost: null, income: B.upgrades3.tradingHouse.income });
+    expect(rows[2]).toMatchObject({ acquireCost: null, nextUpgradeCost: null, income: B.upgrades3.tradingHouse.income });
     // 効果文に収益は入らない（収益は数値で並べる）
     expect(rows[0]!.effectText).not.toContain('収益 コイン');
     expect(buildingStatsOf('cathedral', B)[0]!.vpPerOtherBuilding).toBe(B.cathedralVpPerBuilding);
   });
 
-  it('商館は収益 +3（ユーザー指定）。城塞の説明は城下の封鎖を受けない', () => {
-    expect(B.buildings.tradingHouse.income).toBe(3);
-    expect(buildingIncomeOf(B, 'tradingHouse', 1)).toBe(3);
+  it('商館は収益が最も高い（2026-10-12 に全体を引き上げた）。城塞の説明は城下の封鎖を受けない', () => {
+    expect(buildingIncomeOf(B, 'tradingHouse', 1)).toBe(B.buildings.tradingHouse.income);
+    for (const id of Object.keys(B.buildings) as (keyof typeof B.buildings)[]) {
+      expect(B.buildings.tradingHouse.income).toBeGreaterThanOrEqual(B.buildings[id].income);
+    }
     expect(buildingTextFor('fortress', B)).toContain('封鎖');
     expect(B.buildings.fortress.cost).toBe(25);
     expect(B.buildings.mine.cost).toBe(15);

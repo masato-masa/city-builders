@@ -57,11 +57,11 @@ describe('使えない札の理由（cardBlockReason）', () => {
     expect(cardBlockReason({ ...g, phase: 'finished' }, 'you', 'usurer', false, B)).toBe('試合は終わりました');
   });
 
-  it('検査官は相手の物件が無ければその理由', () => {
+  it('検査官は相手の Lv2 以上の物件が無ければその理由', () => {
     const g = board();
     g.players.you.hand = ['inspector', 'miner', 'banker', 'guard'];
     g.players.you.coins = 99;
-    expect(cardBlockReason(g, 'you', 'inspector', false, B)).toBe('相手の物件がありません');
+    expect(cardBlockReason(g, 'you', 'inspector', false, B)).toBe('相手の Lv2 以上の物件がありません');
   });
 });
 
@@ -135,14 +135,16 @@ describe('建物の詳細の固定の数値（buildingSpecRows）', () => {
       `${B.buildings.tradingHouse.vp} / ${B.upgrades.tradingHouse.vp} / ${B.upgrades3.tradingHouse.vp}（Lv1/2/3）`,
     );
     expect(rows[1]!.value).toBe(`${B.buildings.tradingHouse.cost}`);
-    expect(rows[2]!.value).toBe(`払われた額 ＋${B.acquireMarkup}`);
+    const mv = (lv: number) =>
+      (B.buildings.tradingHouse.cost + (lv >= 2 ? B.upgrades.tradingHouse.cost : 0)) * B.acquireMultiplier;
+    expect(rows[2]!.value).toBe(`市場価値 × ${B.acquireMultiplier}（${mv(1)} / ${mv(2)}。Lv3 は買収されない）`);
     expect(rows[3]!.value).toBe(`Lv2 ${B.upgrades.tradingHouse.cost} ・ Lv3 ${B.upgrades3.tradingHouse.cost}`);
   });
 
-  it('balance の値に追従する（上乗せ・最大レベル）', () => {
-    const b: Balance = { ...B, acquireMarkup: 7, maxLevel: 2 };
+  it('balance の値に追従する（買収の倍率・最大レベル）', () => {
+    const b: Balance = { ...B, acquireMultiplier: 3, maxLevel: 2 };
     const rows = buildingSpecRows('wall', b);
-    expect(rows[2]!.value).toBe('払われた額 ＋7');
+    expect(rows[2]!.value).toBe(`市場価値 × 3（${B.buildings.wall.cost * 3}。Lv2 は買収されない）`);
     expect(rows[3]!.value).toBe(`Lv2 ${B.upgrades.wall.cost}`);
   });
 
@@ -162,25 +164,11 @@ describe('区画の今の状態（slotStatusLine）', () => {
     const g = board();
     expect(slotStatusLine(g, 0, 'you', B, NAMES, 7)).toBe('空き地 ・ いま建てると 7 コイン');
     g.market[0] = { ...g.market[0]!, owner: 'cpu', level: 2 };
-    expect(slotStatusLine(g, 0, 'you', B, NAMES, 7)).toBe(`CPUの物件 ・ Lv2 ・ 市場価値 ${7 + B.acquireMarkup}（払われた 7 ＋${B.acquireMarkup}）`);
+    const mvWall = B.buildings.tradingHouse.cost + B.upgrades.tradingHouse.cost;
+    expect(slotStatusLine(g, 0, 'you', B, NAMES, 7)).toBe(
+      `CPUの物件 ・ Lv2 ・ 市場価値 ${mvWall} ・ 買収 ${mvWall * B.acquireMultiplier}（×${B.acquireMultiplier}）`,
+    );
     g.market[0]!.level = B.maxLevel;
     expect(slotStatusLine(g, 0, 'you', B, NAMES, 7)).toBe(`CPUの物件 ・ Lv${B.maxLevel} ・ 最終段階のため買収不可`);
-  });
-});
-
-describe('買収の上乗せは物件の数の差で動く（画面の文）', () => {
-  const L = { ...DEFAULT_BALANCE };
-  it('市場価値と内訳に、物件の数の差の分が出る', () => {
-    const g = board();
-    g.market[0] = { ...g.market[0]!, owner: 'cpu', level: 1 };
-    g.market[3] = { ...g.market[3]!, owner: 'you' };
-    g.market[4] = { ...g.market[4]!, owner: 'you' };
-    g.market[5] = { ...g.market[5]!, owner: 'you' };
-    // you 3 件、cpu 1 件。you が買う: 上乗せ 4 + 2 × 2 = 8
-    expect(slotStatusLine(g, 0, 'you', L, NAMES, 0)).toBe('CPUの物件 ・ Lv1 ・ 市場価値 15（払われた 7 ＋8）');
-    expect(acquireNote(g, 0, L)).toContain('7 コイン ＋ 8（基本 4 ＋ 物件 2 件多い 4）');
-    // cpu が you の物件を買う: 上乗せ 4 − 4 = 0
-    expect(acquireNote(g, 3, L)).toContain('10 コイン ＋ 0（基本 4 − 物件 2 件少ない 4）');
-    expect(buildingSpecRows('wall', L).find((r) => r.label === '買収コスト')!.value).toContain('1 件多いごとに ＋2');
   });
 });

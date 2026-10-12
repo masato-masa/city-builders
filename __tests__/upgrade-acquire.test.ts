@@ -24,7 +24,6 @@ const B = {
   buildings: { ...DEFAULT_BALANCE.buildings, wall: { ...DEFAULT_BALANCE.buildings.wall, cost: 10 } },
   upgrades: { ...DEFAULT_BALANCE.upgrades, wall: { ...DEFAULT_BALANCE.upgrades.wall, cost: 10 } },
 };
-const B1 = B;
 
 /** you の手番から始まる局面。手札・待機列は createGame のまま。 */
 function fixture(youCoins: number, cpuCoins: number): GameState {
@@ -43,7 +42,6 @@ function pass(g: GameState): GameState {
   return reduce(g, { type: 'endTurn' }, B);
 }
 
-const totalCoins = (g: GameState) => g.players.you.coins + g.players.cpu.coins;
 
 describe('アップグレード', () => {
   it('建設費と同額を払って Lv2 になり、VP が Lv2 の値になる', () => {

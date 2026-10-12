@@ -152,7 +152,6 @@ describe('衛兵', () => {
 });
 
 describe('買収者', () => {
-  // 買収者の割引そのものを測るので、物件の数の差による上乗せの増減は切る
   const B = { ...DEFAULT_BALANCE };
   /** you の手番。cpu が商館を持っていて、you は割引なしでは 1 コイン足りない */
   function setup(): { g: GameState; slot: number; price: number } {
@@ -162,12 +161,12 @@ describe('買収者', () => {
     );
     const house = g.market.find((s) => s.buildingId === 'tradingHouse')!;
     house.owner = 'cpu';
-    const price = house.paid + B.acquireMarkup;
+    const price = house.buildingId ? B.buildings[house.buildingId].cost * B.acquireMultiplier : 0;
     g.players.you.coins = B.cards.spy.cost + price - B.spyAcquireDiscount;
     return { g, slot: house.slotId, price };
   }
 
-  it('使ったターンは買収価格が下がり、相手に渡る代金と次の基準（paid）も下がる', () => {
+  it('使ったターンは買収価格が下がる。払った分は消え、相手には渡らない', () => {
     const { g, slot, price } = setup();
     expect(canAcquire(g, slot, B)).toBe(false);
     const afterSpy = reduce(g, { type: 'useCard', card: 'spy' }, B);
@@ -175,11 +174,11 @@ describe('買収者', () => {
     expect(canAcquire(afterSpy, slot, B)).toBe(true);
     const cpuBefore = afterSpy.players.cpu.coins;
     const after = reduce(afterSpy, { type: 'acquire', slotId: slot }, B);
-    const paid = price - B.spyAcquireDiscount;
     expect(after.market[slot]!.owner).toBe('you');
-    expect(after.market[slot]!.paid).toBe(paid);
     expect(after.players.you.coins).toBe(0);
-    expect(after.players.cpu.coins).toBe(cpuBefore + paid);
+    expect(after.players.cpu.coins).toBe(cpuBefore);
+    // 次の買収の価格は割引なしの市場価値 × 倍率のまま
+    expect(price).toBe(B.buildings.tradingHouse.cost * B.acquireMultiplier);
   });
 
   it('割引はそのターンだけ。ターンを終えると消える', () => {

@@ -139,6 +139,7 @@ export function inspectPick(
   const slot = state.market[slotId];
   if (!slot || slot.owner === null) return { ok: false, reason: '検査官は相手の物件に使います（空き地には使えません）' };
   if (slot.owner === viewer) return { ok: false, reason: '自分の物件には使えません' };
+  if (slot.level < 2) return { ok: false, reason: 'Lv1 の物件には使えません（Lv2 以上が対象）' };
   return { ok: true, action: { type: 'useCard', card: 'inspector', inspectSlot: slotId } };
 }
 
@@ -153,7 +154,7 @@ export function dragGuide(card: CardId, state?: GameState, viewer?: PlayerId): s
   }
   if (card === 'herald') return '伝令: 山の底へ送る札の上で離す';
   if (card === 'blockader') return '封鎖者: 封鎖する地区の上で離す';
-  if (card === 'inspector') return '検査官: 相手の物件の上で離す';
+  if (card === 'inspector') return '検査官: 相手の Lv2 以上の物件の上で離す';
   if (card === 'boss') return '顔役: VP が同じ地区の上で離す';
   return '盤面の上で離すと使う';
 }
@@ -164,7 +165,7 @@ export function useHintOf(state: GameState, viewer: PlayerId, card: CardId): str
   if (card === 'double' && !doubleSourceOf(state, viewer)) return '使うとき: 先に別の札を使ってから、盤面へドラッグ';
   const mode = slotTargetModeOf(state, viewer, card);
   if (mode === 'blockade') return '使うとき: 相手の区画か空き地の上へドラッグ';
-  if (mode === 'inspect') return '使うとき: 相手の物件の上へドラッグ';
+  if (mode === 'inspect') return '使うとき: 相手の Lv2 以上の物件の上へドラッグ';
   if (mode === 'district') return '使うとき: VP の合計が同じ地区の上へドラッグ';
   return '使うとき: 盤面へドラッグ';
 }
@@ -195,8 +196,8 @@ export function cardBlockReason(
   if (p.usedThisTurn.includes(card)) return 'このターンは使用済み（同じカードは 1 ターン 1 回）';
   const eff = effectiveCardOf(state, viewer, card, balance);
   if (eff === null) return '写せる札がありません（先に別の札を使う）';
-  if (eff === 'inspector' && !state.market.some((s) => s.owner !== null && s.owner !== viewer)) {
-    return '相手の物件がありません';
+  if (eff === 'inspector' && !state.market.some((s) => s.owner !== null && s.owner !== viewer && s.level >= 2)) {
+    return '相手の Lv2 以上の物件がありません';
   }
   if (eff === 'boss' && bossDistrictsOf(state, viewer, balance).length === 0) return 'VP の合計が同じ地区がありません';
   const cost = cardCostFor(state, viewer, card, balance);

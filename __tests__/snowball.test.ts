@@ -44,17 +44,19 @@ describe('徴税官は相手の建物の収益が多いほど多く引く', () =
   });
 });
 
-describe('衛兵は守る物件が多いほど高い', () => {
-  it('自分の物件 1 件につき +guardCostPerBuilding（城壁があるときは城壁のコストに足す）', () => {
-    const B = { ...DEFAULT_BALANCE, guardCostPerBuilding: 2 };
+describe('衛兵のコスト', () => {
+  it('物件が増えても上がらない。城壁があればコスト 0（物件の数を足さない）', () => {
+    const B = DEFAULT_BALANCE;
     const g = board();
     expect(cardCostFor(g, 'you', 'guard', B)).toBe(B.cards.guard.cost);
     g.market[0]!.owner = 'you';
     g.market[1]!.owner = 'you';
-    expect(cardCostFor(g, 'you', 'guard', B)).toBe(B.cards.guard.cost + 4);
+    g.market[2]!.owner = 'you';
+    expect(cardCostFor(g, 'you', 'guard', B)).toBe(B.cards.guard.cost);
     g.market.find((s) => s.buildingId === 'wall')!.owner = 'you';
-    expect(cardCostFor(g, 'you', 'guard', B)).toBe(B.guardCostWithWall + 6);
-    expect(cardTextFor('guard', B)).toContain('守る物件 1 件につきコスト +2');
+    expect(cardCostFor(g, 'you', 'guard', B)).toBe(0);
+    expect(cardCostFor(g, 'you', 'guard', B)).toBe(B.guardCostWithWall);
+    expect(cardTextFor('guard', B)).not.toContain('守る物件');
   });
 });
 
