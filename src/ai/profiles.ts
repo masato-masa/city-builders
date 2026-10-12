@@ -1,4 +1,4 @@
-import type { Profile } from './evaluate';
+import { DEFAULT_PROFILE, type Profile } from './evaluate';
 
 /** ゲーム内の CPU（やさしい・ふつう・つよい）が共通で使う重み。
  *
@@ -14,7 +14,7 @@ import type { Profile } from './evaluate';
  *  買収されたときに受け取る代金（exposedCoins）だけ既定の 0.4 を足した。
  *
  *  難易度の差はこの重みではなく、揺らぎ・妨害の頻度・先読みで付ける（choose.ts の optionsFor）。 */
-export const CPU_PROFILE: Profile = {
+export const CPU_PROFILE_SEARCHED: Profile = {
   early: {
     vp: 2.5,
     coin: 0.25,
@@ -50,3 +50,5 @@ export const CPU_PROFILE: Profile = {
     exposedCoins: 0.4,
   },
 };
+
+export const CPU_PROFILE: Profile = DEFAULT_PROFILE;

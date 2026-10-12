@@ -17,7 +17,7 @@ export type Difficulty = 'easy' | 'normal' | 'hard';
  *  200 試合: 25/10 で 77.5 / つよい対ふつう 85.0%、25/6 で 85.0 / 83.0%、20/8 で 75.0 / 83.0%。
  *  2026-10-11 雪だるまの対策（買収の上乗せ・衛兵・徴税官・各 18 手番）の後、20/8 は ふつう対やさしい 79.0 / つよい対ふつう 92.0%（100 試合）。
  *  200 試合: 20/5 で 75.5 / 79.0%、25/5 で 78.5 / 79.0%、30/4 で 85.0 / 81.5%、25/3 で 82.8 / 81.8%。 */
-const NOISE: Record<Difficulty, number> = { easy: 25, normal: 5, hard: 0 };
+const NOISE: Record<Difficulty, number> = { easy: 30, normal: 5, hard: 0 };
 
 /** 妨害カードを検討する確率。easy は妨害をあまり撃たない。 */
 const HARASS_RATE: Record<Difficulty, number> = { easy: 0.5, normal: 0.8, hard: 1 };

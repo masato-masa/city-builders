@@ -32,14 +32,17 @@ export const DAILY_RULES: readonly DailyRule[] = [
   },
   {
     id: 'income',
-    label: (b) => `基礎収入 +1（${b.baseIncome + 1}）・開幕資金 −1`,
+    label: (b) => `基礎収入 +1（${b.baseIncome + 1}）・後手の初手収入 +1・後手の開幕資金 −1`,
     // 基礎収入だけ +1 だと先手 59.7%（開始資金 1 の後、lab 150）。後手の 1 ターン目の補正も +1 して 52.4%。
     // 建物の収益が付いた後（2026-10-11）は補正 +1 で 59.2%、+2 で 44.1%。開幕資金も −1（両者）して 47.6%（lab 150）。
-    // 雪だるまの対策（各 18 手番）の後は、補正 +1 を足すと先手 43.0%、足さないで 49.0%（audit-daily 100）。補正は足さない
+    // 雪だるまの対策（各 18 手番）の後は、補正 +1 を足すと先手 43.0%、足さないで 49.0%（audit-daily 100）。補正は足さなかった。
+    // 買収を市場価値の 2 倍・収益を上げた後（2026-10-12）は、足さないと先手 59.3%、補正 +1 と開幕資金 −1（両者）で 42.3%（audit-daily 100）。
+    // 補正 +1・後手だけ開幕資金 −1 で 51.7%（lab --shape 800）
     patch: (b) => ({
       baseIncome: b.baseIncome + 1,
+      secondPlayerFirstTurnBonus: b.secondPlayerFirstTurnBonus + 1,
       startingCoins: {
-        first: Math.max(0, b.startingCoins.first - 1),
+        first: b.startingCoins.first,
         second: Math.max(0, b.startingCoins.second - 1),
       },
     }),

@@ -289,13 +289,16 @@ export const DEFAULT_BALANCE: Balance = {
     herald: { cost: 1 },
     // 祝祭 3 → 2: 建物の収益で倍の対象は増えたが、使う手番を選ぶ札になった（card-value 400: 3 で 禁止 38.3 / 優先 34.6%、2 で 37.5 / 46.0%）
     // 2 → 3（同: 2 で 禁止 37.5 / 優先 46.8%、3 で 43.3 / 47.8%）
+    // 2026-10-12（買収を市場価値の 2 倍に・収益を上げた後 card-value 400）: 3・追加収入 +2 は 禁止 43.4 / 優先 32.5%、
+    // 2・+2 は 34.3 / 45.0%、2・+1 は 41.3 / 31.5%、3・+3 は 40.8 / 41.0%、3・+5 は 36.8 / 52.3%。3・+3 を採用
     festival: { cost: 3 },
     guard: { cost: 1 },
     usurer: { cost: 0 },
     spy: { cost: 1 },
     taxman: { cost: 3 },
     // 封鎖者 5 → 3: 効果が「次の相手のターンだけ」になったので（card-value 200 で 5: 禁止 46.0 / 優先 30.0%、3: 43.5 / 40.0%、2: 38.5 / 32.0%）
-    blockader: { cost: 3 },
+    // 2026-10-12 3 → 2（card-value 400: 3 で 禁止 41.5 / 優先 31.3%、2 で 41.3 / 37.0%、1 で 34.5 / 43.5%）
+    blockader: { cost: 2 },
     // 新しいカード（既定のデッキには入っていない。NEW_CARDS_DECK で測る）
     // 職人: 設計書の 2 コスト・−5 は優先 34.1%（上げる物件が無い手番にも撃つ損）。0 コスト・−3 で禁止 44.1 / 優先 49.4%
     // （card-value 400 --deck=new。1/−5 は 37.4/36.3、0/−5 は 39.1/54.3、0/−2 は 45.6/51.0）
@@ -317,7 +320,7 @@ export const DEFAULT_BALANCE: Balance = {
   // 基本 0 は使う手番を選ぶ札になりすぎた（card-value 200: 基本 0 で 禁止 45.0 / 優先 31.5%、2 で 42.0 / 35.0%、4 で 36.3 / 38.3%）
   bankerIncome: 2,
   bankerVpRate: 1,
-  architectDiscount: 6,
+  architectDiscount: 4,
   taxmanAmount: 3,
   taxmanIncomeRate: 0.5,
   spyAcquireDiscount: 3,
@@ -330,14 +333,14 @@ export const DEFAULT_BALANCE: Balance = {
   // 建物は毎ターンの収益を持つ（ユーザー指定 2026-10-11: 商館 +3、ほかは任せる）。
   // 城塞 25（ユーザー指定）・鉱山 15（ユーザー指定）
   buildings: {
-    tradingHouse: { cost: 8, vp: 2, income: 3 },
-    wall: { cost: 11, vp: 2, income: 1 },
-    factory: { cost: 13, vp: 3, income: 1 },
-    quarry: { cost: 14, vp: 3, income: 1 },
-    road: { cost: 15, vp: 2, income: 1 },
-    mine: { cost: 15, vp: 3, income: 1 },
+    tradingHouse: { cost: 8, vp: 2, income: 4 },
+    wall: { cost: 11, vp: 2, income: 2 },
+    factory: { cost: 13, vp: 3, income: 2 },
+    quarry: { cost: 14, vp: 3, income: 2 },
+    road: { cost: 15, vp: 2, income: 2 },
+    mine: { cost: 15, vp: 3, income: 2 },
     cathedral: { cost: 20, vp: 0, income: 0 },
-    exchange: { cost: 24, vp: 4, income: 1 },
+    exchange: { cost: 24, vp: 4, income: 2 },
     fortress: { cost: 25, vp: 8, income: 0 },
   },
   factoryDiscount: 2,
@@ -348,7 +351,7 @@ export const DEFAULT_BALANCE: Balance = {
   usurerGain: 3,
   usurerDebt: 5,
   festivalMultiplier: 2,
-  festivalIncomeBonus: 2,
+  festivalIncomeBonus: 3,
   mineMinerBonus: 2,
   mineMinerDiscount: 1,
   quarryExtraDiscount: 4,
@@ -356,14 +359,14 @@ export const DEFAULT_BALANCE: Balance = {
   secondPlayerFirstTurnBonus: 1,
   // Lv2 の費用は建設費と同じ、Lv3 は建設費 +3
   upgrades: {
-    tradingHouse: { cost: 7, vp: 4, income: 4 },
-    wall: { cost: 10, vp: 4, income: 2 },
-    factory: { cost: 12, vp: 5, income: 2 },
-    quarry: { cost: 13, vp: 5, income: 2 },
-    road: { cost: 14, vp: 4, income: 2 },
-    mine: { cost: 15, vp: 5, income: 2 },
+    tradingHouse: { cost: 7, vp: 4, income: 6 },
+    wall: { cost: 10, vp: 4, income: 3 },
+    factory: { cost: 12, vp: 5, income: 3 },
+    quarry: { cost: 13, vp: 5, income: 3 },
+    road: { cost: 14, vp: 4, income: 3 },
+    mine: { cost: 15, vp: 5, income: 4 },
     cathedral: { cost: 18, vp: 0, income: 0 },
-    exchange: { cost: 22, vp: 6, income: 2 },
+    exchange: { cost: 22, vp: 6, income: 4 },
     fortress: { cost: 25, vp: 11, income: 0 },
   },
   level2: {
@@ -379,14 +382,14 @@ export const DEFAULT_BALANCE: Balance = {
   // 建設費と同額 29.2% / 3.94 回、+1 25.3% / 4.01 回、+3 15.3% / 4.39 回（Lv3 なし 4.42 回）。
   // 安いと買収されない物件ばかりになり、買収の読み合いが減る
   upgrades3: {
-    tradingHouse: { cost: 10, vp: 6, income: 5 },
-    wall: { cost: 13, vp: 6, income: 2 },
-    factory: { cost: 15, vp: 7, income: 3 },
-    quarry: { cost: 16, vp: 7, income: 3 },
-    road: { cost: 17, vp: 6, income: 4 },
-    mine: { cost: 18, vp: 7, income: 4 },
+    tradingHouse: { cost: 10, vp: 6, income: 8 },
+    wall: { cost: 13, vp: 6, income: 4 },
+    factory: { cost: 15, vp: 7, income: 5 },
+    quarry: { cost: 16, vp: 7, income: 5 },
+    road: { cost: 17, vp: 6, income: 5 },
+    mine: { cost: 18, vp: 7, income: 6 },
     cathedral: { cost: 21, vp: 0, income: 0 },
-    exchange: { cost: 25, vp: 8, income: 4 },
+    exchange: { cost: 25, vp: 8, income: 6 },
     fortress: { cost: 28, vp: 14, income: 0 },
   },
   level3: {
