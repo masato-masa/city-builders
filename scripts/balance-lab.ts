@@ -592,10 +592,16 @@ for (let i = 0; i < (SHAPE_ONLY ? 0 : N); i++) {
 // ふつう同士（ゲーム内の CPU。揺らぎ 8・妨害 0.8）。試合の形はこちらが実際の対戦に近い
 // （性格の総当たりは揺らぎ 0 で、同じ局面から同じ手を打つ）。seed は性格の組と重ならない系列
 {
-  // --shape-profile=default: ゲーム内の重み（CPU_PROFILE）の代わりに DEFAULT_PROFILE で測る（重みの癖と規則の癖を分けるため）
-  const normal = process.argv.includes('--shape-profile=default')
+  // --shape-profile=default: ゲーム内の重み（CPU_PROFILE）の代わりに DEFAULT_PROFILE で測る（重みの癖と規則の癖を分けるため）。
+  // --shape-profile=<性格の名前>: searched-profiles.json のその性格で測る（探索し直した重みを CPU_PROFILE に写す前に比べる）
+  const arg = process.argv.find((a) => a.startsWith('--shape-profile='))?.slice('--shape-profile='.length);
+  const named = arg && arg !== 'default' ? PERSONAS.find((p) => p.name === arg)?.profile : undefined;
+  if (arg && arg !== 'default' && !named) throw new Error(`性格が無い: ${arg}`);
+  const normal = arg === 'default'
     ? { ...optionsFor('normal'), profile: DEFAULT_PROFILE }
-    : optionsFor('normal');
+    : named
+      ? { ...optionsFor('normal'), profile: named }
+      : optionsFor('normal');
   for (let g = 0; g < GAMES_PER_PAIR; g++) {
     const seed = 900_000_000 + g;
     const r = runOne(seed, normal, normal, g % 2 === 0, DEFAULT_BALANCE);

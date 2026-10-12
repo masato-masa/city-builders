@@ -41,6 +41,8 @@ const SEARCHED_KEYS = [
   'opponentReach',
   // 旧 opponentBound（買収者が手札を縛る効果の評価）は効果ごと無くなったので、買収に晒される VP で置き換えた
   'exposed',
+  // 買収されたときに受け取る代金（2026-10-11 追加）
+  'exposedCoins',
 ] as const satisfies readonly (keyof Weights)[];
 
 type SearchedKey = (typeof SEARCHED_KEYS)[number];
@@ -379,7 +381,7 @@ console.log('');
 console.log('## 判定');
 console.log('');
 console.log(
-  `16 項目中 ${matchedDims} 項目が一致（4 つの出発点の値が互いに 2 倍以内 / DEFAULT_WEIGHTS の絶対値以内に収まっている項目数）`,
+  `${DIMENSIONS.length} 項目中 ${matchedDims} 項目が一致（4 つの出発点の値が互いに 2 倍以内 / DEFAULT_WEIGHTS の絶対値以内に収まっている項目数）`,
 );
 if (matchedDims >= 12) {
   console.log('');
