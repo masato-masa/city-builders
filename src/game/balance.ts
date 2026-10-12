@@ -307,7 +307,8 @@ export const DEFAULT_BALANCE: Balance = {
     guard: { cost: 1 },
     usurer: { cost: 0 },
     spy: { cost: 1 },
-    taxman: { cost: 3 },
+    // 徴税官 3 → 2（2026-10-12 席の有利の対策の後、lab 300 の 4 性格: 3 で 43.9〜55.4%（妨害が低く均衡が高い）、2 で 46.1〜52.5%）
+    taxman: { cost: 2 },
     // 封鎖者 5 → 3: 効果が「次の相手のターンだけ」になったので（card-value 200 で 5: 禁止 46.0 / 優先 30.0%、3: 43.5 / 40.0%、2: 38.5 / 32.0%）
     blockader: { cost: 3 },
     // 新しいカード（既定のデッキには入っていない。NEW_CARDS_DECK で測る）
