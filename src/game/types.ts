@@ -11,7 +11,7 @@ export type CardId =
   | 'blockader'
   /** 職人: このターンのアップグレード費を下げる（既定のデッキには入っていない） */
   | 'craftsman'
-  /** 検査官: 相手の物件の Lv を 1 段下げる／Lv1 なら払われた額を減らす（既定のデッキには入っていない） */
+  /** 検査官: 相手の Lv2 以上の物件の Lv を 1 段下げる（既定のデッキには入っていない） */
   | 'inspector'
   /** 顔役: 地区内の VP の合計が同数の地区の称号を今すぐ自分へ（既定のデッキには入っていない） */
   | 'boss'
@@ -42,9 +42,6 @@ export interface BuildingSlot {
   buildingId: BuildingId;
   /** null なら未建設 */
   owner: PlayerId | null;
-  /** この物件に払われたコインの合計（建設・アップグレード・買収で払った実額）。未建設は 0。
-   *  買収の価格は paid + acquireMarkup。買収されると、買った側が払った額に置き換わる。 */
-  paid: number;
   /** 物件のレベル。未建設と建てた直後は 1。アップグレードで 2、3（最大は balance.maxLevel。最大の物件は買収されない）。買収されても保つ */
   level: number;
   /** 最後に建設・アップグレード・買収されたターン（GameState.turn）。0 は一度も無い。
@@ -128,7 +125,7 @@ export type Action =
   | { type: 'build'; slotId: number }
   /** 自分の物件を 1 段上げる。手札は使わない */
   | { type: 'upgrade'; slotId: number }
-  /** 相手の物件を paid + acquireMarkup で買い取る。代金は元の持ち主に入る。手札は使わない */
+  /** 相手の物件を市場価値 × acquireMultiplier で買い取る。代金は誰にも入らない。手札は使わない */
   | { type: 'acquire'; slotId: number }
   | { type: 'useRoad'; target: CardId }
   | { type: 'endTurn' };

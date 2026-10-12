@@ -112,9 +112,7 @@ function HelpSection({ id, balance, deck }: { id: HelpSectionId; balance: Balanc
               <CoinBagIcon />
               買収に要るコイン
             </span>{' '}
-            を払うと自分のものになる（代金は相手に渡る）。
-            {balance.acquireLeadRate > 0 &&
-              `物件を多く持つ側が買うほど高く、少ない側が買うほど安い（1 件の差につき ${balance.acquireLeadRate} コイン）。`}
+            を払うと自分のものになる。買収のコインは相手に渡らず、消えます。買収に要るコインは市場価値（建物の建設費の定価 ＋ 上げた Lv までのアップグレード費の定価）の {balance.acquireMultiplier} 倍で、建築家などの割引や買収で払った額では変わりません。
           </p>
           <p className="sheet-text">同じ区画は 1 ターンに 1 回だけ動かせます。区画をタップすると、VP・建築・買収・増築のコストが見られます。</p>
         </>

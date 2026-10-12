@@ -70,13 +70,11 @@ export function cardTextFor(card: CardId, balance: Balance): string {
     case 'festival':
       return `次の自分のターン、自分の物件の効果がすべて ${balance.festivalMultiplier} 倍。さらにそのターンの収入 +${balance.festivalIncomeBonus}`;
     case 'guard':
-      return `次の自分のターンまで、相手の妨害（徴税官・封鎖者・検査官・顔役・密告者）と物件の買収を受けない。城壁があればコスト ${balance.guardCostWithWall}${
-        balance.guardCostPerBuilding > 0 ? `。守る物件 1 件につきコスト +${balance.guardCostPerBuilding}` : ''
-      }`;
+      return `次の自分のターンまで、相手の妨害（徴税官・封鎖者・検査官・顔役・密告者）と物件の買収を受けない。城壁があればコスト ${balance.guardCostWithWall}`;
     case 'usurer':
       return `このターン コイン +${balance.usurerGain}。次の自分のターン開始時 コイン −${balance.usurerDebt}（マイナスになる）`;
     case 'spy':
-      return `このターン、相手の物件を買収する価格 −${balance.spyAcquireDiscount}（相手に渡る代金も減る）`;
+      return `このターン、相手の物件を買収する価格 −${balance.spyAcquireDiscount}`;
     case 'taxman': {
       const r = balance.taxmanIncomeRate;
       const scaled = r === 0 ? '' : r === 1 ? ' ＋ 相手の建物の収益' : r === 0.5 ? ' ＋ 相手の建物の収益の半分' : ` ＋ 相手の建物の収益 × ${r}`;
@@ -88,7 +86,7 @@ export function cardTextFor(card: CardId, balance: Balance): string {
     case 'craftsman':
       return `このターン、自分の物件のアップグレード費 −${balance.craftsmanDiscount}（Lv1→2・Lv2→3 のどちらにも効く。建設・買収には効かない）`;
     case 'inspector':
-      return `相手の物件 1 件の Lv を 1 段下げる（Lv3→2・Lv2→1。払われた額はそのまま）。Lv1 の物件なら払われた額 −${balance.inspectorPaidCut}（買収が安くなる）。衛兵で防がれる`;
+      return `相手の物件 1 件の Lv を 1 段下げる（Lv3→2・Lv2→1。市場価値も下がり、買収が安くなる）。Lv1 の物件には撃てない。衛兵で防がれる`;
     case 'boss':
       return `地区 1 つを選ぶ。その地区の物件の VP の合計が自分と相手で同じ（1 以上）なら、地区の称号（${balance.districtTitleVp} VP）を今すぐ自分のものにする。衛兵で防がれる`;
     case 'informer':
@@ -200,16 +198,12 @@ export interface Balance {
   taxmanIncomeRate: number;
   /** 買収者: このターンの買収価格の割引 */
   spyAcquireDiscount: number;
-  /** 衛兵: 自分の物件 1 件につき足すコスト（守る物件が多いほど高い） */
-  guardCostPerBuilding: number;
   /** 城壁（効果が生きているもの）を持っているときの衛兵のコスト */
   guardCostWithWall: number;
   /** 街道（効果が生きているもの）を持っているときの伝令のコスト */
   heraldCostWithRoad: number;
   /** 職人: このターンのアップグレード費の割引 */
   craftsmanDiscount: number;
-  /** 検査官: Lv1 の物件に撃ったとき、払われた額（買収の価格の元）から引く額。0 未満にはしない */
-  inspectorPaidCut: number;
   /** 番頭: 商館 1 件あたりのコインと、数える商館の上限 */
   clerkPerHouse: number;
   clerkMaxHouses: number;
@@ -247,10 +241,9 @@ export interface Balance {
   level3: Record<Level2EffectKey, number>;
   /** レベルの上限。上限まで上げた物件は買収されない */
   maxLevel: number;
-  /** 買収の上乗せ。価格は「その物件に払われたコインの合計 + これ」 */
-  acquireMarkup: number;
-  /** 買収の上乗せの増減: 買う側が売る側より多く持つ物件 1 件につき足す額（少なければ引く。上乗せは 0 未満にしない） */
-  acquireLeadRate: number;
+  /** 買収費用 = 市場価値 × これ。市場価値 = 建物の建設費の定価 + 到達した Lv までのアップグレード費の定価。
+   *  買収の代金は相手に渡らない（買う側が払うだけ） */
+  acquireMultiplier: number;
   /** 建設・アップグレード・買収のあと、その区画を動かせないターン数（1 人の手番を 1 と数える）。
    *  1 で「同じ区画は 1 ターンに 1 回まで」 */
   slotLockTurns: number;
@@ -329,10 +322,8 @@ export const DEFAULT_BALANCE: Balance = {
   taxmanIncomeRate: 0.5,
   spyAcquireDiscount: 3,
   guardCostWithWall: 0,
-  guardCostPerBuilding: 2,
   heraldCostWithRoad: 0,
   craftsmanDiscount: 3,
-  inspectorPaidCut: 5,
   clerkPerHouse: 2,
   clerkMaxHouses: 3,
   doubleExcluded: ['herald', 'double', 'festival', 'guard'],
@@ -408,8 +399,7 @@ export const DEFAULT_BALANCE: Balance = {
     mineMinerDiscount: 2,
   },
   maxLevel: 3,
-  acquireMarkup: 4,
-  acquireLeadRate: 2,
+  acquireMultiplier: 2,
   slotLockTurns: 1,
   market: [
     'tradingHouse',

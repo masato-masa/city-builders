@@ -27,8 +27,8 @@ export const DAILY_RULES: readonly DailyRule[] = [
   },
   {
     id: 'markup',
-    label: (b) => `買収の上乗せ +3（${b.acquireMarkup + 3}）`,
-    patch: (b) => ({ acquireMarkup: b.acquireMarkup + 3 }),
+    label: (b) => `買収費用 市場価値 × ${b.acquireMultiplier + 1}`,
+    patch: (b) => ({ acquireMultiplier: b.acquireMultiplier + 1 }),
   },
   {
     id: 'income',

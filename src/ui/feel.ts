@@ -154,14 +154,13 @@ export function cardAftermath(
     return { text: '防がれた', tone: 'blocked' };
   }
   if (eff === 'inspector') {
-    // どの区画が変わったか（Lv が下がった／払われた額が減った）を前後の盤面から探す
+    // どの区画が変わったか（Lv が下がった）を前後の盤面から探す
     for (const slot of next.market) {
       const before = prev.market[slot.slotId];
       if (!before || before.owner !== foe) continue;
       if (slot.level < before.level) return { text: `Lv${before.level} → Lv${slot.level}`, tone: 'hit' };
-      if (slot.paid < before.paid) return { text: `買収価格 ${sign(slot.paid - before.paid)}`, tone: 'hit' };
     }
-    return f1.guarded ? { text: '防がれた', tone: 'blocked' } : { text: 'もう下げられない', tone: 'blocked' };
+    return f1.guarded ? { text: '防がれた', tone: 'blocked' } : { text: '防がれた', tone: 'blocked' };
   }
   if (eff === 'boss') {
     const took = next.titles.findIndex((t, i) => t === actor && prev.titles[i] !== actor);

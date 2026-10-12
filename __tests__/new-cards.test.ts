@@ -140,12 +140,10 @@ describe('衛兵', () => {
     // 買収者で割引を得ても、衛兵を張った相手の物件は買えない
     const yourSlot = g.market.find((s) => s.owner === null)!;
     yourSlot.owner = 'you';
-    yourSlot.paid = 1;
     const afterSpy = reduce(g, { type: 'useCard', card: 'spy' }, DEFAULT_BALANCE);
     expect(afterSpy.players.cpu.acquireDiscount).toBe(DEFAULT_BALANCE.spyAcquireDiscount);
     expect(canAcquire(afterSpy, yourSlot.slotId, DEFAULT_BALANCE)).toBe(false);
     yourSlot.owner = null;
-    yourSlot.paid = 0;
 
     const afterBlockader = reduce(g, { type: 'useCard', card: 'blockader', district: 0 }, DEFAULT_BALANCE);
     expect(afterBlockader.blockades).toEqual([]);
@@ -155,7 +153,7 @@ describe('衛兵', () => {
 
 describe('買収者', () => {
   // 買収者の割引そのものを測るので、物件の数の差による上乗せの増減は切る
-  const B = { ...DEFAULT_BALANCE, acquireLeadRate: 0 };
+  const B = { ...DEFAULT_BALANCE };
   /** you の手番。cpu が商館を持っていて、you は割引なしでは 1 コイン足りない */
   function setup(): { g: GameState; slot: number; price: number } {
     const g = fixture(
@@ -164,7 +162,6 @@ describe('買収者', () => {
     );
     const house = g.market.find((s) => s.buildingId === 'tradingHouse')!;
     house.owner = 'cpu';
-    house.paid = B.buildings.tradingHouse.cost;
     const price = house.paid + B.acquireMarkup;
     g.players.you.coins = B.cards.spy.cost + price - B.spyAcquireDiscount;
     return { g, slot: house.slotId, price };
@@ -194,7 +191,6 @@ describe('買収者', () => {
 
   it('価格は 0 より下がらない', () => {
     const { g, slot } = setup();
-    g.market[slot]!.paid = 0;
     const big = { ...B, spyAcquireDiscount: 100 };
     const afterSpy = reduce(g, { type: 'useCard', card: 'spy' }, big);
     const coins = afterSpy.players.you.coins;
@@ -207,7 +203,7 @@ describe('買収者', () => {
 describe('物件との連携', () => {
   it('城壁があると衛兵のコストが下がる。封鎖者で城壁を止められると元に戻る', () => {
     // 守る物件 1 件ごとの上乗せは切る（上乗せは snowball.test.ts で測る）
-    const GB = { ...DEFAULT_BALANCE, guardCostPerBuilding: 0 };
+    const GB = { ...DEFAULT_BALANCE };
     const g = fixture(
       ['guard', 'miner', 'banker', 'architect', 'herald', 'festival', 'usurer', 'spy', 'taxman', 'blockader'],
       0,

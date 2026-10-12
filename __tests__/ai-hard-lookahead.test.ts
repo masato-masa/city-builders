@@ -45,10 +45,8 @@ const FROZEN_BALANCE: Balance = {
   taxmanIncomeRate: 0,
   spyAcquireDiscount: 3,
   guardCostWithWall: 0,
-  guardCostPerBuilding: 0,
   heraldCostWithRoad: 0,
   craftsmanDiscount: 5,
-  inspectorPaidCut: 5,
   clerkPerHouse: 2,
   clerkMaxHouses: 3,
   doubleExcluded: ['herald', 'double', 'festival', 'guard'],
@@ -118,8 +116,7 @@ const FROZEN_BALANCE: Balance = {
     mineMinerDiscount: 0,
   },
   maxLevel: 2,
-  acquireMarkup: 4,
-  acquireLeadRate: 0,
+  acquireMultiplier: 2,
   slotLockTurns: 1,
   market: [
     'tradingHouse',
@@ -176,7 +173,6 @@ function scenario(cpuFirstCard: CardId): GameState {
     slotId,
     buildingId,
     owner: null,
-    paid: 0,
     level: 1,
     touchedTurn: 0,
   }));

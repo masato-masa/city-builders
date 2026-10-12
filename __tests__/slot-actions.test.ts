@@ -22,8 +22,8 @@ function board(): GameState {
   s.current = 'you';
   s.players.you.coins = 0;
   s.players.cpu.coins = 0;
-  s.market[0] = { ...s.market[0]!, owner: 'you', paid: 7, level: 1, touchedTurn: 1 };
-  s.market[7] = { ...s.market[7]!, owner: 'cpu', paid: 18, level: 1, touchedTurn: 2 };
+  s.market[0] = { ...s.market[0]!, owner: 'you', level: 1, touchedTurn: 1 };
+  s.market[7] = { ...s.market[7]!, owner: 'cpu', level: 1, touchedTurn: 2 };
   return s;
 }
 
@@ -144,7 +144,7 @@ describe('levelEffects', () => {
 
   it('大聖堂は 1 件あたりの VP で書く', () => {
     const s = board();
-    s.market[6] = { ...s.market[6]!, owner: 'you', paid: 16, level: 1, touchedTurn: 1 };
+    s.market[6] = { ...s.market[6]!, owner: 'you', level: 1, touchedTurn: 1 };
     const { current, next } = levelEffects(s, 6, B);
     expect(current.vp).toBe('他の物件 1 件につき 2 VP');
     expect(next!.vp).toBe('他の物件 1 件につき 3 VP');

@@ -5,8 +5,8 @@ import { buildingTextFor, DEFAULT_BALANCE } from '@/game/balance';
 import { canAcquire, canUpgrade, canUseRoad, cardCostFor, incomeStages, legalActions, reduce } from '@/game/reducer';
 import {
   acquireBlockOf,
-  acquireCostFor,
-  acquirePriceOf,
+    acquirePriceOf,
+  marketValueOf,
   districtOfSlot,
   incomePerTurnOf,
   roadUsesRemaining,
@@ -17,16 +17,14 @@ import {
 import { createGame } from '@/game/setup';
 import type { BuildingId, GameState, PlayerId } from '@/game/types';
 
-// 買収の価格の基本（払われた額 + 上乗せ）を測るので、物件の数の差による増減は切る（別のテストで測る）
+// 買収の価格 = 市場価値（建設費の定価 + 到達した Lv までのアップグレード費の定価）× 2。代金は誰にも渡らない
 // 仕様書の例（城壁 10 で建てて 10 で上げる）に合わせ、城壁の建設費は 10 に固定する（既定値の調整で例が崩れないように）
 const B = {
   ...DEFAULT_BALANCE,
-  acquireLeadRate: 0,
   buildings: { ...DEFAULT_BALANCE.buildings, wall: { ...DEFAULT_BALANCE.buildings.wall, cost: 10 } },
   upgrades: { ...DEFAULT_BALANCE.upgrades, wall: { ...DEFAULT_BALANCE.upgrades.wall, cost: 10 } },
 };
-/** 仕様書の例（10 → 11 → 12、20 → 21）を確かめるための、買収の上乗せが 1 の balance */
-const B1 = { ...B, acquireMarkup: 1 };
+const B1 = B;
 
 /** you の手番から始まる局面。手札・待機列は createGame のまま。 */
 function fixture(youCoins: number, cpuCoins: number): GameState {
@@ -48,18 +46,16 @@ function pass(g: GameState): GameState {
 const totalCoins = (g: GameState) => g.players.you.coins + g.players.cpu.coins;
 
 describe('アップグレード', () => {
-  it('建設費と同額を払って Lv2 になり、VP が Lv2 の値になる。払った合計に足される', () => {
+  it('建設費と同額を払って Lv2 になり、VP が Lv2 の値になる', () => {
     let g = fixture(50, 0);
     const wall = slotOf(g, 'wall');
     g = reduce(g, { type: 'build', slotId: wall }, B);
-    expect(g.market[wall]!.paid).toBe(B.buildings.wall.cost);
     expect(g.market[wall]!.level).toBe(1);
     g = pass(pass(g));
     const before = g.players.you.coins;
     g = reduce(g, { type: 'upgrade', slotId: wall }, B);
     expect(g.players.you.coins).toBe(before - B.upgrades.wall.cost);
     expect(g.market[wall]!.level).toBe(2);
-    expect(g.market[wall]!.paid).toBe(B.buildings.wall.cost + B.upgrades.wall.cost);
     expect(scoreOf(g, 'you')).toBe(B.upgrades.wall.vp + B.districtTitleVp);
   });
 
@@ -89,7 +85,7 @@ describe('アップグレード', () => {
     g = reduce(g, { type: 'upgrade', slotId: house }, B);
     expect(g.market[house]!.level).toBe(3);
     expect(g.players.you.coins).toBe(before - B.upgrades3.tradingHouse.cost);
-    expect(g.market[house]!.paid).toBe(
+    expect(marketValueOf(g.market[house]!, B)).toBe(
       B.buildings.tradingHouse.cost + B.upgrades.tradingHouse.cost + B.upgrades3.tradingHouse.cost,
     );
     expect(vpOfSlot(g, g.market[house]!, B)).toBe(B.upgrades3.tradingHouse.vp);
@@ -111,7 +107,6 @@ describe('買収', () => {
     const g = fixture(0, 200);
     const wall = slotOf(g, 'wall');
     g.market[wall]!.owner = 'you';
-    g.market[wall]!.paid = 10;
     g.current = 'cpu';
     g.market[wall]!.level = B.maxLevel - 1;
     expect(canAcquire(g, wall, B)).toBe(true);
@@ -132,67 +127,76 @@ describe('買収', () => {
     expect(reachOf(lower, 'cpu', B)).toBeGreaterThan(reachOf(g, 'cpu', B));
   });
 
-  // 仕様書の例（+1）どおりに動くかを、上乗せ 1 の balance で確かめる。既定の上乗せは実測で決めた値
-  it('価格は払われた合計 + 1。10 → 11 → 12 と上がり、代金は元の持ち主に入る', () => {
+  it('買収費用は市場価値の 2 倍。代金は誰にも渡らず消える。買収後も市場価値は変わらず、次の買収も同じ額', () => {
     let g = fixture(10, 0);
     const wall = slotOf(g, 'wall');
     expect(B.buildings.wall.cost).toBe(10);
-    g = reduce(g, { type: 'build', slotId: wall }, B1);
+    g = reduce(g, { type: 'build', slotId: wall }, B);
     g = pass(g);
 
-    // cpu が 11 で買う
+    // cpu が 20 で買う
     g.players.cpu.coins = 30;
-    expect(acquirePriceOf(g.market[wall]!, B1)).toBe(11);
-    let coins = totalCoins(g);
-    g = reduce(g, { type: 'acquire', slotId: wall }, B1);
+    const youBefore = g.players.you.coins;
+    expect(marketValueOf(g.market[wall]!, B)).toBe(10);
+    expect(acquirePriceOf(g.market[wall]!, B)).toBe(20);
+    g = reduce(g, { type: 'acquire', slotId: wall }, B);
     expect(g.market[wall]!.owner).toBe('cpu');
-    expect(g.market[wall]!.paid).toBe(11);
-    expect(g.players.cpu.coins).toBe(30 - 11);
-    expect(g.players.you.coins).toBe(11);
-    expect(totalCoins(g)).toBe(coins);
+    expect(g.players.cpu.coins).toBe(30 - 20);
+    expect(g.players.you.coins).toBe(youBefore); // 相手には渡らない
     // 買収で地区の称号も一緒に移る
     expect(scoreOf(g, 'cpu')).toBe(B.buildings.wall.vp + B.districtTitleVp);
     expect(scoreOf(g, 'you')).toBe(0);
     g = pass(g);
 
-    // you が 12 で買い戻す
-    g.players.you.coins = 12;
-    coins = totalCoins(g);
-    g = reduce(g, { type: 'acquire', slotId: wall }, B1);
+    // you が同じ 20 で買い戻す（買収で払った額では価格は変わらない）
+    expect(acquirePriceOf(g.market[wall]!, B)).toBe(20);
+    g.players.you.coins = 20;
+    g = reduce(g, { type: 'acquire', slotId: wall }, B);
     expect(g.market[wall]!.owner).toBe('you');
-    expect(g.market[wall]!.paid).toBe(12);
     expect(g.players.you.coins).toBe(0);
-    expect(g.players.cpu.coins).toBe(30 - 11 + 12);
-    expect(totalCoins(g)).toBe(coins);
+    expect(g.players.cpu.coins).toBe(10);
   });
 
-  it('10 で建てて 10 でアップグレードした物件は 21 で買収され、Lv は保たれる', () => {
+  it('10 で建てて 10 でアップグレードした物件（市場価値 20）は 40 で買収され、Lv は保たれる', () => {
     let g = fixture(20, 0);
     const wall = slotOf(g, 'wall');
-    g = reduce(g, { type: 'build', slotId: wall }, B1);
+    g = reduce(g, { type: 'build', slotId: wall }, B);
     g = pass(pass(g));
-    g = reduce(g, { type: 'upgrade', slotId: wall }, B1);
+    g = reduce(g, { type: 'upgrade', slotId: wall }, B);
     g = pass(g);
-    expect(acquirePriceOf(g.market[wall]!, B1)).toBe(21);
-    g.players.cpu.coins = 20;
-    expect(canAcquire(g, wall, B1)).toBe(false);
-    g.players.cpu.coins = 21;
-    g = reduce(g, { type: 'acquire', slotId: wall }, B1);
+    expect(marketValueOf(g.market[wall]!, B)).toBe(20);
+    expect(acquirePriceOf(g.market[wall]!, B)).toBe(40);
+    g.players.cpu.coins = 39;
+    expect(canAcquire(g, wall, B)).toBe(false);
+    g.players.cpu.coins = 40;
+    g = reduce(g, { type: 'acquire', slotId: wall }, B);
     expect(g.market[wall]!.owner).toBe('cpu');
     expect(g.market[wall]!.level).toBe(2);
-    expect(g.market[wall]!.paid).toBe(21);
-    expect(g.players.you.coins).toBe(21);
+    expect(g.players.cpu.coins).toBe(0);
     expect(scoreOf(g, 'cpu')).toBe(B.upgrades.wall.vp + B.districtTitleVp);
   });
 
-  it('安く建てた物件は安く買われる（払った実額が基準）', () => {
+  it('建築家で安く建てても市場価値は定価のまま（買収も定価の 2 倍）', () => {
     let g = fixture(50, 0);
     g.players.you.hand = ['architect', 'miner', 'banker', 'usurer'];
     g = reduce(g, { type: 'useCard', card: 'architect' }, B);
     const wall = slotOf(g, 'wall');
     g = reduce(g, { type: 'build', slotId: wall }, B);
-    expect(g.market[wall]!.paid).toBe(B.buildings.wall.cost - B.architectDiscount);
-    expect(acquirePriceOf(g.market[wall]!, B)).toBe(B.buildings.wall.cost - B.architectDiscount + B.acquireMarkup);
+    expect(marketValueOf(g.market[wall]!, B)).toBe(B.buildings.wall.cost);
+    expect(acquirePriceOf(g.market[wall]!, B)).toBe(B.buildings.wall.cost * B.acquireMultiplier);
+  });
+
+  it('商館（定価 8）は市場価値 8・買収 16。Lv2 に上げる定価が 7 なら市場価値 15・買収 30', () => {
+    const g = fixture(0, 0);
+    const house = slotOf(g, 'tradingHouse');
+    g.market[house]!.owner = 'cpu';
+    expect(marketValueOf(g.market[house]!, B)).toBe(B.buildings.tradingHouse.cost);
+    expect(acquirePriceOf(g.market[house]!, B)).toBe(B.buildings.tradingHouse.cost * 2);
+    g.market[house]!.level = 2;
+    expect(marketValueOf(g.market[house]!, B)).toBe(B.buildings.tradingHouse.cost + B.upgrades.tradingHouse.cost);
+    // 検査官で Lv が下がれば市場価値も下がる
+    g.market[house]!.level = 1;
+    expect(marketValueOf(g.market[house]!, B)).toBe(B.buildings.tradingHouse.cost);
   });
 
   it('自分の物件・未建設の区画は買収できない', () => {
@@ -200,7 +204,6 @@ describe('買収', () => {
     const wall = slotOf(g, 'wall');
     expect(canAcquire(g, wall, B)).toBe(false);
     g.market[wall]!.owner = 'you';
-    g.market[wall]!.paid = 10;
     expect(canAcquire(g, wall, B)).toBe(false);
   });
 
@@ -208,7 +211,6 @@ describe('買収', () => {
     const g = fixture(100, 0);
     const wall = slotOf(g, 'wall');
     g.market[wall]!.owner = 'cpu';
-    g.market[wall]!.paid = 10;
     expect(canAcquire(g, wall, B)).toBe(true); // 城壁そのものも、城壁の持ち主の物件も買える
     g.players.cpu.guarded = true;
     expect(canAcquire(g, wall, B)).toBe(false);
@@ -220,7 +222,6 @@ describe('買収', () => {
     g.players.you.hand = ['guard', 'miner', 'banker', 'usurer'];
     const wall = slotOf(g, 'wall');
     g.market[wall]!.owner = 'you';
-    g.market[wall]!.paid = 10;
     g.players.you.coins = cardCostFor(g, 'you', 'guard', B);
     g = reduce(g, { type: 'useCard', card: 'guard' }, B);
     g = pass(g);
@@ -238,7 +239,6 @@ describe('買収', () => {
     const g = fixture(100, 0);
     const house = slotOf(g, 'tradingHouse');
     g.market[house]!.owner = 'cpu';
-    g.market[house]!.paid = 7;
     g.blockades = [{ district: districtOfSlot(house, B), target: 'cpu', untilTurn: g.turn, beforeIncome: false }];
     expect(slotEffectStopped(g, g.market[house]!, B)).toBe(true);
     expect(canAcquire(g, house, B)).toBe(true);
@@ -247,15 +247,15 @@ describe('買収', () => {
     expect(slotEffectStopped(after, after.market[house]!, B)).toBe(false);
   });
 
-  it('買収の代金は元の持ち主に入るだけ（城塞の通行料は廃止）', () => {
+  it('買収の代金は誰にも入らない（払った分のコインが消える）', () => {
     const g = fixture(100, 0);
     const [f1] = g.market.filter((s) => s.buildingId === 'fortress');
     f1!.owner = 'cpu';
     const house = slotOf(g, 'tradingHouse');
     g.market[house]!.owner = 'cpu';
-    g.market[house]!.paid = 7;
     const after = reduce(g, { type: 'acquire', slotId: house }, B);
-    expect(after.players.cpu.coins).toBe(7 + B.acquireMarkup);
+    expect(after.players.cpu.coins).toBe(0);
+    expect(after.players.you.coins).toBe(100 - B.buildings.tradingHouse.cost * B.acquireMultiplier);
   });
 });
 
@@ -275,7 +275,6 @@ describe('同じ区画は 1 ターンに 1 回まで', () => {
     let g = fixture(100, 0);
     const wall = slotOf(g, 'wall');
     g.market[wall]!.owner = 'cpu';
-    g.market[wall]!.paid = 10;
     g = reduce(g, { type: 'acquire', slotId: wall }, B);
     expect(canUpgrade(g, wall, B)).toBe(false);
   });
@@ -301,35 +300,12 @@ describe('同じ区画は 1 ターンに 1 回まで', () => {
   });
 });
 
-describe('買収の上乗せは物件の数の差で動く（多く持つ側ほど高く買う）', () => {
-  const L = { ...B, acquireLeadRate: 2 };
-  it('買う側が 2 件多いと +4、2 件少ないと −4（上乗せは 0 未満にしない）', () => {
-    const g = fixture(100, 0);
-    const [a, b, c, d] = g.market;
-    a!.owner = 'cpu';
-    a!.paid = 10;
-    b!.owner = 'you';
-    c!.owner = 'you';
-    d!.owner = 'you';
-    // you は 3 件、cpu は 1 件。you が cpu の物件を買う: 上乗せ 4 + 2 × 2
-    expect(acquireCostFor(g, 'you', a!, L)).toBe(10 + 4 + 4);
-    // cpu が you の物件を買う: 上乗せ 4 − 2 × 2 = 0
-    b!.paid = 8;
-    expect(acquireCostFor(g, 'cpu', b!, L)).toBe(8);
-    // 差がもっと開いても、上乗せは 0 で止まる（払われた額より安くはならない）
-    g.market[4]!.owner = 'you';
-    g.market[5]!.owner = 'you';
-    expect(acquireCostFor(g, 'cpu', b!, L)).toBe(8);
-  });
-});
-
 describe('Lv2 の効果', () => {
   function owned(id: BuildingId, owner: PlayerId, level: number): GameState {
     const g = fixture(0, 0);
     const s = g.market.find((x) => x.buildingId === id)!;
     s.owner = owner;
     s.level = level;
-    s.paid = 10;
     return g;
   }
 
@@ -379,27 +355,22 @@ describe('Lv2 の効果', () => {
 
 describe('CPU の評価が新しい行動を見る', () => {
   it('reach は相手の物件の買収も数える。相手が衛兵なら数えない', () => {
-    const g = fixture(10 + B.acquireMarkup, 0);
-    const wall = slotOf(g, 'wall');
+    const g = fixture(20, 0);
     // 空き地は全部埋めて、買収だけが候補になるようにする
     for (const s of g.market) {
       s.owner = 'cpu';
-      s.paid = 100;
     }
-    g.market[wall]!.paid = 10;
     expect(reachOf(g, 'you', B)).toBe(B.buildings.wall.vp);
     g.players.cpu.guarded = true;
     expect(reachOf(g, 'you', B)).toBe(0);
   });
 
   it('アップグレードで買収価格が上がると、相手に奪われうる VP（exposed）が減る', () => {
-    const g = fixture(0, 15);
+    const g = fixture(0, 25);
     const wall = slotOf(g, 'wall');
     g.market[wall]!.owner = 'you';
-    g.market[wall]!.paid = 10;
     expect(exposedVpOf(g, 'you', B)).toBe(B.buildings.wall.vp);
     g.market[wall]!.level = 2;
-    g.market[wall]!.paid = 20;
     expect(exposedVpOf(g, 'you', B)).toBe(0);
   });
 });

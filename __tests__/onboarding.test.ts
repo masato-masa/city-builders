@@ -58,7 +58,7 @@ describe('手引き: 場面の判定', () => {
     const s = fresh();
     expect(tipTriggered('acquire', s, B)).toBe(false);
     expect(tipTriggered('district', s, B)).toBe(false);
-    s.market[0] = { ...s.market[0]!, owner: 'cpu', paid: 7 };
+    s.market[0] = { ...s.market[0]!, owner: 'cpu' };
     expect(tipTriggered('acquire', s, B)).toBe(true);
     expect(tipTriggered('district', s, B)).toBe(true);
     // 同時に来たら順に 1 つずつ
@@ -69,7 +69,7 @@ describe('手引き: 場面の判定', () => {
 
   it('自分の物件だけなら買収は出さない', () => {
     const s = fresh();
-    s.market[0] = { ...s.market[0]!, owner: 'you', paid: 7 };
+    s.market[0] = { ...s.market[0]!, owner: 'you' };
     expect(tipTriggered('acquire', s, B)).toBe(false);
     expect(nextTip(s, ['drag'], true)).toBe('district');
   });
@@ -77,7 +77,7 @@ describe('手引き: 場面の判定', () => {
   it('全部見たら何も出さない', () => {
     const s = fresh();
     s.players.you.coins = 99;
-    s.market[0] = { ...s.market[0]!, owner: 'cpu', paid: 7 };
+    s.market[0] = { ...s.market[0]!, owner: 'cpu' };
     expect(nextTip(s, TIP_ORDER, true)).toBeNull();
   });
 

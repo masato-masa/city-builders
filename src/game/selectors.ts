@@ -179,8 +179,10 @@ export interface BuildingLevelStats {
   income: number;
   /** Lv1: 建設費。Lv2・Lv3: その段へ上げる費用（アップグレード費） */
   cost: number;
-  /** 買収の上乗せ額（払われた額 + これ が買収の価格）。最終段階は買収できないので null */
-  acquireMarkup: number | null;
+  /** その段の市場価値（建設費の定価 + そこまでのアップグレード費の定価）。買収費用はこの × acquireMultiplier */
+  marketValue: number;
+  /** 買収費用（市場価値 × 倍率）。最終段階は買収できないので null */
+  acquireCost: number | null;
   /** 次の段へ上げる費用。最終段階は null */
   nextUpgradeCost: number | null;
   /** その段での効果の説明（収益は含まない） */
@@ -197,7 +199,8 @@ export function buildingStatsOf(building: BuildingId, balance: Balance = DEFAULT
       vpPerOtherBuilding: building === 'cathedral' ? buildingEffect(balance, 'cathedralVpPerBuilding', level) : null,
       income: buildingIncomeOf(balance, building, level),
       cost: table[building].cost,
-      acquireMarkup: level >= balance.maxLevel ? null : balance.acquireMarkup,
+      marketValue: marketValueOf({ slotId: 0, buildingId: building, owner: null, level, touchedTurn: 0 }, balance),
+      acquireCost: level >= balance.maxLevel ? null : marketValueOf({ slotId: 0, buildingId: building, owner: null, level, touchedTurn: 0 }, balance) * balance.acquireMultiplier,
       nextUpgradeCost: next ? next[building].cost : null,
       effectText: buildingEffectTextFor(building, balance, level),
     });
@@ -233,14 +236,24 @@ export function activeEffectMax(
     .reduce((n, s) => Math.max(n, buildingEffect(balance, key, s.level)), 0);
 }
 
-/** 区画を買収するときの価格。未建設なら Infinity。discount は買収者の割引（0 未満にはしない）。 */
+/** 物件の市場価値 = 建物の建設費の定価 + 到達した Lv までのアップグレード費の定価。
+ *  建築家・職人などの割引や、買収で払った額では変わらない。検査官で Lv が下がれば下がる。 */
+export function marketValueOf(slot: BuildingSlot, balance: Balance = DEFAULT_BALANCE): number {
+  const id = slot.buildingId;
+  let v = balance.buildings[id].cost;
+  if (slot.level >= 2) v += balance.upgrades[id].cost;
+  if (slot.level >= 3) v += balance.upgrades3[id].cost;
+  return v;
+}
+
+/** 区画を買収するときの価格 = 市場価値 × acquireMultiplier。未建設なら Infinity。discount は買収者の割引（0 未満にはしない）。 */
 export function acquirePriceOf(
   slot: BuildingSlot,
   balance: Balance = DEFAULT_BALANCE,
   discount = 0,
 ): number {
   if (slot.owner === null) return Number.POSITIVE_INFINITY;
-  return Math.max(0, slot.paid + balance.acquireMarkup - discount);
+  return Math.max(0, marketValueOf(slot, balance) * balance.acquireMultiplier - discount);
 }
 
 /** player がいまその区画を買収するときに実際に払う額（このターンの買収者の割引を織り込む）。 */
@@ -250,20 +263,7 @@ export function acquireCostFor(
   slot: BuildingSlot,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
-  return acquirePriceOf(slot, balance, state.players[player].acquireDiscount - acquireLeadMarkupOf(state, player, balance));
-}
-
-/** 買収の上乗せに足す額: 買う側が売る側より多く持つ物件 1 件につき acquireLeadRate（少なければ引く。上乗せ全体は 0 未満にしない）。 */
-export function acquireLeadMarkupOf(state: GameState, buyer: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
-  const rate = balance.acquireLeadRate ?? 0;
-  if (rate === 0) return 0;
-  const lead = ownedSlots(state, buyer).length - ownedSlots(state, opponentOf(buyer)).length;
-  return Math.max(-balance.acquireMarkup, lead * rate);
-}
-
-/** buyer が買収するときの上乗せ（基本 + 物件の数の差の分。0 未満にはしない）。買収者の割引は含まない。 */
-export function acquireMarkupFor(state: GameState, buyer: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
-  return balance.acquireMarkup + acquireLeadMarkupOf(state, buyer, balance);
+  return acquirePriceOf(slot, balance, state.players[player].acquireDiscount);
 }
 
 /** 区画をアップグレードするときの価格。Lv1 → Lv2 は upgrades、Lv2 → Lv3 は upgrades3。

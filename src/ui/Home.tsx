@@ -410,14 +410,6 @@ export function Home({
               />
             </label>
             <label>
-              {CARD_NAMES.inspector}: Lv1 の払われた額を減らす
-              <input
-                type="number"
-                value={balance.inspectorPaidCut}
-                onChange={(e) => put({ ...balance, inspectorPaidCut: Number(e.target.value) })}
-              />
-            </label>
-            <label>
               {CARD_NAMES.clerk}: 商館 1 件あたりのコイン
               <input
                 type="number"
@@ -534,11 +526,11 @@ export function Home({
               />
             </label>
             <label>
-              物件の買収: 上乗せ
+              物件の買収: 市場価値の何倍か
               <input
                 type="number"
-                value={balance.acquireMarkup}
-                onChange={(e) => put({ ...balance, acquireMarkup: Number(e.target.value) })}
+                value={balance.acquireMultiplier}
+                onChange={(e) => put({ ...balance, acquireMultiplier: Number(e.target.value) })}
               />
             </label>
             <label>

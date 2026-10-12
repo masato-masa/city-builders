@@ -25,7 +25,6 @@ function own(g: GameState, slotId: number, owner: PlayerId, level = 1, paid = 7)
   const s = g.market[slotId]!;
   s.owner = owner;
   s.level = level;
-  s.paid = paid;
   s.touchedTurn = 0;
 }
 

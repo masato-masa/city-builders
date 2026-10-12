@@ -16,7 +16,7 @@ import { TEMPO } from '@/ui/tempo';
 import { acquirePriceOf, upgradePriceOf } from '@/game/selectors';
 
 // 買収の上乗せの基本を測るので、物件の数の差による増減は切る
-const B = { ...DEFAULT_BALANCE, acquireLeadRate: 0 };
+const B = { ...DEFAULT_BALANCE };
 const hit = (h: Partial<DropHit>): DropHit => ({ onBoard: false, slotId: null, handCard: null, ...h });
 
 describe('押し方の判定（classifyPress）', () => {
@@ -103,19 +103,15 @@ describe('区画の名札の数字（plotFigures）', () => {
     const g = createGame(1, B, 'you');
     const slot = g.market[0]!;
     slot.owner = 'you';
-    slot.paid = 10;
     const f = plotFigures(g, 0, 'you', B, cost);
     expect(f).toEqual({ kind: 'built', value: 10 + B.acquireMarkup, upgrade: upgradePriceOf(slot, B) });
-    slot.paid = 16;
     expect(plotFigures(g, 0, 'you', B, cost)).toMatchObject({ value: 16 + B.acquireMarkup });
   });
 
   it('相手の物件は、自分がいま払う額（買収者の割引込み）。自分の物件は相手が払う額（割引なし）', () => {
     const g = createGame(1, B, 'you');
     g.market[0]!.owner = 'cpu';
-    g.market[0]!.paid = 10;
     g.market[1]!.owner = 'you';
-    g.market[1]!.paid = 10;
     g.players.you.acquireDiscount = 3;
     expect(plotFigures(g, 0, 'you', B, cost)).toMatchObject({ value: acquirePriceOf(g.market[0]!, B) - 3 });
     expect(plotFigures(g, 1, 'you', B, cost)).toMatchObject({ value: acquirePriceOf(g.market[1]!, B) });

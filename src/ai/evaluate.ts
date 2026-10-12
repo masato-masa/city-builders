@@ -2,7 +2,6 @@ import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { cardCostFor } from '@/game/reducer';
 import {
   acquireCostFor,
-  acquireLeadMarkupOf,
   acquirePriceOf,
   activeEffectMax,
   blockadeIncomeLossOf,
@@ -207,8 +206,8 @@ export function exposedVpOf(
   return exposureOf(state, player, balance).vp;
 }
 
-/** exposedVpOf の中身。vp は奪われうる VP、coins はそのとき相手から受け取る代金の合計（買収の代金は元の持ち主に入る）。
- *  代金を数えないと、少なく持つ側（安く建てて高く買われる）まで「建てても奪われるだけ」と見て建てなくなった（2026-10-11）。 */
+/** exposedVpOf の中身。vp は奪われうる VP。coins は買収の代金を受け取る額だったが、
+ *  代金は相手に渡らなくなった（2026-10-12 ユーザー指示）ので常に 0（重み exposedCoins の口として残す）。 */
 export function exposureOf(
   state: GameState,
   player: PlayerId,
@@ -236,16 +235,14 @@ export function exposureOf(
     .map((s) => ({
       // 奪われると地区の称号も失うなら、その VP も込みで測る（あと 1 件で奪われる）
       vp: vpOfSlot(state, s, balance) - titleVpSwing(state, s.slotId, foe, player, balance),
-      price: acquirePriceOf(s, balance, discount - acquireLeadMarkupOf(state, foe, balance)),
+      price: acquirePriceOf(s, balance, discount),
     }))
     .sort((a, b) => b.vp - a.vp);
   let total = 0;
-  let coins = 0;
   for (const m of mine) {
     if (budget < m.price) continue;
     budget -= m.price;
     total += m.vp;
-    coins += m.price;
   }
   // 相手の手札に検査官があり、払えるなら、自分の Lv2 以上の 1 件が 1 段下がる（VP の減りがいちばん大きいもの）。
   // 衛兵の価値（検査官も防ぐ）とアップグレードの危うさを、買収と同じ物差しで数える
@@ -261,7 +258,7 @@ export function exposureOf(
   if (handOf(state, foe, balance).includes('boss') && budget >= balance.cards.boss.cost) {
     if (bossDistrictsOf(state, foe, balance).length > 0) total += balance.districtTitleVp;
   }
-  return { vp: total, coins };
+  return { vp: total, coins: 0 };
 }
 
 /** 相手の「次」の札が相手の手札に入ったときの脅威の目安（コインの見当）。密告者の価値の物差し。

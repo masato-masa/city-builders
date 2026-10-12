@@ -13,7 +13,6 @@ import {
   investIncomeOf,
   nextTitles,
   opponentOf,
-  ownedSlots,
   roadUsesRemaining,
   slotBuildBlocked,
   slotLocked,
@@ -45,8 +44,6 @@ export function cardCostFor(
   if (card === 'guard' && hasActiveBuilding(state, player, 'wall', balance)) {
     base = Math.min(base, balance.guardCostWithWall);
   }
-  // 衛兵は守る物件が多いほど高い（多く持つ側が毎ターン安く全部を守り切れないように。2026-10-11 雪だるまの対策）
-  if (card === 'guard') base += ownedSlots(state, player).length * (balance.guardCostPerBuilding ?? 0);
   if (card === 'herald' && hasActiveBuilding(state, player, 'road', balance)) {
     base = Math.min(base, balance.heraldCostWithRoad);
   }
@@ -77,8 +74,8 @@ export function canUseCard(
   // 影武者は写す札（このターン直前に使った札）が無ければ使えない。以下の対象の判定は写す札で行う
   const eff = effectiveCardOf(state, player, card, balance);
   if (eff === null) return false;
-  // 検査官は相手の物件が 1 件も無ければ撃つ先が無い
-  if (eff === 'inspector' && !state.market.some((s) => s.owner !== null && s.owner !== player)) return false;
+  // 検査官は相手の Lv2 以上の物件が 1 件も無ければ撃つ先が無い
+  if (eff === 'inspector' && !state.market.some((s) => s.owner !== null && s.owner !== player && s.level >= 2)) return false;
   // 顔役は同数の地区が無ければ撃つ先が無い
   if (eff === 'boss' && bossDistrictsOf(state, player, balance).length === 0) return false;
   // 封鎖者は封鎖できる地区が無ければ（全地区を封鎖済み）撃つ先が無い
@@ -177,8 +174,6 @@ function build(
   next.players[player].coins -= cost;
   const slot = next.market[action.slotId]!;
   slot.owner = player;
-  // 買収の価格の元になるのは、実際に払った額（建築家・石切場で安く建てた物件は安く買われる）
-  slot.paid = cost;
   slot.level = 1;
   slot.touchedTurn = next.turn;
   next.players[player].buildsThisTurn += 1;
@@ -208,10 +203,9 @@ function upgrade(
   if (!canUpgrade(state, action.slotId, balance)) return state;
   const next = structuredClone(state);
   const slot = next.market[action.slotId]!;
-  // 職人の割引が乗った実額。買収の価格の元（paid）もこの額（建築家と同じく、安く上げた物件は安く買われる）
+  // 職人の割引が乗った実額。買収の価格（市場価値）は定価で決まるので、割引は関係しない
   const price = upgradeCostFor(state, state.current, state.market[action.slotId]!, balance);
   next.players[next.current].coins -= price;
-  slot.paid += price;
   slot.level += 1;
   slot.touchedTurn = next.turn;
   // VP が増えるので、地区の称号が動くことがある
@@ -219,7 +213,7 @@ function upgrade(
   return next;
 }
 
-/** 相手の物件を買収できるか。価格は paid + acquireMarkup。
+/** 相手の物件を買収できるか。価格は市場価値 × acquireMultiplier（買収者の割引を引く）。
  *  相手が衛兵で守られていれば買えない。最終段階（maxLevel）の物件も買えない。
  *  城壁は防がない。封鎖者で止められた物件も買える。理由の判定は selectors の acquireBlockOf。 */
 export function canAcquire(
@@ -242,15 +236,11 @@ function acquire(
   if (!canAcquire(state, action.slotId, balance)) return state;
   const next = structuredClone(state);
   const player = next.current;
-  const foe = opponentOf(player);
   const slot = next.market[action.slotId]!;
-  // 買収者の割引が乗った実額。相手に渡る代金も、次に買われるときの基準（paid）もこの額
+  // 買収者の割引が乗った実額。代金は誰にも渡らない（コインが消える）。次に買われる価格は市場価値で決まる
   const price = acquireCostFor(state, player, state.market[action.slotId]!, balance);
-  // コインの総量は変わらない。買収は VP と効果の移動
   next.players[player].coins -= price;
-  next.players[foe].coins += price;
   slot.owner = player;
-  slot.paid = price;
   slot.touchedTurn = next.turn;
   // 封鎖は「地区 × 受ける側」に掛かっているので、買った物件は新しい持ち主の封鎖の有無に従う
   next.titles = nextTitles(next, balance);
@@ -281,9 +271,9 @@ function useCard(
     if (d === undefined || !blockadeDistrictsOf(state, player, balance).includes(d)) return state;
   }
   if (eff === 'inspector') {
-    // 対象は相手の物件だけ（空き地・自分の物件には撃てない）
+    // 対象は相手の Lv2 以上の物件だけ（空き地・自分の物件・Lv1 には撃てない）
     const slot = action.inspectSlot;
-    if (slot === undefined || state.market[slot]?.owner !== foe) return state;
+    if (slot === undefined || state.market[slot]?.owner !== foe || state.market[slot]!.level < 2) return state;
   }
   if (eff === 'boss') {
     // 対象は地区内の VP の合計が同数（1 以上）で、称号がまだ自分のものでない地区だけ
@@ -373,13 +363,11 @@ function applyCardEffect(
     // 衛兵では防げるが、城壁では防げない（城壁は徴税官だけ。全部防ぐと強すぎる）
     const target = next.market[action.inspectSlot!]!;
     if (target.level >= 2) {
-      // Lv を 1 段下げる。払われた額はそのまま（買収の価格は下がらない）。
+      // Lv を 1 段下げる。市場価値も 1 段ぶん下がり、買収が安くなる。
       // Lv3 → Lv2 で「最終段階は買収されない」が外れ、また買収できる物件になる
       target.level -= 1;
       // VP が減るので、地区の称号が動くことがある
       next.titles = nextTitles(next, balance);
-    } else {
-      target.paid = Math.max(0, target.paid - balance.inspectorPaidCut);
     }
   }
   if (card === 'boss' && !foeGuarded) {
@@ -632,9 +620,9 @@ export function legalActions(
         out.push({ type: 'useCard', card, district });
       }
     } else if (eff === 'inspector') {
-      // 対象は相手の物件だけ。相手が 1 件も持っていなければ撃てない
+      // 対象は相手の Lv2 以上の物件だけ
       for (const slot of state.market) {
-        if (slot.owner !== null && slot.owner !== player) {
+        if (slot.owner !== null && slot.owner !== player && slot.level >= 2) {
           out.push({ type: 'useCard', card, inspectSlot: slot.slotId });
         }
       }

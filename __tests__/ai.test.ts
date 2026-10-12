@@ -91,7 +91,6 @@ describe('重み付き評価関数', () => {
     const own = (g: ReturnType<typeof createGame>) => {
       const wall = g.market.find((s) => s.buildingId === 'wall')!;
       wall.owner = 'you';
-      wall.paid = 10;
       g.players.cpu.coins = 30;
       return g;
     };
@@ -109,7 +108,6 @@ describe('重み付き評価関数', () => {
     const fortress = g.market.find((s) => s.buildingId === 'fortress')!;
     fortress.owner = 'cpu';
     // 安く建てられた城塞（建築家・石切場）。割引なしでは 1 コイン足りず、商館しか建てられない
-    fortress.paid = 5;
     g.current = 'you';
     g.players.you.coins = acquireCostFor(g, 'you', fortress, DEFAULT_BALANCE) - 1;
     const discounted = structuredClone(g);
@@ -128,7 +126,7 @@ describe('重み付き評価関数', () => {
     wall.owner = 'you';
     // 盤面は同じで、連携のコストだけが違う balance と比べる（差は stuck だけに出る）
     // 守る物件 1 件ごとの上乗せは切る（城壁 1 件で衛兵が払えなくなるため。上乗せは snowball.test.ts で測る）
-    const B = { ...DEFAULT_BALANCE, guardCostPerBuilding: 0 };
+    const B = { ...DEFAULT_BALANCE };
     const noSynergy = { ...B, guardCostWithWall: B.cards.guard.cost };
     expect(evaluateState(walled, 'you', B)).toBeGreaterThan(
       evaluateState(walled, 'you', noSynergy),
