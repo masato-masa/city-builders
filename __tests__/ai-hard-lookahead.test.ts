@@ -347,6 +347,6 @@ describe('easy / normal の決定性', () => {
       easy5: coins(finish('easy', 5)),
       normal0: coins(finish('normal', 0)),
       normal5: coins(finish('normal', 5)),
-    }).toEqual({ easy0: [12, 11], easy5: [2, 1], normal0: [0, 16], normal5: [17, 6] });
+    }).toEqual({ easy0: [0, 13], easy5: [-2, 7], normal0: [5, 4], normal5: [3, 2] });
   });
 });

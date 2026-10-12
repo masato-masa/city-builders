@@ -14,6 +14,7 @@ import { DEFAULT_PROFILE, type Profile } from './evaluate';
  *  買収されたときに受け取る代金（exposedCoins）だけ既定の 0.4 を足した。
  *
  *  難易度の差はこの重みではなく、揺らぎ・妨害の頻度・先読みで付ける（choose.ts の optionsFor）。 */
+/** 旧ルールで探索した重み（参考として残す。ゲームでは使わない）。 */
 export const CPU_PROFILE_SEARCHED: Profile = {
   early: {
     vp: 2.5,
@@ -51,4 +52,8 @@ export const CPU_PROFILE_SEARCHED: Profile = {
   },
 };
 
+/** ゲーム内の CPU の重み。2026-10-12 の規則変更（買収を市場価値の 2 倍・代金は渡さない・収益を上げる）の後は
+ *  既定の重み（DEFAULT_PROFILE）。探索した重み（旧ルールのもの、規則変更後に探し直したもの）はどれもふつう同士で
+ *  大差 85〜95%・逆転 15〜20% になり（手番 11〜12）、既定の重みは手番 15.7・大差 42%・逆転 24%・先手 51%（lab --shape 400）。
+ *  CPU の強さの差は難易度（揺らぎ・先読み）で付ける。 */
 export const CPU_PROFILE: Profile = DEFAULT_PROFILE;
