@@ -466,6 +466,9 @@ class ShapeTally {
 const personaShape = new ShapeTally();
 let normalFirst = 0;
 const normalShape = new ShapeTally();
+/** ふつう同士のカード使用数（各カードが使われた手番の割合の元） */
+const normalCardUse = emptyCardUsage();
+let normalTurnsTotal = 0;
 
 /** --shape: 性格の総当たりを飛ばし、ふつう同士の試合の形だけを測る（数値を振るときの速い確認用） */
 const SHAPE_ONLY = process.argv.includes('--shape');
@@ -606,11 +609,17 @@ for (let i = 0; i < (SHAPE_ONLY ? 0 : N); i++) {
     const seed = 900_000_000 + g;
     const r = runOne(seed, normal, normal, g % 2 === 0, DEFAULT_BALANCE);
     normalShape.add(r);
+    for (const c of ALL_CARDS) normalCardUse[c] += r.cardUsage.A[c] + r.cardUsage.B[c];
+    normalTurnsTotal += r.turnsPlayed.A + r.turnsPlayed.B;
     normalFirst += r.winner === 'draw' ? 0.5 : r.winner === r.firstMover ? 1 : 0;
   }
 }
 if (SHAPE_ONLY) {
   const pct1 = (v: number) => `${(v * 100).toFixed(1)}%`;
+  if (process.argv.includes('--cards')) {
+    console.log('| カード | ' + ALL_CARDS.map((c) => CARD_NAMES[c]).join(' | ') + ' |');
+    console.log('| 使用率（ふつう同士） | ' + ALL_CARDS.map((c) => pct1(normalCardUse[c] / normalTurnsTotal)).join(' | ') + ' |');
+  }
   console.log(
     `ふつう同士 ${GAMES_PER_PAIR} 試合: 手番 ${normalShape.turns.toFixed(1)} / 大差 ${pct1(normalShape.blowoutRate)} / 逆転 ${pct1(normalShape.comebackRate)} / VP 差の中央値 ${normalShape.medianDiff.toFixed(1)} / 先手 ${pct1(normalFirst / GAMES_PER_PAIR)}`,
   );
