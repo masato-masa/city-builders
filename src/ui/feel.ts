@@ -198,9 +198,10 @@ export const FINALE_STILL_MS = 150;
 
 /* ---------------- 画面の文言 ---------------- */
 
-/** 「のこり N ターン」の時計をタップしたときの説明。 */
-export function turnClockHint(left: number): string {
-  return left <= 0 ? '試合は終わりました' : `おたがい あと ${left} ターンで試合終了（物件が全部建っても終わり）`;
+/** 「のこり N ターン」の時計をタップしたときの説明。lastNoAcquire は「最後の手番は買収できない」の規則が効いているか。 */
+export function turnClockHint(left: number, lastNoAcquire = true): string {
+  if (left <= 0) return '試合は終わりました';
+  return `おたがい あと ${left} ターンで試合終了（全部建っても終わり${lastNoAcquire ? '・最後の手番は買収不可' : ''}）`;
 }
 
 /** 街道のシートの「山の底へ送る」が押せないときの理由。押せるなら null。 */

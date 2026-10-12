@@ -254,6 +254,13 @@ export interface Balance {
   /** 建設・アップグレード・買収のあと、その区画を動かせないターン数（1 人の手番を 1 と数える）。
    *  1 で「同じ区画は 1 ターンに 1 回まで」 */
   slotLockTurns: number;
+  /** 実験: 最終巡（各自の最後の手番）にできない行動 */
+  finalRoundClosed?: ('build' | 'upgrade' | 'acquire')[];
+  /** 実験: 試合の最後の手番（上限の手番）にできない行動 */
+  lastTurnClosed?: ('build' | 'upgrade' | 'acquire')[];
+  /** 試合の最後の手番（ターンの上限で終わるときの後手の最後の手番）は買収できない。
+   *  相手に買い返す手番が残らない買収を無くし、最後に打つ側の得を減らす（席の有利の対策） */
+  lastTurnNoAcquire: boolean;
   /** 市場のスロット順。長さ 10 */
   market: BuildingId[];
   /** 市場を分けた地区。slots は区画の番号。地区ごとに、地区内の物件の VP の合計が相手より多い側が称号を持つ */
@@ -411,6 +418,10 @@ export const DEFAULT_BALANCE: Balance = {
   acquireMarkup: 4,
   acquireLeadRate: 2,
   slotLockTurns: 1,
+  // 2026-10-12 席の有利の対策。ふつう同士は 9 割が上限の 18 手番まで続き、最後に打つ後手が有利だった
+  // （先手 38.6%、後手が最後の手番で逆転 16.5%）。最後の手番の買収を止め、CPU が相手の最後の手番を読むようにして
+  // ふつう同士 50.1% / 性格の総当たり 50.3%（変更前 38.6 / 47.9%）
+  lastTurnNoAcquire: true,
   market: [
     'tradingHouse',
     'tradingHouse',

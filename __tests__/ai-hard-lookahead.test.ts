@@ -121,6 +121,7 @@ const FROZEN_BALANCE: Balance = {
   acquireMarkup: 4,
   acquireLeadRate: 0,
   slotLockTurns: 1,
+  lastTurnNoAcquire: false,
   market: [
     'tradingHouse',
     'tradingHouse',
@@ -332,7 +333,8 @@ describe('easy / normal の決定性', () => {
   // 意図的な変更でない限り疑うこと。祝祭を「毎ターンの収入」でなく 1 度きりの上乗せとして評価するよう直したとき、
   // 手番の後の建築家の割引・試合の終わりの投資/借りを数えないよう直したとき、最終段階の物件を買収不可にしたとき、
   // 重みの再探索と揺らぎの変更（20/6 → 40/10）のとき、2026-10-11 のルール変更（封鎖の作り替え・称号を VP で・投資を額で評価）、終わった局面を勝ち負けで評価・重みの再探索・揺らぎ 40/10 → 20/8 のとき、
-  // 雪だるまの対策（買収されたときの代金 exposedCoins を評価に足す・揺らぎ 20/8 → 25/5）のときに更新した。
+  // 雪だるまの対策（買収されたときの代金 exposedCoins を評価に足す・揺らぎ 20/8 → 25/5）、
+  // 席の有利の対策（相手の最後の手番を貪欲に読んでから勝ち負けで測る）のときに更新した。
   it('seed 0 / 5 の最終コイン残高が既知の値と一致する（回帰検知用）', () => {
     const finish = (difficulty: 'easy' | 'normal', seed: number) => {
       let g = createGame(seed, FROZEN_BALANCE);
@@ -351,6 +353,6 @@ describe('easy / normal の決定性', () => {
       easy5: coins(finish('easy', 5)),
       normal0: coins(finish('normal', 0)),
       normal5: coins(finish('normal', 5)),
-    }).toEqual({ easy0: [12, 11], easy5: [2, 1], normal0: [0, 16], normal5: [17, 6] });
+    }).toEqual({ easy0: [16, 0], easy5: [2, 1], normal0: [0, 16], normal5: [17, 2] });
   });
 });

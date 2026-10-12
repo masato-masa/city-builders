@@ -1,8 +1,10 @@
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
-import { cardCostFor } from '@/game/reducer';
+import { cardCostFor, legalActions, reduce } from '@/game/reducer';
 import {
   acquireCostFor,
   acquireLeadMarkupOf,
+  acquireClosedAt,
+  endsAfterTurn,
   acquirePriceOf,
   activeEffectMax,
   blockadeIncomeLossOf,
@@ -114,7 +116,7 @@ export function nextStartsOf(
   balance: Balance = DEFAULT_BALANCE,
 ): number {
   if (state.phase !== 'playing') return 0;
-  if (state.market.every((s) => s.owner !== null)) return 0;
+  if (endsAfterTurn(state, balance)) return 0;
   const nextTurn = state.current === player ? state.turn + 2 : state.turn + 1;
   return nextTurn <= balance.maxTurnsPerPlayer * 2 ? 1 : 0;
 }
@@ -138,6 +140,9 @@ export function reachOf(
   // 職人の割引も同じ（手番を終えた後に残っていても次には乗らない。journal の盲点①と同じ扱い）
   const upgradeDiscount = ownTurn ? p.upgradeDiscount : 0;
   const quarryExtra = activeEffectMax(state, player, 'quarry', 'quarryExtraDiscount', balance);
+  // player が次に買う手番（自分の手番ならいま、そうでなければ次の手番）。試合の最後の手番なら買収は候補にしない
+  const buyTurn = ownTurn ? state.turn : state.turn + 1;
+  const acquireClosed = acquireClosedAt(buyTurn, balance);
 
   type Candidate = { vp: number; cost: (builds: number) => number; isBuild: boolean };
   const candidates: Candidate[] = [];
@@ -168,7 +173,7 @@ export function reachOf(
         vpOfSlot(state, s, balance) +
         titleVpSwing(state, s.slotId, player, player, balance, s.level + 1);
       candidates.push({ vp: gain, isBuild: false, cost: () => price });
-    } else if (s.owner === foe && !state.players[foe].guarded && !slotMaxed(s, balance)) {
+    } else if (s.owner === foe && !acquireClosed && !state.players[foe].guarded && !slotMaxed(s, balance)) {
       // 最終段階（maxLevel）の物件は買収できない
       // 買収者を使ったターンは割引が乗る
       const price = acquireCostFor(state, player, s, balance);
@@ -216,6 +221,8 @@ export function exposureOf(
 ): { vp: number; coins: number } {
   if (state.players[player].guarded) return { vp: 0, coins: 0 };
   const foe = opponentOf(player);
+  // 相手の次の手番が試合の最後の手番なら、買収はされない
+  if (acquireClosedAt(state.current === foe ? state.turn : state.turn + 1, balance)) return { vp: 0, coins: 0 };
   const f = state.players[foe];
   let budget =
     f.coins +
@@ -293,6 +300,39 @@ function deckHas(p: PlayerState, card: CardId): boolean {
   return p.hand.includes(card) || p.queue.includes(card);
 }
 
+/** player が手番を渡した直後で、相手の手番の終わりで試合が終わる局面（相手の最後の手番が残っている）なら、
+ *  相手がその手番で VP の差を最も広げる手を貪欲に打って試合を終えた局面を返す。そうでなければ null。
+ *  以前は相手の最後の手番を途中の局面と同じ式で測っていたので、最後に打つ後手だけが勝ち負けを正確に読み、
+ *  先手は自分の最後の手番を読み違えていた（2026-10-12 席の有利。ふつう同士の先手 38.6% → この修正だけで 43.4%）。 */
+function finalReplyOf(state: GameState, player: PlayerId, balance: Balance): GameState | null {
+  if (state.phase !== 'playing') return null;
+  const foe = opponentOf(player);
+  // 相手の手番の局面を player の目で測るのは、player が手番を渡した直後（相手の手番が始まる前）だけ
+  if (state.current !== foe || !endsAfterTurn(state, balance)) return null;
+  let s = reduce(state, { type: 'startTurn' }, balance);
+  if (s.phase !== 'playing' || s.current !== foe) return s.phase === 'finished' ? s : null;
+  // 相手は VP の差を広げる手を、同じなら手持ちのコインが増える手（高利貸など。同点はコインで決まる）を選ぶ
+  const keyOf = (x: GameState) =>
+    (scoreOf(x, foe, balance) - scoreOf(x, player, balance)) * 1000 + x.players[foe].coins;
+  for (let i = 0; i < 8; i++) {
+    let best: GameState | null = null;
+    let bestKey = keyOf(s);
+    for (const a of legalActions(s, balance)) {
+      if (a.type === 'endTurn' || a.type === 'useRoad') continue;
+      const n = reduce(s, a, balance);
+      if (n === s) continue;
+      const key = keyOf(n);
+      if (key > bestKey) {
+        bestKey = key;
+        best = n;
+      }
+    }
+    if (!best) break;
+    s = best;
+  }
+  return reduce(s, { type: 'endTurn' }, balance);
+}
+
 /** 試合が終わった局面の評価の大きさ。途中の局面の評価（数百点）より十分に大きく、勝ちを必ず選び、負けを必ず避ける。 */
 export const FINISHED_SCORE = 100_000;
 
@@ -307,6 +347,9 @@ export function evaluateState(
   // 建物の収益で稼げるようになると、勝っている側が最後の区画を建てて試合を終えず、コインを積み続けた
   // （2026-10-11、ふつう同士で 9 区画のまま 40 手番・終了時 1000 コイン超）
   // 全区画が埋まった局面も、この手番の終わりで試合が終わるので同じに扱う（最後の区画を建てる手を、勝っていれば選ぶ）
+  // 相手の最後の手番が残っている局面は、相手の最後の手番を貪欲に打たせてから勝ち負けで測る
+  const pending = finalReplyOf(state, player, balance);
+  if (pending) return evaluateState(pending, player, balance, weights);
   if (state.phase === 'finished' || state.market.every((s) => s.owner !== null)) {
     const diff = scoreOf(state, player, balance) - scoreOf(state, foe, balance);
     const coinDiff = state.players[player].coins - state.players[foe].coins;

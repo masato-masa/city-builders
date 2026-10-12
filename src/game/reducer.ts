@@ -2,6 +2,7 @@ import { buildingIncomeOf, DEFAULT_BALANCE, type Balance } from './balance';
 import {
   acquireBlockOf,
   acquireCostFor,
+  endsAfterTurn,
   activeEffectMax,
   activeOwnedSlots,
   blockadeDistrictsOf,
@@ -221,7 +222,8 @@ function upgrade(
 
 /** 相手の物件を買収できるか。価格は paid + acquireMarkup。
  *  相手が衛兵で守られていれば買えない。最終段階（maxLevel）の物件も買えない。
- *  城壁は防がない。封鎖者で止められた物件も買える。理由の判定は selectors の acquireBlockOf。 */
+ *  城壁は防がない。封鎖者で止められた物件も買える。試合の最後の手番は買えない（lastTurnNoAcquire）。
+ *  理由の判定は selectors の acquireBlockOf。 */
 export function canAcquire(
   state: GameState,
   slotId: number,
@@ -593,9 +595,7 @@ function endTurn(state: GameState, balance: Balance): GameState {
   // 職人の割引も同じくこのターン限り
   next.players[player].upgradeDiscount = 0;
 
-  const allBuilt = next.market.every((s) => s.owner !== null);
-  const overTurnLimit = next.turn >= balance.maxTurnsPerPlayer * 2;
-  if (allBuilt || overTurnLimit) {
+  if (endsAfterTurn(next, balance)) {
     next.phase = 'finished';
     return next;
   }

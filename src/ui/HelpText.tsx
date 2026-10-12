@@ -71,6 +71,7 @@ function HelpSection({ id, balance, deck }: { id: HelpSectionId; balance: Balanc
           <p className="sheet-text">
             物件を建てて <b>VP（勝利点）</b>を集めます。{balance.market.length} 件すべてが建つか、
             それぞれ {balance.maxTurnsPerPlayer} ターンを終えたら、VP の多いほうの勝ち。
+            {balance.lastTurnNoAcquire ? '最後の手番（後手の最終ターン）は、相手に買い返す手番が残らないので買収できません。' : ''}
           </p>
           <p className="sheet-text">VP は物件・アップグレード・地区の称号で増えます。</p>
         </>

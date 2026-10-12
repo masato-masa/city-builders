@@ -295,7 +295,7 @@ export function slotMaxed(slot: BuildingSlot, balance: Balance = DEFAULT_BALANCE
 
 /** player が区画 slotId を買収できない理由（コイン不足を除く）。買収の対象でない区画（自分の物件・空き地）は 'notForeign'。
  *  UI が「なぜ買えないか」を 1 行で言うためのもの。判定の順は canAcquire と同じ。買えるなら null。 */
-export type AcquireBlock = 'notForeign' | 'guarded' | 'maxLevel' | 'locked';
+export type AcquireBlock = 'notForeign' | 'guarded' | 'maxLevel' | 'locked' | 'lastTurn';
 export function acquireBlockOf(
   state: GameState,
   slotId: number,
@@ -308,7 +308,18 @@ export function acquireBlockOf(
   if (state.players[foe].guarded) return 'guarded';
   if (slotMaxed(slot, balance)) return 'maxLevel';
   if (slotLocked(state, slot, balance)) return 'locked';
+  if (acquireClosedAt(state.turn, balance)) return 'lastTurn';
   return null;
+}
+
+/** 手番 turn に買収ができないか。ターンの上限の手番（試合の最後の手番）は、相手に買い返す手番が残らないので買収できない。 */
+export function acquireClosedAt(turn: number, balance: Balance = DEFAULT_BALANCE): boolean {
+  return balance.lastTurnNoAcquire && turn >= balance.maxTurnsPerPlayer * 2;
+}
+
+/** いまの手番の終わりで試合が終わるか（endTurn と同じ規則）。全区画が埋まったか、ターンの上限。 */
+export function endsAfterTurn(state: GameState, balance: Balance = DEFAULT_BALANCE): boolean {
+  return state.turn >= balance.maxTurnsPerPlayer * 2 || state.market.every((s) => s.owner !== null);
 }
 
 /** 区画がまだ動かせない（アップグレード・買収できない）か。

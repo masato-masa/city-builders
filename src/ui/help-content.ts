@@ -22,7 +22,9 @@ export function helpSummary(balance: Balance): string[] {
   return [
     'カードでコインを稼ぎ、物件を建てて VP を集める',
     'カードは盤面へドラッグして使う。長押しで説明',
-    `${balance.market.length} 件すべてが建つか、各 ${balance.maxTurnsPerPlayer} ターンで終わり。VP の多いほうの勝ち`,
+    `${balance.market.length} 件すべてが建つか、各 ${balance.maxTurnsPerPlayer} ターンで終わり${
+      balance.lastTurnNoAcquire ? '（最後の手番は買収できない）' : ''
+    }。VP の多いほうの勝ち`,
   ];
 }
 

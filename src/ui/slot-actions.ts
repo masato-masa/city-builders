@@ -132,6 +132,9 @@ export function acquireButton(
   if (acquireBlockOf(state, slotId, viewer, balance) === 'maxLevel') {
     return { price, enabled, label: '買収できません', reason: '最終段階まで上げた物件は買収できません' };
   }
+  if (acquireBlockOf(state, slotId, viewer, balance) === 'lastTurn') {
+    return { price, enabled, label: '買収できません', reason: '最後の手番は買収できません（相手に買い返す手番が残らないため）' };
+  }
   if (slotLocked(state, slot, balance)) {
     return {
       price,
