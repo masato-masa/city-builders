@@ -133,7 +133,7 @@ describe('levelEffects', () => {
     const { current, next } = levelEffects(s, 0, B);
     expect(current).toEqual({ level: 1, vp: '1 VP', text: buildingTextFor('tradingHouse', B, 1) });
     expect(next).toEqual({ level: 2, vp: '2 VP', text: buildingTextFor('tradingHouse', B, 2) });
-    expect(current.text).toContain(`毎ターンの収入 コイン +${B.tradingHouseIncome}`);
+    expect(current.text).toContain(`収入 +${B.tradingHouseIncome}`);
   });
 
   it('最大レベルは next を出さない。未建設も出さない', () => {

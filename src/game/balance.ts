@@ -52,56 +52,6 @@ export const CARD_NAMES: Record<CardId, string> = {
   clerk: '番頭',
 };
 
-/** カードの説明文。開発者メニューで効果値を変えたら、この文中の数字も
- *  連動させる必要があるので、固定文字列ではなく balance から組み立てる。 */
-export function cardTextFor(card: CardId, balance: Balance, level = 1): string {
-  const pw = cardPower(balance, card, level);
-  switch (card) {
-    case 'miner':
-      return `次の収入 コイン +${pw}。鉱山があれば安く、多くなる`;
-    case 'banker': {
-      const rate = balance.bankerVpRate === 1 ? '' : ` × ${balance.bankerVpRate}`;
-      const base = pw > 0 ? `${pw} + ` : '';
-      return `次の収入 コイン +（${base}自分の VP${rate}）。VP は収入を受け取るときの値（称号を含む）`;
-    }
-    case 'architect':
-      return `このターン建てる物件すべて、建設費 −${pw}（アップグレード・買収には効かない）`;
-    case 'herald':
-      return `手札 1 枚を使わずに山の底へ送り、補充する${pw > 0 ? `。さらに コイン +${pw}` : ''}。街道があればコスト ${balance.heraldCostWithRoad}`;
-    case 'festival':
-      return `次の自分のターン、自分の物件の効果がすべて ${balance.festivalMultiplier} 倍。さらにそのターンの収入 +${pw}`;
-    case 'guard':
-      return `次の自分のターンまで、相手の妨害（徴税官・封鎖者・検査官・顔役・密告者）と物件の買収を受けない${pw > 0 ? `。さらに コイン +${pw}` : ''}。城壁があればコスト ${balance.guardCostWithWall}`;
-    case 'usurer':
-      return `このターン コイン +${pw}。次の自分のターン開始時 コイン −${balance.usurerDebt}（マイナスになる）`;
-    case 'spy':
-      return `このターン、相手の物件を買収する価格 −${pw}${balance.spyPerSlot > 0 ? `（さらに相手の物件 ${Math.round(1 / balance.spyPerSlot)} 件ごとに −1）` : ''}`;
-    case 'taxman': {
-      const r = balance.taxmanIncomeRate;
-      const scaled = r === 0 ? '' : r === 1 ? ' ＋ 相手の VP' : r === 0.5 ? ' ＋ 相手の VP の半分' : ` ＋ 相手の VP × ${r}`;
-      const amount = scaled ? `（${pw}${scaled}）` : `${pw}`;
-      return `次の相手のターン、収入を受け取ったあとの相手のコイン −${amount}（手持ちが足りなければ引けた分だけ）${balance.taxmanCostPerSlot > 0 ? `。自分の物件 ${Math.round(1 / balance.taxmanCostPerSlot)} 件ごとにコスト +1` : ''}`;
-    }
-    case 'blockader':
-      return `地区 1 つを選ぶ。次の相手のターン${pw > 0 ? `と、そのまた次の相手のターン（${pw + 1} 回）` : 'だけ'}、その地区の空き地に相手は建てられず、地区内の相手の物件は効果（収入を含む）が止まる。自分の物件には何も起きない`;
-    case 'craftsman':
-      return `このターン、自分の物件のアップグレード費 −${pw}（Lv1→2・Lv2→3 のどちらにも効く。建設・買収には効かない）`;
-    case 'inspector':
-      return `相手の物件 1 件の Lv を 1 段下げる（Lv3→2・Lv2→1。市場価値も下がり、買収が安くなる）。Lv1 の物件には撃てない。衛兵で防がれる`;
-    case 'boss':
-      return `地区 1 つを選ぶ。その地区の物件の VP の合計が自分と相手で同じ（1 以上）なら、地区の称号（${balance.districtTitleVp} VP）を今すぐ自分のものにする。衛兵で防がれる`;
-    case 'informer':
-      return `相手の「次」の札を見て、相手の山の底へ送る（相手が次に補充する札が ${pw} 枚うしろにずれる）。衛兵で防がれる`;
-    case 'double':
-      return `このターン直前に使った人物カードの効果をもう一度（そのカードの元のコストも払う）。対象が要る札は対象を選び直す。${balance.doubleExcluded
-        .filter((c) => c !== 'double')
-        .map((c) => CARD_NAMES[c])
-        .join('・')}には使えない`;
-    case 'clerk':
-      return `このターン コイン +${pw} × 自分の商館の数（最大 ${balance.clerkMaxHouses} 件。効果を止められた商館は数えない）`;
-  }
-}
-
 export const BUILDING_NAMES: Record<BuildingId, string> = {
   tradingHouse: '商館',
   wall: '城壁',
@@ -114,45 +64,8 @@ export const BUILDING_NAMES: Record<BuildingId, string> = {
   mine: '鉱山',
 };
 
-/** 建物の説明文（効果。収入は VP と同じなので書かない）。カードと同じ理由で balance から組み立てる。
- *  level を渡すと、そのレベルでの値で書く（既定は Lv1）。収益と効果を分けて出す画面は
- *  buildingIncomeOf と buildingEffectTextFor を使う。 */
-export function buildingTextFor(building: BuildingId, balance: Balance, level = 1): string {
-  // 収入 = VP は表の下の 1 行（VP_IS_INCOME_NOTE）で言うので、ここには書かない
-  return buildingEffectTextFor(building, balance, level);
-}
-
-/** 建物の効果だけの説明文（収益は含まない）。level を渡すと、そのレベルでの効果値で書く。 */
-export function buildingEffectTextFor(building: BuildingId, balance: Balance, level = 1): string {
-  const v = (key: Level2EffectKey) => buildingEffect(balance, key, level);
-  switch (building) {
-    case 'tradingHouse':
-      return `毎ターンの収入 コイン +${v('tradingHouseIncome')}（VP が低い代わりに）`;
-    case 'wall':
-      return `徴税官の効果を受けない（封鎖は防げない。封鎖を防ぐのは城塞）。衛兵のコスト ${balance.guardCostWithWall}`;
-    case 'factory':
-      return `毎ターン、最初に使用する人物カードのコスト −${v('factoryDiscount')}`;
-    case 'road': {
-      const uses = v('roadUses');
-      const herald = `。伝令のコスト ${balance.heraldCostWithRoad}`;
-      return uses > 1
-        ? `毎ターン開始時、手札を ${uses} 回まで山の底へ送って補充してよい${herald}`
-        : `毎ターン開始時、手札 1 枚を山の底へ送って補充してよい${herald}`;
-    }
-    case 'cathedral':
-      return `自分の他の物件 1 件につき +${v('cathedralVpPerBuilding')} VP`;
-    case 'fortress': {
-      const d = balance.districts.find((x) => x.slots.some((id) => balance.market[id] === 'fortress'));
-      return `${d ? d.name : 'この地区'}の自分の物件は、封鎖者の封鎖を受けない`;
-    }
-    case 'exchange':
-      return `人物カードの「次の収入 コイン +X」がすべて +${v('exchangeBonus')}`;
-    case 'quarry':
-      return `建築家を使ったターン、2 件目以降の建設費がさらに −${v('quarryExtraDiscount')}`;
-    case 'mine':
-      return `採掘師のコスト −${v('mineMinerDiscount')}、採掘師の次の収入 +${v('mineMinerBonus')}`;
-  }
-}
+// 札・建物の説明文は card-text.ts（行の配列。数字に種類を付けて返す）。旧 API の文字列版をここから再公開する
+export { buildingEffectTextFor, buildingTextFor, cardTextFor } from './card-text';
 
 /** レベルに応じた物件の毎ターンの収入（手番の開始で入る。封鎖で効果が止まっている物件は入らない）。
  *  収入 = その物件の VP（+ 商館だけ効果の追加収入）。大聖堂の VP は他の物件の数で決まるので、

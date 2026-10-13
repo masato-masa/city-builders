@@ -229,8 +229,8 @@ describe('検査官の操作（ドラッグ）', () => {
 describe('説明文', () => {
   it('新しいカードの説明は効く範囲と数値を書く', () => {
     expect(cardTextFor('craftsman', B)).toContain(`−${B.craftsmanDiscount}`);
-    expect(cardTextFor('craftsman', B)).toContain('Lv2→3');
-    expect(cardTextFor('inspector', B)).toContain('Lv3→2');
-    expect(cardTextFor('inspector', B)).toContain('衛兵');
+    expect(cardTextFor('craftsman', B)).toContain('アップグレード費');
+    expect(cardTextFor('inspector', B)).toContain('Lv −1');
+    expect(cardTextFor('inspector', B)).toContain('Lv1 には使えない');
   });
 });

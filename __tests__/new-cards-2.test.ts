@@ -266,10 +266,9 @@ describe('抽選デッキ', () => {
 describe('説明文（2 段目）', () => {
   it('効く範囲と数値を書く', () => {
     expect(cardTextFor('boss', B)).toContain('同じ');
-    expect(cardTextFor('boss', B)).toContain('衛兵');
-    expect(cardTextFor('informer', B)).toContain('「次」');
+        expect(cardTextFor('informer', B)).toContain('相手の次の札');
     expect(cardTextFor('double', B)).toContain('元のコスト');
     expect(cardTextFor('clerk', B)).toContain(`+${B.clerkPerHouse}`);
-    expect(cardTextFor('guard', B)).toContain('顔役');
+    expect(cardTextFor('guard', B)).toContain('守り');
   });
 });

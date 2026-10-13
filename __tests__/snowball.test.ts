@@ -40,7 +40,7 @@ describe('徴税官は相手の VP が多いほど多く引く', () => {
   it('説明文に相手の VP で増えることが出る', () => {
     const B = { ...DEFAULT_BALANCE, taxmanAmount: 3, taxmanIncomeRate: 0.5 };
     expect(cardTextFor('taxman', B)).toContain('3 ＋ 相手の VP の半分');
-    expect(cardTextFor('taxman', { ...B, taxmanIncomeRate: 0 })).toContain('コイン −3（');
+    expect(cardTextFor('taxman', { ...B, taxmanIncomeRate: 0 })).toContain('相手のコイン −3');
   });
 });
 
@@ -62,7 +62,7 @@ describe('衛兵のコスト', () => {
 
 describe('城壁と城塞の役割', () => {
   it('城壁の説明は徴税官だけ。封鎖は城塞', () => {
-    expect(buildingTextFor('wall', DEFAULT_BALANCE)).toContain('徴税官の効果を受けない');
+    expect(buildingTextFor('wall', DEFAULT_BALANCE)).toContain('徴税官を受けない');
     expect(buildingTextFor('wall', DEFAULT_BALANCE)).toContain('封鎖は防げない');
     expect(buildingTextFor('fortress', DEFAULT_BALANCE)).toContain('封鎖を受けない');
   });
