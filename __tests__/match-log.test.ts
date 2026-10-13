@@ -135,6 +135,9 @@ describe('marginLine（差の 1 行）', () => {
   const coins = { you: 3, cpu: 3 };
   it('勝ち・負け・引き分け', () => {
     expect(marginLine('you', { you: 12, cpu: 9 }, coins, NAMES, 'you')).toBe('3 VP 差で勝利');
+    expect(marginLine('you', { you: 41, cpu: 9 }, coins, NAMES, 'you', { reason: 'vp', winVp: 40 })).toBe('先に 40 VP に届いて勝利（32 VP 差）');
+    expect(marginLine('you', { you: 30, cpu: 0 }, coins, NAMES, 'you', { reason: 'monopoly', winVp: 40 })).toBe('全物件を押さえて勝利');
+    expect(marginLine('you', { you: 30, cpu: 20 }, coins, NAMES, 'you', { reason: 'limit', winVp: 40 })).toBe('ターン切れ。10 VP 差で勝利');
     expect(marginLine('cpu', { you: 9, cpu: 12 }, coins, NAMES, 'you')).toBe('あと 4 VP で勝てた');
     expect(marginLine('draw', { you: 9, cpu: 9 }, coins, NAMES, 'you')).toBe('VP もコインも同じ。あと 1 VP で勝てた');
   });

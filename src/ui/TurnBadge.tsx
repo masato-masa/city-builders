@@ -60,7 +60,7 @@ export function TurnBadge({
             exit={{ opacity: 0, y: -4, pointerEvents: 'none', transition: { duration: 0.12 } }}
             transition={{ type: 'spring', stiffness: 520, damping: 32 }}
           >
-            {turnClockHint(left)}
+            {turnClockHint(left, balance.winVp)}
           </motion.span>
         ) : null}
       </AnimatePresence>

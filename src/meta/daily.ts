@@ -43,9 +43,9 @@ export const DAILY_RULES: readonly DailyRule[] = [
   },
   {
     id: 'shortGame',
-    // −4 → −2: 既定が各 18 手番になったので −4（14）は先手 42.2%。−2（16）で 45.2%（audit-daily 100）
-    label: (b) => `短期決戦（各 ${b.maxTurnsPerPlayer - 2} ターン）`,
-    patch: (b) => ({ maxTurnsPerPlayer: b.maxTurnsPerPlayer - 2 }),
+    // 2026-10-13 終わり方が「目標の VP に届く」になったので、ターン数ではなく目標を下げる（audit-daily 100 で先手を測る）
+    label: (b) => `短期決戦（目標 ${b.winVp - 10} VP）`,
+    patch: (b) => ({ winVp: b.winVp - 10 }),
   },
   {
     id: 'cheapUpgrade',

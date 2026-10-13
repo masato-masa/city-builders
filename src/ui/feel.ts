@@ -198,8 +198,10 @@ export const FINALE_STILL_MS = 150;
 /* ---------------- 画面の文言 ---------------- */
 
 /** 「のこり N ターン」の時計をタップしたときの説明。 */
-export function turnClockHint(left: number): string {
-  return left <= 0 ? '試合は終わりました' : `おたがい あと ${left} ターンで試合終了（物件が全部建っても終わり）`;
+export function turnClockHint(left: number, winVp?: number): string {
+  if (left <= 0) return '試合は終わりました';
+  const goal = winVp ? `先に ${winVp} VP に届けば勝ち。届かなければ` : '';
+  return `${goal}おたがい あと ${left} ターンで試合終了`;
 }
 
 /** 街道のシートの「山の底へ送る」が押せないときの理由。押せるなら null。 */

@@ -170,6 +170,7 @@ describe('画面の文言', () => {
 
   it('時計の説明に残りターンが入る', () => {
     expect(turnClockHint(7)).toContain('あと 7 ターン');
+    expect(turnClockHint(7, 40)).toContain('先に 40 VP');
   });
 
   it('街道が押せない理由', () => {

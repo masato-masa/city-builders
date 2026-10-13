@@ -1,5 +1,5 @@
 import { BUILDING_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
-import { opponentOf, scoreOf, winnerOf } from '@/game/selectors';
+import { endReasonOf, opponentOf, scoreOf, winnerOf, type EndReason } from '@/game/selectors';
 import type { BuildingId, CardId, GameState, PlayerId } from '@/game/types';
 
 /** 試合の記録。src/game には手を入れず、UI が受け取った状態の「差分」だけから作る。
@@ -193,6 +193,8 @@ export function marginLine(
   coins: Record<PlayerId, number>,
   names: Names,
   viewer: PlayerId | null,
+  /** 終わり方（省略すると差だけの 1 行）。 */
+  ending?: { reason: EndReason; winVp: number } | null,
 ): string {
   if (winner === 'draw') {
     return viewer ? 'VP もコインも同じ。あと 1 VP で勝てた' : 'VP もコインも同じ';
@@ -205,9 +207,12 @@ export function marginLine(
       : `あと ${diff + 1} VP で勝てた`;
   }
   const subject = viewer === winner ? '' : `${names[winner]}${particle(names[winner], 'が')} `;
-  return diff === 0
+  if (ending?.reason === 'monopoly') return `${subject}全物件を押さえて勝利`;
+  if (ending?.reason === 'vp') return `${subject}先に ${ending.winVp} VP に届いて勝利（${diff} VP 差）`;
+  const limit = ending?.reason === 'limit' ? 'ターン切れ。' : '';
+  return limit + (diff === 0
     ? `${subject}VP 同点、コイン ${coins[winner]} 対 ${coins[loser]} で勝利`
-    : `${subject}${diff} VP 差で勝利`;
+    : `${subject}${diff} VP 差で勝利`);
 }
 
 /** 勝敗を分けた出来事。文言とグラフに印を付ける手番。 */
@@ -343,12 +348,13 @@ export function buildReview(
   const vp = { you: scoreOf(final, 'you', balance), cpu: scoreOf(final, 'cpu', balance) };
   const coins = { you: final.players.you.coins, cpu: final.players.cpu.coins };
   const winner = winnerOf(final, balance) ?? 'draw';
+  const endReason = endReasonOf(final, balance);
   // 最後の点は終局の値で必ず置き直す（反映の取りこぼしがあってもグラフと数字が食い違わない）。
   const last = log.vp[log.vp.length - 1];
   const end = { turn: final.turn, ...vp };
   const points = last && last.turn === final.turn ? [...log.vp.slice(0, -1), end] : [...log.vp, end];
   return {
-    margin: marginLine(winner, vp, coins, names, viewer),
+    margin: marginLine(winner, vp, coins, names, viewer, endReason ? { reason: endReason, winVp: balance.winVp } : null),
     moment: decisiveMoment(log, winner, names),
     vp: points,
     streak,

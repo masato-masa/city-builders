@@ -15,6 +15,7 @@ describe('あそびかた（?）', () => {
     const s = helpSummary({ ...B, maxTurnsPerPlayer: 12 });
     expect(s).toHaveLength(3);
     expect(s[2]).toContain('12 ターン');
+    expect(s[2]).toContain(`${B.winVp} VP`);
   });
 
   it('カード一覧は長押しの説明と同じ文', () => {

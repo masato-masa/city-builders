@@ -69,8 +69,8 @@ function HelpSection({ id, balance, deck }: { id: HelpSectionId; balance: Balanc
       return (
         <>
           <p className="sheet-text">
-            物件を建てて <b>VP（勝利点）</b>を集めます。{balance.market.length} 件すべてが建つか、
-            それぞれ {balance.maxTurnsPerPlayer} ターンを終えたら、VP の多いほうの勝ち。
+            物件を建てて <b>VP（勝利点）</b>を集めます。手番を終えたとき VP が <b>{balance.winVp}</b> 以上
+            （または全物件が自分のもの）なら、その場で勝ち。決着が付かなければ、それぞれ {balance.maxTurnsPerPlayer} ターンを終えたとき VP の多いほうの勝ち。
           </p>
           <p className="sheet-text">VP は物件・アップグレード・地区の称号で増えます。<b>物件の VP ＝ 毎ターンの収入</b>（商館だけ VP が低い代わりに、効果で追加の収入）。</p>
         </>
