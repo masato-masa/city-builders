@@ -20,7 +20,7 @@ import { DEFAULT_PROFILE, DEFAULT_WEIGHTS, type Profile, type Weights } from '..
 import { CARD_NAMES, type Balance } from '../src/game/balance';
 import { reduce } from '../src/game/reducer';
 import { createRng } from '../src/game/rng';
-import { cardLevelOf, doubleSourceOf, handOf, opponentOf, scoreOf, winnerOf } from '../src/game/selectors';
+import { cardLevelOf, doubleSourceOf, endReasonOf, handOf, opponentOf, scoreOf, winnerOf } from '../src/game/selectors';
 import { createGame } from '../src/game/setup';
 import type { CardId, GameState, PlayerId } from '../src/game/types';
 
@@ -117,6 +117,8 @@ interface GameStats {
   firstMover: 'A' | 'B';
   /** 1 人あたりのターン数（simulate.ts と同じ、両者合計を 2 で割って切り上げ） */
   turnsPerPlayer: number;
+  /** 終わり方（monopoly=全物件 / vp=目標 / limit=上限） */
+  endReason: 'monopoly' | 'vp' | 'limit';
   cardUsage: { A: Record<CardId, number>; B: Record<CardId, number> };
   turnsPlayed: { A: number; B: number };
   totalTurns: number;
@@ -341,6 +343,7 @@ function runOne(
     winner,
     firstMover,
     turnsPerPlayer: Math.ceil(totalTurns / 2),
+    endReason: endReasonOf(g, balance) ?? 'limit',
     cardUsage,
     turnsPlayed,
     totalTurns,
@@ -467,8 +470,10 @@ class ShapeTally {
   comebacks = 0;
   comebackBase = 0;
   diffs: number[] = [];
+  reasons = { monopoly: 0, vp: 0, limit: 0 };
   add(r: GameStats): void {
     this.games++;
+    this.reasons[r.endReason]++;
     this.turnsSum += r.turnsPerPlayer;
     const { winnerVp, loserVp, comeback } = r.shape;
     // 大差: 敗者の VP が勝者の 1/3 未満（引き分けは数えない）
@@ -676,7 +681,7 @@ if (SHAPE_ONLY) {
     console.log('| 使用率（ふつう同士） | ' + ALL_CARDS.map((c) => pct1(normalCardUse[c] / normalTurnsTotal)).join(' | ') + ' |');
   }
   console.log(
-    `ふつう同士 ${GAMES_PER_PAIR} 試合: 手番 ${normalShape.turns.toFixed(1)} / 大差 ${pct1(normalShape.blowoutRate)} / 逆転 ${pct1(normalShape.comebackRate)} / VP 差の中央値 ${normalShape.medianDiff.toFixed(1)} / 先手 ${pct1(normalFirst / GAMES_PER_PAIR)}`,
+    `ふつう同士 ${GAMES_PER_PAIR} 試合: 手番 ${normalShape.turns.toFixed(1)} / 大差 ${pct1(normalShape.blowoutRate)} / 逆転 ${pct1(normalShape.comebackRate)} / VP 差の中央値 ${normalShape.medianDiff.toFixed(1)} / 先手 ${pct1(normalFirst / GAMES_PER_PAIR)} / 終わり方 目標VP ${pct1(normalShape.reasons.vp / GAMES_PER_PAIR)}・独占 ${pct1(normalShape.reasons.monopoly / GAMES_PER_PAIR)}・上限 ${pct1(normalShape.reasons.limit / GAMES_PER_PAIR)}`,
   );
   process.exit(0);
 }

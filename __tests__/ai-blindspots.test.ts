@@ -48,9 +48,15 @@ describe('CPU の盲点: 試合の終わり', () => {
     // 先手の最後の手番（39 手目）: 自分には来ないが、相手（40 手目）には来る
     expect(nextStartsOf(yourTurn(LAST_TURN - 1), 'you', B)).toBe(0);
     expect(nextStartsOf(yourTurn(LAST_TURN - 1), 'cpu', B)).toBe(1);
-    const full = yourTurn(5);
-    for (const s of full.market) s.owner = 'cpu';
-    expect(nextStartsOf(full, 'you', B)).toBe(0);
+    // 全物件を自分が持つ（手番の終わりで勝ち）なら次は来ない。全区画が埋まっただけでは終わらない
+    const mono = yourTurn(5);
+    for (const s of mono.market) s.owner = 'you';
+    expect(nextStartsOf(mono, 'you', B)).toBe(0);
+    const split = yourTurn(5);
+    split.market.forEach((s, i) => (s.owner = i % 2 === 0 ? 'you' : 'cpu'));
+    expect(nextStartsOf(split, 'you', { ...B, winVp: 999 })).toBe(1);
+    // 手番の人の VP が目標に届いていれば次は来ない
+    expect(nextStartsOf(split, 'you', { ...B, winVp: 1 })).toBe(0);
   });
 
   it('最後の手番で使った投資・祝祭は評価に入らない', () => {

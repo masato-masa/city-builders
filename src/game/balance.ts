@@ -190,6 +190,9 @@ export interface Balance {
   baseIncome: number;
   startingCoins: { first: number; second: number };
   maxTurnsPerPlayer: number;
+  /** 目標の VP。手番を終えた時点で自分の VP がこれ以上なら、その場で勝ち（全物件を自分のものにしても勝ち）。
+   *  上限ターンは決着が付かない時の保険 */
+  winVp: number;
   cards: Record<CardId, { cost: number }>;
   minerIncome: number;
   /** 銀行家: 次の収入 = bankerIncome + floor(解決時の自分の VP × bankerVpRate) */
@@ -334,7 +337,12 @@ export const DEFAULT_BALANCE: Balance = {
   // 先手 42〜44% に下がった。先手だけ +1 は 60%、両者 +1 で 49.3%（lab 150）
   startingCoins: { first: 1, second: 1 },
   // 20 → 18（2026-10-11 雪だるまの対策の後、ふつう同士で 1 人 18.9 手番・ほぼ上限まで続いた。18 で 17.6）
-  maxTurnsPerPlayer: 18,
+  // 18 → 20（2026-10-13 終わりを「VP 40 に届く」にした後。18 だと上限で終わる試合が 17%、20 で 7%（lab --shape 1200））
+  maxTurnsPerPlayer: 20,
+  // 終わり方（2026-10-13 ユーザー指示）: 収入 = VP で全物件が建つのが早すぎたので、全区画が埋まっても終わらず、
+  // 手番を終えた時点で VP が目標以上なら勝ち。ふつう同士 lab --shape 1200: 目標 30 は 手番 13.8、40 で 15.6・大差 58%・逆転 38%、
+  // 45 で 16.5・上限 17.6%、50 で 17.4・上限 32%
+  winVp: 40,
   cards: {
     miner: { cost: 3 },
     // 銀行家 5 → 6（2026-10-11 雪だるまの対策の後 card-value 400: 5 で 禁止 34.3 / 優先 42.8%、6 で 43.9 / 44.3%）

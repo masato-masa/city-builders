@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_BALANCE } from '@/game/balance';
 import { reduce } from '@/game/reducer';
-import { scoreOf, winnerOf } from '@/game/selectors';
+import { endReasonOf, scoreOf, winnerOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 
@@ -86,11 +86,32 @@ describe('街道', () => {
 });
 
 describe('終了条件', () => {
-  it('物件が全て建つと終了する', () => {
+  it('全区画が埋まっただけでは終わらない（目標の VP に届いていなければ続く）', () => {
     const g = fixture();
     g.market.forEach((s, i) => (s.owner = i < 5 ? 'you' : 'cpu'));
-    const after = reduce(g, { type: 'endTurn' }, DEFAULT_BALANCE);
+    const after = reduce(g, { type: 'endTurn' }, { ...DEFAULT_BALANCE, winVp: 9999 });
+    expect(after.phase).toBe('playing');
+  });
+
+  it('手番を終えた人の VP が目標に届いていれば、その人の勝ちで終わる', () => {
+    const g = fixture();
+    g.market.forEach((s, i) => (s.owner = i === 0 ? g.current : null));
+    const balance = { ...DEFAULT_BALANCE, winVp: 1 };
+    const after = reduce(g, { type: 'endTurn' }, balance);
     expect(after.phase).toBe('finished');
+    expect(endReasonOf(after, balance)).toBe('vp');
+    // 手番は you。目標に届いた側が勝つ
+    expect(winnerOf(after, balance)).toBe(g.current);
+  });
+
+  it('全物件を自分のものにすると、VP が目標に届かなくてもその場で勝ち', () => {
+    const g = fixture();
+    g.market.forEach((s) => (s.owner = g.current));
+    const balance = { ...DEFAULT_BALANCE, winVp: 9999 };
+    const after = reduce(g, { type: 'endTurn' }, balance);
+    expect(after.phase).toBe('finished');
+    expect(endReasonOf(after, balance)).toBe('monopoly');
+    expect(winnerOf(after, balance)).toBe(g.current);
   });
 
   it('上限ターンで終了する', () => {
@@ -108,8 +129,11 @@ describe('終了条件', () => {
     const g = fixture();
     g.market.forEach((s) => (s.owner = 'cpu'));
     g.market.find((s) => s.buildingId === 'fortress')!.owner = 'you';
-    const after = reduce(g, { type: 'endTurn' }, DEFAULT_BALANCE);
-    expect(winnerOf(after, DEFAULT_BALANCE)).toBe('cpu');
+    g.turn = DEFAULT_BALANCE.maxTurnsPerPlayer * 2; // 上限で終わらせる（目標には届いていない）
+    const balance = { ...DEFAULT_BALANCE, winVp: 9999 };
+    const after = reduce(g, { type: 'endTurn' }, balance);
+    expect(endReasonOf(after, balance)).toBe('limit');
+    expect(winnerOf(after, balance)).toBe('cpu');
   });
 
   it('VP 同点なら残コインが多い方が勝つ', () => {

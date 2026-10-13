@@ -17,6 +17,10 @@ export function winnerOf(
   balance: Balance = DEFAULT_BALANCE,
 ): PlayerId | 'draw' | null {
   if (state.phase !== 'finished') return null;
+  // 目標に届いた（全物件を持った）側がいればその人の勝ち。両方なら VP で決める
+  const youGoal = goalReached(state, 'you', balance) !== null;
+  const cpuGoal = goalReached(state, 'cpu', balance) !== null;
+  if (youGoal !== cpuGoal) return youGoal ? 'you' : 'cpu';
   const you = scoreOf(state, 'you', balance);
   const cpu = scoreOf(state, 'cpu', balance);
   if (you !== cpu) return you > cpu ? 'you' : 'cpu';
@@ -24,6 +28,26 @@ export function winnerOf(
   const cpuCoins = state.players.cpu.coins;
   if (youCoins !== cpuCoins) return youCoins > cpuCoins ? 'you' : 'cpu';
   return 'draw';
+}
+
+/** 終わり方。monopoly = 全物件を 1 人が持った / vp = 目標の VP に届いた / limit = ターンの上限。 */
+export type EndReason = 'monopoly' | 'vp' | 'limit';
+
+/** player が手番を終えた時点で「勝ち」の条件を満たしているか（全物件を持つ、または VP が目標以上）。 */
+export function goalReached(
+  state: GameState,
+  player: PlayerId,
+  balance: Balance = DEFAULT_BALANCE,
+): EndReason | null {
+  if (state.market.every((s) => s.owner === player)) return 'monopoly';
+  if (scoreOf(state, player, balance) >= balance.winVp) return 'vp';
+  return null;
+}
+
+/** 終わった試合の終わり方。まだ終わっていなければ null。 */
+export function endReasonOf(state: GameState, balance: Balance = DEFAULT_BALANCE): EndReason | null {
+  if (state.phase !== 'finished') return null;
+  return goalReached(state, 'you', balance) ?? goalReached(state, 'cpu', balance) ?? 'limit';
 }
 
 export function opponentOf(player: PlayerId): PlayerId {
@@ -477,7 +501,7 @@ export function titleVpSwing(
 }
 
 /** 強制終了までの残りターン数（両者合計、いま進行中の 1 手を含む）。
- *  全区画が建ち切って先に終わる場合は、実際にはこれより早く終わる。
+ *  VP が目標に届く・全物件を持つ人が出れば、実際にはこれより早く終わる。
  *  プレイ画面右上の残りターン表示のために追加した読み取り専用の派生値。 */
 export function turnsRemaining(state: GameState, balance: Balance = DEFAULT_BALANCE): number {
   if (state.phase === 'finished') return 0;

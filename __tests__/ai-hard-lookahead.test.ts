@@ -17,6 +17,7 @@ const FROZEN_BALANCE: Balance = {
   baseIncome: 2,
   startingCoins: { first: 0, second: 0 },
   maxTurnsPerPlayer: 20,
+  winVp: 20, // 凍結ルールの建物は VP が低いので、全区画が埋まる前に決着が付く値
   cards: {
     miner: { cost: 2 },
     banker: { cost: 5 },
@@ -340,7 +341,7 @@ describe('easy / normal の決定性', () => {
   // 手番の後の建築家の割引・試合の終わりの投資/借りを数えないよう直したとき、最終段階の物件を買収不可にしたとき、
   // 重みの再探索と揺らぎの変更（20/6 → 40/10）のとき、2026-10-11 のルール変更（封鎖の作り替え・称号を VP で・投資を額で評価）、終わった局面を勝ち負けで評価・重みの再探索・揺らぎ 40/10 → 20/8 のとき、
   // 雪だるまの対策（買収されたときの代金 exposedCoins を評価に足す・揺らぎ 20/8 → 25/5）、
-  // 2026-10-13 に建物の収入を VP に（凍結ルールの建物は収益 0 → VP がそのまま収入）、札の育ちを評価に足したときに更新した。
+  // 2026-10-13 に終わりを「目標の VP（凍結では 20）に届く」にしたとき、建物の収入を VP に（凍結ルールの建物は収益 0 → VP がそのまま収入）、札の育ちを評価に足したときに更新した。
   it('seed 0 / 5 の最終コイン残高が既知の値と一致する（回帰検知用）', () => {
     const finish = (difficulty: 'easy' | 'normal', seed: number) => {
       let g = createGame(seed, FROZEN_BALANCE);
@@ -359,6 +360,6 @@ describe('easy / normal の決定性', () => {
       easy5: coins(finish('easy', 5)),
       normal0: coins(finish('normal', 0)),
       normal5: coins(finish('normal', 5)),
-    }).toEqual({ easy0: [5, 0], easy5: [0, 8], normal0: [2, 1], normal5: [0, 0] });
+    }).toEqual({ easy0: [5, 1], easy5: [6, 1], normal0: [0, 6], normal5: [1, 2] });
   });
 });

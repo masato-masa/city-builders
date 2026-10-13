@@ -1,6 +1,7 @@
 import { cardCostAt, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { cardCostFor } from '@/game/reducer';
 import {
+  goalReached,
   acquireCostFor,
   acquirePriceOf,
   activeEffectMax,
@@ -59,6 +60,10 @@ export interface Weights {
   exposedCoins: number;
   /** 自分の人物カードの経験値（使った回数。上限は Lv3 まで）1 回分の価値。使うほど札が育つ価値を、序盤ほど重く見る */
   cardGrowth: number;
+  /** 目標の VP に近いほど（2 乗で）上がる価値。自分の分。相手の分は 0.8 倍で引く */
+  goalProximity: number;
+  /** 相手が次の手番で目標の VP に届きそうなときの減点（負の値） */
+  goalThreat: number;
 }
 
 export const DEFAULT_WEIGHTS: Weights = {
@@ -79,6 +84,8 @@ export const DEFAULT_WEIGHTS: Weights = {
   // 買収されうる物件の代金。exposed（-4、VP の重み 10 の 4 割）と同じ見込みで、コインの重み 1 の 4 割
   exposedCoins: 0.4,
   cardGrowth: 0.5,
+  goalProximity: 20,
+  goalThreat: -40,
 };
 
 /** 性格。序盤と終盤で重みが変わる。進行度で線形に補間する。 */
@@ -112,14 +119,15 @@ export function weightsAt(profile: Profile, state: GameState, balance: Balance):
 
 /** player にこの先「開始フェーズ」（収入・投資・祝祭・借り・徴税の解決）がまだ 1 回来るなら 1、来ないなら 0。
  *  投資・祝祭・借り・徴税はどれも次の開始フェーズで初めて効くので、来ない（試合がその前に終わる）なら価値も 0。
- *  終わり方は endTurn と同じ規則で見る: ターンの上限か、全区画が埋まった手番の終わり。 */
+ *  終わり方は endTurn と同じ規則で見る: ターンの上限か、目標の VP（全物件）に届いた手番の終わり。 */
 export function nextStartsOf(
   state: GameState,
   player: PlayerId,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
   if (state.phase !== 'playing') return 0;
-  if (state.market.every((s) => s.owner !== null)) return 0;
+  // この手番の終わりで目標に届く人がいれば、試合はそこで終わる（endTurn と同じ）
+  if (goalReached(state, state.current, balance) !== null) return 0;
   const nextTurn = state.current === player ? state.turn + 2 : state.turn + 1;
   return nextTurn <= balance.maxTurnsPerPlayer * 2 ? 1 : 0;
 }
@@ -312,11 +320,12 @@ export function evaluateState(
   // 試合が終わった局面は勝ち負けそのもので測る。以前は終わった局面も途中の局面と同じ式で測っていたので、
   // 建物の収益で稼げるようになると、勝っている側が最後の区画を建てて試合を終えず、コインを積み続けた
   // （2026-10-11、ふつう同士で 9 区画のまま 40 手番・終了時 1000 コイン超）
-  // 全区画が埋まった局面も、この手番の終わりで試合が終わるので同じに扱う（最後の区画を建てる手を、勝っていれば選ぶ）
-  if (state.phase === 'finished' || state.market.every((s) => s.owner !== null)) {
+  // 手番の人が目標の VP（全物件）に届いている局面も、その手番の終わりで試合が終わるので同じに扱う（届く手を選ぶ）
+  const goalMover = state.phase === 'playing' && goalReached(state, state.current, balance) !== null ? state.current : null;
+  if (state.phase === 'finished' || goalMover !== null) {
     const diff = scoreOf(state, player, balance) - scoreOf(state, foe, balance);
     const coinDiff = state.players[player].coins - state.players[foe].coins;
-    const outcome = diff !== 0 ? Math.sign(diff) : Math.sign(coinDiff);
+    const outcome = goalMover !== null ? (goalMover === player ? 1 : -1) : diff !== 0 ? Math.sign(diff) : Math.sign(coinDiff);
     return outcome * FINISHED_SCORE + diff * weights.vp;
   }
   const p = state.players[player];
@@ -355,7 +364,19 @@ export function evaluateState(
   let growth = 0;
   for (const c of [...p.hand, ...p.queue]) if (c) growth += Math.min(cardXpOf(state, player, c), maxUses);
 
+  // 目標の VP への近さ。届く手前ほど 1 VP が重く、相手が次の手番で届きそうなら止めに行く。
+  // 相手の脅威は「いまの VP + この手番で買える分」が目標以上のとき（衛兵・封鎖・買収で止める手が評価される）
+  const myScore = scoreOf(state, player, balance);
+  const foeScore = scoreOf(state, foe, balance);
+  const goal = balance.winVp;
+  const closeMine = (Math.min(myScore, goal) / goal) ** 2 * weights.goalProximity;
+  const closeFoe = (Math.min(foeScore, goal) / goal) ** 2 * weights.goalProximity * -0.8;
+  const foeThreat = foeScore + opponentReach >= goal ? weights.goalThreat : 0;
+
   return (
+    closeMine +
+    closeFoe +
+    foeThreat * foeNext +
     -nextThreat +
     growth * weights.cardGrowth * (1 - late) +
     scoreOf(state, player, balance) * weights.vp * (0.5 + late) +

@@ -11,6 +11,7 @@ import {
   clerkGainOf,
   doubleSourceOf,
   effectiveCardOf,
+  goalReached,
   handOf,
   investIncomeOf,
   nextTitles,
@@ -598,9 +599,10 @@ function endTurn(state: GameState, balance: Balance): GameState {
   // 職人の割引も同じくこのターン限り
   next.players[player].upgradeDiscount = 0;
 
-  const allBuilt = next.market.every((s) => s.owner !== null);
+  // 終わり方: 手番を終えた人が目標の VP に届いた（全物件を持った）か、ターンの上限（保険）。
+  // 全区画が埋まっただけでは終わらない（買収・アップグレードで取り合いが続く）
   const overTurnLimit = next.turn >= balance.maxTurnsPerPlayer * 2;
-  if (allBuilt || overTurnLimit) {
+  if (goalReached(next, player, balance) !== null || overTurnLimit) {
     next.phase = 'finished';
     return next;
   }
