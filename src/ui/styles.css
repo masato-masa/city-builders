@@ -2522,3 +2522,9 @@
   text-decoration: underline dotted;
   text-underline-offset: 3px;
 }
+
+/* 区画のシートは中身が高いとき（街道の手札選び＋次の Lv の差分）、画面の外へはみ出さずシートの中でスクロールする */
+.overlay-bottom .sheet {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
