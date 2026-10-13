@@ -27,7 +27,17 @@ function writeFlag(key: string, value: boolean): void {
 let soundEnabled: boolean | null = null;
 let hapticsEnabled: boolean | null = null;
 
+/** URL に `?mute` が付いていれば、設定に関係なく音を出さない（開発者がブラウザで試すとき用。保存は変えない）。 */
+function mutedByUrl(): boolean {
+  try {
+    return typeof location !== 'undefined' && new URLSearchParams(location.search).has('mute');
+  } catch {
+    return false;
+  }
+}
+
 export function isSoundEnabled(): boolean {
+  if (mutedByUrl()) return false;
   if (soundEnabled === null) soundEnabled = readFlag(SOUND_KEY);
   return soundEnabled;
 }
@@ -52,6 +62,7 @@ const BGM_KEY = 'city-builders:bgm';
 let bgmEnabled: boolean | null = null;
 
 export function isBgmEnabled(): boolean {
+  if (mutedByUrl()) return false;
   if (bgmEnabled === null) bgmEnabled = readFlag(BGM_KEY);
   return bgmEnabled;
 }
