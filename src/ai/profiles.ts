@@ -32,6 +32,7 @@ export const CPU_PROFILE_SEARCHED: Profile = {
     opponentStuck: 1,
     exposed: -2,
     exposedCoins: 0.4,
+    cardGrowth: 0.5,
   },
   late: {
     vp: 0.9375,
@@ -49,6 +50,7 @@ export const CPU_PROFILE_SEARCHED: Profile = {
     opponentStuck: 1,
     exposed: -2,
     exposedCoins: 0.4,
+    cardGrowth: 0.5,
   },
 };
 

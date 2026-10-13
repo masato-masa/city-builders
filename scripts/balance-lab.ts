@@ -20,7 +20,7 @@ import { DEFAULT_PROFILE, DEFAULT_WEIGHTS, type Profile, type Weights } from '..
 import { CARD_NAMES, type Balance } from '../src/game/balance';
 import { reduce } from '../src/game/reducer';
 import { createRng } from '../src/game/rng';
-import { doubleSourceOf, handOf, opponentOf, scoreOf, winnerOf } from '../src/game/selectors';
+import { cardLevelOf, doubleSourceOf, handOf, opponentOf, scoreOf, winnerOf } from '../src/game/selectors';
 import { createGame } from '../src/game/setup';
 import type { CardId, GameState, PlayerId } from '../src/game/types';
 
@@ -151,6 +151,16 @@ interface GameStats {
   doubleSources: Partial<Record<CardId, number>>;
   /** 試合の形（長さ・大差・逆転）。shapeOf で集計する */
   shape: MatchShape;
+  /** カードの Lv の仮説の検証用。中盤（両者合計の手番の半分）で VP が多かった側 = leader（同点は null）。
+   *  uses: 試合全体のカード使用回数、usesAfterMid: 中盤から後の使用回数、avgLv: 終了時のデッキのカードの Lv の平均、
+   *  lv3: 終了時の Lv3 のカードの数 */
+  hyp: {
+    leader: 'A' | 'B' | null;
+    uses: { A: number; B: number };
+    usesAfterMid: { A: number; B: number };
+    avgLv: { A: number; B: number };
+    lv3: { A: number; B: number };
+  };
 }
 
 /** 試合の形。「楽しい」の代わりに測る: 短すぎないか・一方的でないか・逆転があるか（2026-10-11 雪だるまの問題）。 */
@@ -236,6 +246,8 @@ function runOne(
   };
 
   const vps: [number, number][] = [];
+  const usesAt: [number, number][] = [];
+  const usesNow = { A: 0, B: 0 };
   let guard = 0;
   // maxTurnsPerPlayer * 2 （既定 40）が本来の上限。guard はその安全網
   while (g.phase === 'playing' && guard < 100) {
@@ -267,6 +279,7 @@ function runOne(
 
       if (action.type === 'useCard') {
         usedAnyCard = true;
+        usesNow[who]++;
         cardUsage[who][action.card]++;
         if (action.card === 'double') {
           const src = doubleSourceOf(before, player, balance);
@@ -310,6 +323,7 @@ function runOne(
 
     g = reduce(next, { type: 'endTurn' }, balance);
     vps.push([scoreOf(g, 'you', balance), scoreOf(g, 'cpu', balance)]);
+    usesAt.push([usesNow.A, usesNow.B]);
   }
 
   const rawWinner = winnerOf(g, balance);
@@ -352,6 +366,24 @@ function runOne(
     deck: deck ?? [...g.players.you.hand, ...g.players.you.queue].filter((c): c is CardId => c !== null),
     doubleSources,
     shape: shapeOf(vps, winner),
+    hyp: (() => {
+      const mi = Math.max(0, Math.floor(vps.length / 2) - 1);
+      const mid = vps[mi] ?? [0, 0];
+      const um = usesAt[mi] ?? [0, 0];
+      const lvOf = (pl: PlayerId) => {
+        const cs = [...g.players[pl].hand, ...g.players[pl].queue].filter((c): c is CardId => c !== null);
+        return { avg: cs.reduce((n, c) => n + cardLevelOf(g, pl, c, balance), 0) / Math.max(1, cs.length), lv3: cs.filter((c) => cardLevelOf(g, pl, c, balance) >= 3).length };
+      };
+      const a = lvOf('you');
+      const b = lvOf('cpu');
+      return {
+        leader: (mid[0] === mid[1] ? null : mid[0] > mid[1] ? 'A' : 'B') as 'A' | 'B' | null,
+        uses: { A: usesNow.A, B: usesNow.B },
+        usesAfterMid: { A: usesNow.A - um[0], B: usesNow.B - um[1] },
+        avgLv: { A: a.avg, B: b.avg },
+        lv3: { A: a.lv3, B: b.lv3 },
+      };
+    })(),
   };
 }
 
@@ -470,6 +502,7 @@ const normalShape = new ShapeTally();
 const normalCardUse = emptyCardUsage();
 let normalTurnsTotal = 0;
 
+const hyp = { n: 0, leadUses: 0, trailUses: 0, leadAfter: 0, trailAfter: 0, leadLv: 0, trailLv: 0, leadLv3: 0, trailLv3: 0, leadTax: 0, trailTax: 0 };
 /** --shape: 性格の総当たりを飛ばし、ふつう同士の試合の形だけを測る（数値を振るときの速い確認用） */
 const SHAPE_ONLY = process.argv.includes('--shape');
 
@@ -609,12 +642,34 @@ for (let i = 0; i < (SHAPE_ONLY ? 0 : N); i++) {
     const seed = 900_000_000 + g;
     const r = runOne(seed, normal, normal, g % 2 === 0, DEFAULT_BALANCE);
     normalShape.add(r);
+    if (r.hyp.leader) {
+      const lead = r.hyp.leader;
+      const trail = lead === 'A' ? 'B' : 'A';
+      hyp.n++;
+      hyp.leadUses += r.hyp.uses[lead];
+      hyp.trailUses += r.hyp.uses[trail];
+      hyp.leadAfter += r.hyp.usesAfterMid[lead];
+      hyp.trailAfter += r.hyp.usesAfterMid[trail];
+      hyp.leadLv += r.hyp.avgLv[lead];
+      hyp.trailLv += r.hyp.avgLv[trail];
+      hyp.leadLv3 += r.hyp.lv3[lead];
+      hyp.trailLv3 += r.hyp.lv3[trail];
+      hyp.leadTax += r.cardUsage[lead].taxman;
+      hyp.trailTax += r.cardUsage[trail].taxman;
+    }
     for (const c of ALL_CARDS) normalCardUse[c] += r.cardUsage.A[c] + r.cardUsage.B[c];
     normalTurnsTotal += r.turnsPlayed.A + r.turnsPlayed.B;
     normalFirst += r.winner === 'draw' ? 0.5 : r.winner === r.firstMover ? 1 : 0;
   }
 }
 if (SHAPE_ONLY) {
+  if (process.argv.includes('--hyp')) {
+    const f = (v: number) => (v / Math.max(1, hyp.n)).toFixed(2);
+    console.log('| 中盤で | カード使用回数（全体） | 中盤から後の使用 | 終了時のカード Lv 平均 | Lv3 のカード数 |');
+    console.log(`徴税官の使用回数（1 試合）: 優勢 ${f(hyp.leadTax)} / 劣勢 ${f(hyp.trailTax)}`);
+    console.log(`| 優勢 | ${f(hyp.leadUses)} | ${f(hyp.leadAfter)} | ${f(hyp.leadLv)} | ${f(hyp.leadLv3)} |`);
+    console.log(`| 劣勢 | ${f(hyp.trailUses)} | ${f(hyp.trailAfter)} | ${f(hyp.trailLv)} | ${f(hyp.trailLv3)} |`);
+  }
   const pct1 = (v: number) => `${(v * 100).toFixed(1)}%`;
   if (process.argv.includes('--cards')) {
     console.log('| カード | ' + ALL_CARDS.map((c) => CARD_NAMES[c]).join(' | ') + ' |');

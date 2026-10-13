@@ -1,3 +1,4 @@
+import { buildingIncomeOf as incomeAt } from '@/game/balance';
 import { describe, expect, it } from 'vitest';
 
 import { buildingIncomeOf, buildingTextFor, DEFAULT_BALANCE } from '@/game/balance';
@@ -32,22 +33,24 @@ describe('画面に渡す数値（selectors）', () => {
     expect(rows[0]).toMatchObject({
       vp: B.buildings.tradingHouse.vp,
       cost: B.buildings.tradingHouse.cost,
-      income: B.buildings.tradingHouse.income,
+      income: incomeAt(B, 'tradingHouse', 1),
       marketValue: B.buildings.tradingHouse.cost,
       acquireCost: B.buildings.tradingHouse.cost * B.acquireMultiplier,
       nextUpgradeCost: B.upgrades.tradingHouse.cost,
     });
     // 最終段階は買収されない・上げられない
-    expect(rows[2]).toMatchObject({ acquireCost: null, nextUpgradeCost: null, income: B.upgrades3.tradingHouse.income });
+    expect(rows[2]).toMatchObject({ acquireCost: null, nextUpgradeCost: null, income: incomeAt(B, 'tradingHouse', 3) });
     // 効果文に収益は入らない（収益は数値で並べる）
     expect(rows[0]!.effectText).not.toContain('収益 コイン');
     expect(buildingStatsOf('cathedral', B)[0]!.vpPerOtherBuilding).toBe(B.cathedralVpPerBuilding);
   });
 
   it('商館は収益が最も高い（2026-10-12 に全体を引き上げた）。城塞の説明は城下の封鎖を受けない', () => {
-    expect(buildingIncomeOf(B, 'tradingHouse', 1)).toBe(B.buildings.tradingHouse.income);
+    // 収入 = VP（商館だけ効果の追加収入が乗る）
+    expect(buildingIncomeOf(B, 'tradingHouse', 1)).toBe(B.buildings.tradingHouse.vp + B.tradingHouseIncome);
+    expect(buildingIncomeOf(B, 'wall', 2)).toBe(B.upgrades.wall.vp);
     for (const id of Object.keys(B.buildings) as (keyof typeof B.buildings)[]) {
-      expect(B.buildings.tradingHouse.income).toBeGreaterThanOrEqual(B.buildings[id].income);
+      if (id !== 'tradingHouse' && id !== 'cathedral') expect(buildingIncomeOf(B, id, 1)).toBe(B.buildings[id].vp);
     }
     expect(buildingTextFor('fortress', B)).toContain('封鎖');
     expect(B.buildings.fortress.cost).toBe(25);
@@ -73,8 +76,8 @@ describe('画面に渡す数値（selectors）', () => {
     g.market[0]!.owner = 'cpu';
     const before = nextIncomeOf(g, 'cpu', B);
     g = reduce(g, { type: 'useCard', card: 'blockader', district: 0 }, B);
-    expect(blockadeIncomeLossOf(g, 'cpu', B)).toBe(B.buildings.tradingHouse.income);
-    expect(nextIncomeOf(g, 'cpu', B)).toBe(before - B.buildings.tradingHouse.income);
+    expect(blockadeIncomeLossOf(g, 'cpu', B)).toBe(incomeAt(B, 'tradingHouse', 1));
+    expect(nextIncomeOf(g, 'cpu', B)).toBe(before - incomeAt(B, 'tradingHouse', 1));
     expect(slotIncomeOf(g, g.market[0]!, B)).toBe(0);
     // 同じ地区は 2 度封鎖できない
     expect(

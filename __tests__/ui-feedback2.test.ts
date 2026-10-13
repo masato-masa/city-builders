@@ -14,7 +14,7 @@ import {
   districtRuleText,
   districtTally,
 } from '@/ui/district-view';
-import { buildingIncomeOf, buildingSpecRows, districtNote, slotStatusLine } from '@/ui/slot-actions';
+import { buildingSpecRows, districtNote, slotStatusLine, VP_IS_INCOME_NOTE } from '@/ui/slot-actions';
 
 // 買収の上乗せの基本を測るので、物件の数の差による増減は切る（増減は下の専用のテストで測る）
 const B = { ...DEFAULT_BALANCE };
@@ -128,9 +128,9 @@ describe('地区の見せ方（district-view）', () => {
 });
 
 describe('建物の詳細の固定の数値（buildingSpecRows）', () => {
-  it('いつも VP・建築コスト・買収コスト・増築コスト（・収益）の順', () => {
+  it('いつも VP・建築コスト・買収コスト・増築コスト（・追加収入）の順', () => {
     const rows = buildingSpecRows('tradingHouse', B);
-    expect(rows.map((r) => r.label)).toEqual(['VP', '建築コスト', '買収コスト', '増築コスト', '収益']);
+    expect(rows.map((r) => r.label)).toEqual(['VP', '建築コスト', '買収コスト', '増築コスト', '追加収入']);
     expect(rows[0]!.value).toBe(
       `${B.buildings.tradingHouse.vp} / ${B.upgrades.tradingHouse.vp} / ${B.upgrades3.tradingHouse.vp}（Lv1/2/3）`,
     );
@@ -148,10 +148,11 @@ describe('建物の詳細の固定の数値（buildingSpecRows）', () => {
     expect(rows[3]!.value).toBe(`Lv2 ${B.upgrades.wall.cost}`);
   });
 
-  it('収益は balance に値があるときだけ出す', () => {
-    expect(buildingIncomeOf(B, 'tradingHouse')).toBe(B.buildings.tradingHouse.income);
+  it('収入は VP がそのまま入る。追加の収入の行があるのは商館だけ', () => {
     const rows = buildingSpecRows('tradingHouse', B);
-    expect(rows.at(-1)).toEqual({ label: '収益', value: `毎ターン +${B.buildings.tradingHouse.income}` });
+    expect(rows.at(-1)).toEqual({ label: '追加収入', value: `毎ターン +${B.tradingHouseIncome} / ${B.level2.tradingHouseIncome} / ${B.level3.tradingHouseIncome}` });
+    expect(buildingSpecRows('wall', B).some((r) => r.label === '追加収入')).toBe(false);
+    expect(VP_IS_INCOME_NOTE).toContain('VP');
   });
 
   it('大聖堂の VP は 1 件あたりの値', () => {

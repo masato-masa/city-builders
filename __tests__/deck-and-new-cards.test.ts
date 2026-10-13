@@ -17,7 +17,7 @@ import type { CardId, GameState, PlayerId } from '@/game/types';
 import { inspectPick, resolveDrop } from '@/ui/card-input';
 import { cardAftermath } from '@/ui/feel';
 
-const B = DEFAULT_BALANCE;
+const B = { ...DEFAULT_BALANCE, cardXpBehindBonus: 0 };
 
 /** you の手番。you の手札の先頭 4 枚が hand、残りが queue。 */
 function fixture(hand: CardId[], coins: number): GameState {

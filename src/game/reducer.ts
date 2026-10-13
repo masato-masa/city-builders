@@ -1,4 +1,4 @@
-import { buildingIncomeOf, DEFAULT_BALANCE, type Balance } from './balance';
+import { cardCostAt, DEFAULT_BALANCE, type Balance } from './balance';
 import {
   acquireBlockOf,
   acquireCostFor,
@@ -6,6 +6,8 @@ import {
   activeOwnedSlots,
   blockadeDistrictsOf,
   bossDistrictsOf,
+  cardLevelOf,
+  cardPowerOf,
   clerkGainOf,
   doubleSourceOf,
   effectiveCardOf,
@@ -14,8 +16,11 @@ import {
   nextTitles,
   opponentOf,
   roadUsesRemaining,
+  scoreOf,
   slotBuildBlocked,
+  slotIncomeValue,
   slotLocked,
+  spyDiscountOf,
   taxmanAmountOf,
   upgradeCostFor,
 } from './selectors';
@@ -34,11 +39,12 @@ export function cardCostFor(
   card: CardId,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
-  let base = balance.cards[card].cost;
+  // 札の Lv が上がると、コインが下がる札がある（Lv の表は balance.cardLv2・cardLv3）
+  let base = cardCostAt(balance, card, cardLevelOf(state, player, card, balance));
   // 影武者は写す札の元のコストも払う（城壁・街道・工場の割引は乗らない。写す札は「元のコスト」）
   if (card === 'double') {
     const source = doubleSourceOf(state, player, balance);
-    if (source) base += balance.cards[source].cost;
+    if (source) base += cardCostAt(balance, source, cardLevelOf(state, player, source, balance));
   }
   // 物件との連携: 城壁があれば衛兵、街道があれば伝令が安くなる（効果が止められた物件は数えない）
   if (card === 'guard' && hasActiveBuilding(state, player, 'wall', balance)) {
@@ -48,6 +54,11 @@ export function cardCostFor(
     base = Math.min(base, balance.heraldCostWithRoad);
   }
   const p = state.players[player];
+  // 徴税官は自分の物件が多いほど高い（勝っている側は撃ちにくく、負けている側が撃ちやすい）
+  const taxSource = card === 'taxman' ? 'taxman' : card === 'double' ? doubleSourceOf(state, player, balance) : null;
+  if (taxSource === 'taxman') {
+    base += Math.floor(state.market.filter((s) => s.owner === player).length * balance.taxmanCostPerSlot);
+  }
   // 鉱山: 採掘師のコストを下げる（物件の効果なので祝祭中は倍）
   if (card === 'miner') {
     const mine = activeEffectMax(state, player, 'mine', 'mineMinerDiscount', balance);
@@ -287,6 +298,9 @@ function useCard(
   p.coins -= cardCostFor(state, player, action.card, balance);
   p.usedAnyCardThisTurn = true;
   p.usedThisTurn = [...p.usedThisTurn, action.card];
+  // 使った札が育つ（累計の使用回数。劣勢の側は上乗せ）。効果はこの回の分から新しい Lv で働く
+  const behind = scoreOf(state, player, balance) < scoreOf(state, foe, balance);
+  p.cardXp = { ...(p.cardXp ?? {}), [action.card]: (p.cardXp?.[action.card] ?? 0) + 1 + (behind ? balance.cardXpBehindBonus : 0) };
 
   applyCardEffect(next, player, eff, action, balance);
 
@@ -318,11 +332,16 @@ function applyCardEffect(
   if (INCOME_CARDS.includes(card)) {
     p.pendingIncome = [...p.pendingIncome, card];
   }
+  const power = cardPowerOf(next, player, card, balance);
   if (card === 'architect') {
-    p.buildDiscount += balance.architectDiscount;
+    p.buildDiscount += power;
+  }
+  // 手札回し・衛兵は、Lv が上がると使ったときにコインも入る
+  if (card === 'herald' || card === 'guard') {
+    p.coins += power;
   }
   if (card === 'usurer') {
-    p.coins += balance.usurerGain;
+    p.coins += power;
     p.pendingDebt += balance.usurerDebt;
   }
   if (card === 'festival') {
@@ -333,10 +352,10 @@ function applyCardEffect(
   }
   if (card === 'spy') {
     // 自分にかかる効果なので衛兵・城壁では防げない（衛兵は買収そのものを防ぐ）
-    p.acquireDiscount += balance.spyAcquireDiscount;
+    p.acquireDiscount += spyDiscountOf(next, player, balance);
   }
   if (card === 'craftsman') {
-    p.upgradeDiscount += balance.craftsmanDiscount;
+    p.upgradeDiscount += power;
   }
   if (card === 'clerk') {
     // 自分にかかる効果（今すぐ入るコイン）。商館が無ければ何も起きない
@@ -356,7 +375,7 @@ function applyCardEffect(
     // 地区内の相手の物件は効果（収益を含む）が止まる。自分の物件には何も起きない。VP は止まらない（称号は動かない）
     next.blockades = [
       ...(next.blockades ?? []),
-      { district: action.district!, target: foe, untilTurn: next.turn + 1, beforeIncome: true },
+      { district: action.district!, target: foe, untilTurn: next.turn + 1 + 2 * power, beforeIncome: true },
     ];
   }
   if (card === 'inspector' && !foeGuarded) {
@@ -379,7 +398,7 @@ function applyCardEffect(
   if (card === 'informer' && !foeGuarded) {
     // 相手の「次」の札（待機列の先頭）を待機列の底へ。相手の手札は動かない
     const q = next.players[foe].queue;
-    if (q.length >= 2) q.push(q.shift()!);
+    for (let i = 0; i < power && q.length >= 2; i++) q.push(q.shift()!);
   }
 }
 
@@ -410,7 +429,7 @@ function computeIncomeStages(state: GameState, balance: Balance): IncomeStage[] 
   // 基礎収入（後手の 1 ターン目の補正と、祝祭の +N もここ）。
   // 後手の 1 ターン目だけ補正する。先手は市場を先に取れるぶん有利なので、
   // その差を整数 1 つのつまみで埋める。turn 2 が後手の 1 ターン目。
-  const festivalBonus = festival ? balance.festivalIncomeBonus : 0;
+  const festivalBonus = festival ? cardPowerOf(state, player, 'festival', balance) : 0;
   stages.push({
     kind: 'base',
     amount:
@@ -421,11 +440,9 @@ function computeIncomeStages(state: GameState, balance: Balance): IncomeStage[] 
     cards: [],
   });
 
-  // 建物の収益（封鎖で効果が止まっている物件は入らない）。祝祭中は 2 倍。
-  const earning = activeOwnedSlots(state, player, balance).filter(
-    (s) => buildingIncomeOf(balance, s.buildingId, s.level) !== 0,
-  );
-  const buildingOnce = earning.reduce((n, s) => n + buildingIncomeOf(balance, s.buildingId, s.level), 0);
+  // 建物の収入 = 各物件の VP（商館は追加収入つき。封鎖で効果が止まっている物件は入らない）。祝祭中は 2 倍。
+  const earning = activeOwnedSlots(state, player, balance).filter((s) => slotIncomeValue(state, s, balance) !== 0);
+  const buildingOnce = earning.reduce((n, s) => n + slotIncomeValue(state, s, balance), 0);
   const buildingIncome = festival ? buildingOnce * balance.festivalMultiplier : buildingOnce;
   if (buildingIncome !== 0) {
     stages.push({

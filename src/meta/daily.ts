@@ -56,13 +56,13 @@ export const DAILY_RULES: readonly DailyRule[] = [
     }),
   },
   {
-    // 城塞の通行料 2 倍（通行料は 2026-10-11 に廃止）の置き換え。収益のある建物だけ、全段で +1
+    // 建物の収入は VP がそのまま入る形になった。商館の追加収入を全段で +2 にする
     id: 'richIncome',
-    label: () => '建物の収益 +1（収益のある建物）',
+    label: () => '商館の追加収入 +2',
     patch: (b) => ({
-      buildings: mapValues(b.buildings, (v) => ({ ...v, income: v.income > 0 ? v.income + 1 : v.income })),
-      upgrades: mapValues(b.upgrades, (v) => ({ ...v, income: v.income > 0 ? v.income + 1 : v.income })),
-      upgrades3: mapValues(b.upgrades3, (v) => ({ ...v, income: v.income > 0 ? v.income + 1 : v.income })),
+      tradingHouseIncome: b.tradingHouseIncome + 2,
+      level2: { ...b.level2, tradingHouseIncome: b.level2.tradingHouseIncome + 2 },
+      level3: { ...b.level3, tradingHouseIncome: b.level3.tradingHouseIncome + 2 },
     }),
   },
 ];

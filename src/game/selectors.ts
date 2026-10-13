@@ -3,6 +3,8 @@ import {
   buildingEffectTextFor,
   buildingIncomeOf,
   buildingVp,
+  cardLevelFromXp,
+  cardPower,
   DEFAULT_BALANCE,
   type Balance,
   type Level2EffectKey,
@@ -49,6 +51,34 @@ export function nextCardOf(
   balance: Balance = DEFAULT_BALANCE,
 ): CardId | null {
   return state.players[player].queue[0] ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// 人物カードの Lv（試合の中で育つ）
+// ---------------------------------------------------------------------------
+
+/** player のそのカードの経験値（累計の使用回数。劣勢で使うと上乗せ）。古い保存（cardXp が無い状態）でも 0。 */
+export function cardXpOf(state: GameState, player: PlayerId, card: CardId): number {
+  return state.players[player].cardXp?.[card] ?? 0;
+}
+
+/** player のそのカードの Lv（1〜3）。 */
+export function cardLevelOf(state: GameState, player: PlayerId, card: CardId, balance: Balance = DEFAULT_BALANCE): number {
+  return cardLevelFromXp(balance, cardXpOf(state, player, card));
+}
+
+/** player のそのカードの、いまの Lv での主な数値。 */
+export function cardPowerOf(state: GameState, player: PlayerId, card: CardId, balance: Balance = DEFAULT_BALANCE): number {
+  return cardPower(balance, card, cardLevelOf(state, player, card, balance));
+}
+
+/** 次の Lv まであと何回使うか（劣勢の上乗せは数えず、1 回 1 として）。最大 Lv なら null。 */
+export function usesToNextLevel(state: GameState, player: PlayerId, card: CardId, balance: Balance = DEFAULT_BALANCE): number | null {
+  const xp = cardXpOf(state, player, card);
+  const [l2, l3] = balance.cardLevelUses;
+  if (xp < l2) return l2 - xp;
+  if (xp < l3) return l3 - xp;
+  return null;
 }
 
 export function ownedSlots(state: GameState, player: PlayerId): BuildingSlot[] {
@@ -147,25 +177,29 @@ export function blockadeIncomeLossOf(
   if (!blockadesOf(state).some((b) => b.target === target && b.beforeIncome)) return 0;
   return ownedSlots(state, target)
     .filter((s) => slotEffectStopped(state, s, balance))
-    .reduce((n, s) => n + buildingIncomeOf(balance, s.buildingId, s.level), 0);
+    .reduce((n, s) => n + slotIncomeValue(state, s, balance), 0);
 }
 
 // ---------------------------------------------------------------------------
-// 建物の収益と固定の数値（画面の詳細用）
+// 建物の収入と固定の数値（画面の詳細用）
 // ---------------------------------------------------------------------------
 
-/** 区画の物件が持ち主にいま毎ターンもたらす収益。空き地・効果が止まっている物件は 0。 */
+/** 区画の物件の毎ターンの収入の額（封鎖は見ない）。収入 = その物件の VP（大聖堂は盤面で決まる VP）。商館だけ効果の追加収入が乗る。 */
+export function slotIncomeValue(state: GameState, slot: BuildingSlot, balance: Balance = DEFAULT_BALANCE): number {
+  if (slot.owner === null) return 0;
+  const extra = slot.buildingId === 'tradingHouse' ? buildingEffect(balance, 'tradingHouseIncome', slot.level) : 0;
+  return vpOfSlot(state, slot, balance) + extra;
+}
+
+/** 区画の物件が持ち主にいま毎ターンもたらす収入。空き地・効果が止まっている物件は 0。 */
 export function slotIncomeOf(state: GameState, slot: BuildingSlot, balance: Balance = DEFAULT_BALANCE): number {
   if (slot.owner === null || slotEffectStopped(state, slot, balance)) return 0;
-  return buildingIncomeOf(balance, slot.buildingId, slot.level);
+  return slotIncomeValue(state, slot, balance);
 }
 
 /** player の物件の毎ターンの収益の合計（効果が止まっている物件は除く）。 */
 export function buildingIncomeTotalOf(state: GameState, player: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
-  return activeOwnedSlots(state, player, balance).reduce(
-    (n, s) => n + buildingIncomeOf(balance, s.buildingId, s.level),
-    0,
-  );
+  return activeOwnedSlots(state, player, balance).reduce((n, s) => n + slotIncomeValue(state, s, balance), 0);
 }
 
 /** 建物の 1 段分の固定の数値。建物の詳細に並べる。 */
@@ -175,7 +209,7 @@ export interface BuildingLevelStats {
   vp: number;
   /** 大聖堂だけ: 自分の他の物件 1 件あたりの VP。他は null */
   vpPerOtherBuilding: number | null;
-  /** 毎ターンの収益 */
+  /** 毎ターンの収入（VP と同じ。大聖堂は盤面で決まるので 0。商館は効果の追加収入を含む） */
   income: number;
   /** Lv1: 建設費。Lv2・Lv3: その段へ上げる費用（アップグレード費） */
   cost: number;
@@ -475,10 +509,7 @@ export function incomePerTurnOf(
   player: PlayerId,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
-  const buildings = ownedSlots(state, player).reduce(
-    (n, s) => n + buildingIncomeOf(balance, s.buildingId, s.level),
-    0,
-  );
+  const buildings = ownedSlots(state, player).reduce((n, s) => n + slotIncomeValue(state, s, balance), 0);
   return balance.baseIncome + buildings;
 }
 
@@ -498,7 +529,7 @@ export function festivalExtraOf(
   const minerBonus = activeEffectMax(state, player, 'mine', 'mineMinerBonus', balance);
   const miners = p.pendingIncome.filter((c) => c === 'miner').length;
   return (
-    balance.festivalIncomeBonus +
+    cardPowerOf(state, player, 'festival', balance) +
     income * extra +
     exchange * extra * p.pendingIncome.length +
     minerBonus * extra * miners
@@ -549,7 +580,7 @@ export function bossDistrictsOf(
 /** 番頭で今すぐ入るコイン。効果が生きている商館の数（上限 clerkMaxHouses）× clerkPerHouse。 */
 export function clerkGainOf(state: GameState, player: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
   const houses = activeOwnedSlots(state, player, balance).filter((s) => s.buildingId === 'tradingHouse').length;
-  return Math.min(houses, balance.clerkMaxHouses) * balance.clerkPerHouse;
+  return Math.min(houses, balance.clerkMaxHouses) * cardPowerOf(state, player, 'clerk', balance);
 }
 
 // ---------------------------------------------------------------------------
@@ -569,9 +600,9 @@ export function investIncomeOf(
   const exchange = activeEffectMax(state, player, 'exchange', 'exchangeBonus', balance) * mult;
   switch (card) {
     case 'miner':
-      return balance.minerIncome + exchange + activeEffectMax(state, player, 'mine', 'mineMinerBonus', balance) * mult;
+      return cardPowerOf(state, player, 'miner', balance) + exchange + activeEffectMax(state, player, 'mine', 'mineMinerBonus', balance) * mult;
     case 'banker':
-      return balance.bankerIncome + Math.floor(scoreOf(state, player, balance) * balance.bankerVpRate) + exchange;
+      return cardPowerOf(state, player, 'banker', balance) + Math.floor(scoreOf(state, player, balance) * balance.bankerVpRate) + exchange;
     default:
       return 0;
   }
@@ -589,6 +620,13 @@ export function pendingInvestOf(state: GameState, player: PlayerId, balance: Bal
 /** player が徴税官を使ったら、相手の次の収入から引く額。基本 + 相手の建物の収益 × 率（いまの盤面で）。 */
 export function taxmanAmountOf(state: GameState, player: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
   const foe = opponentOf(player);
-  const income = ownedSlots(state, foe).reduce((n, s) => n + buildingIncomeOf(balance, s.buildingId, s.level), 0);
-  return balance.taxmanAmount + Math.floor(income * balance.taxmanIncomeRate);
+  // 相手の VP（物件 + 称号）に応じて大きくなる: 勝っている側ほど多く取られる
+  return cardPowerOf(state, player, 'taxman', balance) + Math.floor(scoreOf(state, foe, balance) * balance.taxmanIncomeRate);
+}
+
+/** 買収者を使ったときの割引の額。主な数値（Lv で上がる）+ 相手の物件 1 件につき spyPerSlot（端数は切り捨て）。
+ *  物件をたくさん持っている側ほど、一気に買われる。 */
+export function spyDiscountOf(state: GameState, player: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
+  const foeSlots = ownedSlots(state, opponentOf(player)).length;
+  return cardPowerOf(state, player, 'spy', balance) + Math.floor(foeSlots * balance.spyPerSlot);
 }

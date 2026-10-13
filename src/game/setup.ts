@@ -24,6 +24,7 @@ function emptyPlayer(
     guarded: false,
     acquireDiscount: 0,
     upgradeDiscount: 0,
+    cardXp: {},
   };
 }
 

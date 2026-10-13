@@ -82,6 +82,8 @@ export interface PlayerState {
   acquireDiscount: number;
   /** このターン限りのアップグレード費の割引（職人）。Lv1→2・Lv2→3 のどちらにも効く */
   upgradeDiscount: number;
+  /** 人物カードの経験値（そのカードの累計の使用回数。劣勢で使うと上乗せ）。Lv は balance.cardLevelUses で決まる。試合ごとにリセット */
+  cardXp: Partial<Record<CardId, number>>;
 }
 
 export interface GameState {

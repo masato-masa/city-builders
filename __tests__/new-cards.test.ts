@@ -1,8 +1,9 @@
+import { buildingIncomeOf as incomeAt } from '@/game/balance';
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_BALANCE } from '@/game/balance';
 import { canAcquire, canUseCard, canUseRoad, cardCostFor, reduce } from '@/game/reducer';
-import { districtOfSlot, handOf, scoreOf } from '@/game/selectors';
+import { districtOfSlot, handOf, scoreOf, spyDiscountOf } from '@/game/selectors';
 import { createGame } from '@/game/setup';
 import type { CardId, GameState } from '@/game/types';
 
@@ -82,7 +83,7 @@ describe('祝祭', () => {
 
     expect(g.players.you.festivalActive).toBe(true);
     const spent = 10 - DEFAULT_BALANCE.cards.festival.cost;
-    const houseIncome = 2 * DEFAULT_BALANCE.buildings.tradingHouse.income * DEFAULT_BALANCE.festivalMultiplier;
+    const houseIncome = 2 * incomeAt(DEFAULT_BALANCE, 'tradingHouse', 1) * DEFAULT_BALANCE.festivalMultiplier;
     expect(g.players.you.coins).toBe(
       spent + DEFAULT_BALANCE.baseIncome + DEFAULT_BALANCE.festivalIncomeBonus + houseIncome,
     );
@@ -135,13 +136,13 @@ describe('衛兵', () => {
 
     const afterTaxman = reduce(g, { type: 'useCard', card: 'taxman' }, DEFAULT_BALANCE);
     expect(afterTaxman.players.you.coins).toBe(youCoinsBefore);
-    expect(afterTaxman.players.cpu.coins).toBe(20 - DEFAULT_BALANCE.cards.taxman.cost);
+    expect(afterTaxman.players.cpu.coins).toBe(20 - cardCostFor(g, 'cpu', 'taxman', DEFAULT_BALANCE));
 
     // 買収者で割引を得ても、衛兵を張った相手の物件は買えない
     const yourSlot = g.market.find((s) => s.owner === null)!;
     yourSlot.owner = 'you';
     const afterSpy = reduce(g, { type: 'useCard', card: 'spy' }, DEFAULT_BALANCE);
-    expect(afterSpy.players.cpu.acquireDiscount).toBe(DEFAULT_BALANCE.spyAcquireDiscount);
+    expect(afterSpy.players.cpu.acquireDiscount).toBe(spyDiscountOf(afterSpy, 'cpu', DEFAULT_BALANCE));
     expect(canAcquire(afterSpy, yourSlot.slotId, DEFAULT_BALANCE)).toBe(false);
     yourSlot.owner = null;
 
@@ -152,7 +153,8 @@ describe('衛兵', () => {
 });
 
 describe('買収者', () => {
-  const B = { ...DEFAULT_BALANCE };
+  // 経験値の上乗せ（劣勢）は札の Lv を動かすので、ここの割引の厳密な値の確認では切る
+  const B = { ...DEFAULT_BALANCE, cardXpBehindBonus: 0 };
   /** you の手番。cpu が商館を持っていて、you は割引なしでは 1 コイン足りない */
   function setup(): { g: GameState; slot: number; price: number } {
     const g = fixture(
@@ -162,7 +164,7 @@ describe('買収者', () => {
     const house = g.market.find((s) => s.buildingId === 'tradingHouse')!;
     house.owner = 'cpu';
     const price = house.buildingId ? B.buildings[house.buildingId].cost * B.acquireMultiplier : 0;
-    g.players.you.coins = B.cards.spy.cost + price - B.spyAcquireDiscount;
+    g.players.you.coins = B.cards.spy.cost + price - spyDiscountOf(g, 'you', B);
     return { g, slot: house.slotId, price };
   }
 
@@ -170,7 +172,7 @@ describe('買収者', () => {
     const { g, slot, price } = setup();
     expect(canAcquire(g, slot, B)).toBe(false);
     const afterSpy = reduce(g, { type: 'useCard', card: 'spy' }, B);
-    expect(afterSpy.players.you.acquireDiscount).toBe(B.spyAcquireDiscount);
+    expect(afterSpy.players.you.acquireDiscount).toBe(spyDiscountOf(g, 'you', B));
     expect(canAcquire(afterSpy, slot, B)).toBe(true);
     const cpuBefore = afterSpy.players.cpu.coins;
     const after = reduce(afterSpy, { type: 'acquire', slotId: slot }, B);

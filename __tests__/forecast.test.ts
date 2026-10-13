@@ -1,3 +1,4 @@
+import { buildingIncomeOf as incomeAt } from '@/game/balance';
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_BALANCE } from '@/game/balance';
@@ -63,7 +64,7 @@ describe('次ターン収入の見込み（forecast）', () => {
     gWithout.market.filter((s) => s.buildingId === 'tradingHouse').forEach((s) => (s.owner = 'you'));
     const withoutFestival = forecast(gWithout, 'you', DEFAULT_BALANCE);
     const houseIncome = gWithout.market.filter((s) => s.buildingId === 'tradingHouse').length
-      * DEFAULT_BALANCE.buildings.tradingHouse.income;
+      * incomeAt(DEFAULT_BALANCE, 'tradingHouse', 1);
     expect(predicted).toBe(
       withoutFestival + houseIncome * (DEFAULT_BALANCE.festivalMultiplier - 1) + DEFAULT_BALANCE.festivalIncomeBonus,
     );

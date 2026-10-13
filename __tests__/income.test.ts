@@ -1,3 +1,4 @@
+import { buildingIncomeOf as incomeAt } from '@/game/balance';
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_BALANCE } from '@/game/balance';
@@ -50,7 +51,7 @@ describe('遅延収入', () => {
     houses.forEach((s) => (s.owner = 'you'));
     const after = reduce(g, { type: 'startTurn' }, DEFAULT_BALANCE);
     expect(after.players.you.coins).toBe(
-      DEFAULT_BALANCE.baseIncome + houses.length * DEFAULT_BALANCE.buildings.tradingHouse.income,
+      DEFAULT_BALANCE.baseIncome + houses.length * incomeAt(DEFAULT_BALANCE, 'tradingHouse', 1),
     );
   });
 
@@ -64,8 +65,8 @@ describe('遅延収入', () => {
     const after = reduce(g, { type: 'startTurn' }, DEFAULT_BALANCE);
     expect(after.players.you.coins).toBe(
       DEFAULT_BALANCE.baseIncome +
-        DEFAULT_BALANCE.upgrades.tradingHouse.income +
-        DEFAULT_BALANCE.upgrades3.tradingHouse.income,
+        incomeAt(DEFAULT_BALANCE, 'tradingHouse', 2) +
+        incomeAt(DEFAULT_BALANCE, 'tradingHouse', 3),
     );
   });
 
@@ -78,7 +79,7 @@ describe('遅延収入', () => {
     expect(vp).toBe(2 * DEFAULT_BALANCE.buildings.tradingHouse.vp);
     g = reduce(g, { type: 'startTurn' }, DEFAULT_BALANCE);
     const before = 10 - DEFAULT_BALANCE.cards.banker.cost;
-    const houseIncome = 2 * DEFAULT_BALANCE.buildings.tradingHouse.income;
+    const houseIncome = 2 * incomeAt(DEFAULT_BALANCE, 'tradingHouse', 1);
     const bankerIncome = DEFAULT_BALANCE.bankerIncome + Math.floor(vp * DEFAULT_BALANCE.bankerVpRate);
     expect(g.players.you.coins).toBe(before + DEFAULT_BALANCE.baseIncome + houseIncome + bankerIncome);
   });
@@ -97,7 +98,7 @@ describe('遅延収入', () => {
       Math.floor(DEFAULT_BALANCE.buildings.exchange.vp * DEFAULT_BALANCE.bankerVpRate) +
       DEFAULT_BALANCE.exchangeBonus;
     expect(g.players.you.coins).toBe(
-      before + DEFAULT_BALANCE.baseIncome + DEFAULT_BALANCE.buildings.exchange.income + minerIncome + bankerIncome,
+      before + DEFAULT_BALANCE.baseIncome + incomeAt(DEFAULT_BALANCE, 'exchange', 1) + minerIncome + bankerIncome,
     );
   });
 
@@ -113,7 +114,7 @@ describe('遅延収入', () => {
     g = reduce(g, { type: 'startTurn' }, DEFAULT_BALANCE);
     expect(g.players.you.coins - before).toBe(
       DEFAULT_BALANCE.baseIncome +
-        DEFAULT_BALANCE.buildings.mine.income +
+        incomeAt(DEFAULT_BALANCE, 'mine', 1) +
         DEFAULT_BALANCE.minerIncome +
         DEFAULT_BALANCE.mineMinerBonus,
     );

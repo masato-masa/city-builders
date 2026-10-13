@@ -43,6 +43,14 @@ const FROZEN_BALANCE: Balance = {
   architectDiscount: 6,
   taxmanAmount: 5,
   taxmanIncomeRate: 0,
+  taxmanCostPerSlot: 0,
+  spyPerSlot: 0,
+  // 札の Lv は凍結時点に無かった（上がらない）
+  cardLevelUses: [999, 999],
+  cardXpBehindBonus: 0,
+  cardLv2: DEFAULT_BALANCE.cardLv2,
+  cardLv3: DEFAULT_BALANCE.cardLv3,
+  tradingHouseIncome: 0,
   spyAcquireDiscount: 3,
   guardCostWithWall: 0,
   heraldCostWithRoad: 0,
@@ -51,15 +59,15 @@ const FROZEN_BALANCE: Balance = {
   clerkMaxHouses: 3,
   doubleExcluded: ['herald', 'double', 'festival', 'guard'],
   buildings: {
-    tradingHouse: { cost: 7, vp: 2, income: 1 },
-    wall: { cost: 10, vp: 2, income: 0 },
-    factory: { cost: 12, vp: 3, income: 0 },
-    road: { cost: 14, vp: 2, income: 0 },
-    cathedral: { cost: 16, vp: 0, income: 0 },
-    fortress: { cost: 18, vp: 6, income: 0 },
-    exchange: { cost: 20, vp: 3, income: 0 },
-    quarry: { cost: 13, vp: 3, income: 0 },
-    mine: { cost: 15, vp: 3, income: 0 },
+    tradingHouse: { cost: 7, vp: 2 },
+    wall: { cost: 10, vp: 2 },
+    factory: { cost: 12, vp: 3 },
+    road: { cost: 14, vp: 2 },
+    cathedral: { cost: 16, vp: 0 },
+    fortress: { cost: 18, vp: 6 },
+    exchange: { cost: 20, vp: 3 },
+    quarry: { cost: 13, vp: 3 },
+    mine: { cost: 15, vp: 3 },
   },
   factoryDiscount: 2,
   cathedralVpPerBuilding: 2,
@@ -75,15 +83,15 @@ const FROZEN_BALANCE: Balance = {
   roadUses: 1,
   secondPlayerFirstTurnBonus: 1,
   upgrades: {
-    tradingHouse: { cost: 7, vp: 4, income: 2 },
-    wall: { cost: 10, vp: 4, income: 0 },
-    factory: { cost: 12, vp: 5, income: 0 },
-    road: { cost: 14, vp: 4, income: 0 },
-    cathedral: { cost: 16, vp: 0, income: 0 },
-    fortress: { cost: 18, vp: 9, income: 0 },
-    exchange: { cost: 20, vp: 5, income: 0 },
-    quarry: { cost: 13, vp: 5, income: 0 },
-    mine: { cost: 15, vp: 5, income: 0 },
+    tradingHouse: { cost: 7, vp: 4 },
+    wall: { cost: 10, vp: 4 },
+    factory: { cost: 12, vp: 5 },
+    road: { cost: 14, vp: 4 },
+    cathedral: { cost: 16, vp: 0 },
+    fortress: { cost: 18, vp: 9 },
+    exchange: { cost: 20, vp: 5 },
+    quarry: { cost: 13, vp: 5 },
+    mine: { cost: 15, vp: 5 },
   },
   level2: {
     factoryDiscount: 4,
@@ -93,18 +101,19 @@ const FROZEN_BALANCE: Balance = {
     roadUses: 2,
     mineMinerBonus: 0,
     mineMinerDiscount: 0,
+    tradingHouseIncome: 0,
   },
   // Lv3 は凍結時点のルールに無かったので上限 2 のまま（表は型を満たすためだけに置く）
   upgrades3: {
-    tradingHouse: { cost: 8, vp: 6, income: 3 },
-    wall: { cost: 11, vp: 6, income: 0 },
-    factory: { cost: 13, vp: 7, income: 0 },
-    road: { cost: 15, vp: 6, income: 0 },
-    cathedral: { cost: 17, vp: 0, income: 0 },
-    fortress: { cost: 19, vp: 12, income: 0 },
-    exchange: { cost: 21, vp: 7, income: 0 },
-    quarry: { cost: 14, vp: 7, income: 0 },
-    mine: { cost: 18, vp: 7, income: 0 },
+    tradingHouse: { cost: 8, vp: 6 },
+    wall: { cost: 11, vp: 6 },
+    factory: { cost: 13, vp: 7 },
+    road: { cost: 15, vp: 6 },
+    cathedral: { cost: 17, vp: 0 },
+    fortress: { cost: 19, vp: 12 },
+    exchange: { cost: 21, vp: 7 },
+    quarry: { cost: 14, vp: 7 },
+    mine: { cost: 18, vp: 7 },
   },
   level3: {
     factoryDiscount: 6,
@@ -114,6 +123,7 @@ const FROZEN_BALANCE: Balance = {
     roadUses: 3,
     mineMinerBonus: 0,
     mineMinerDiscount: 0,
+    tradingHouseIncome: 0,
   },
   maxLevel: 2,
   acquireMultiplier: 2,
@@ -157,6 +167,7 @@ function player(coins: number, hand: CardId[]): PlayerState {
     guarded: false,
     acquireDiscount: 0,
     upgradeDiscount: 0,
+    cardXp: {},
   };
 }
 
@@ -328,7 +339,8 @@ describe('easy / normal の決定性', () => {
   // 意図的な変更でない限り疑うこと。祝祭を「毎ターンの収入」でなく 1 度きりの上乗せとして評価するよう直したとき、
   // 手番の後の建築家の割引・試合の終わりの投資/借りを数えないよう直したとき、最終段階の物件を買収不可にしたとき、
   // 重みの再探索と揺らぎの変更（20/6 → 40/10）のとき、2026-10-11 のルール変更（封鎖の作り替え・称号を VP で・投資を額で評価）、終わった局面を勝ち負けで評価・重みの再探索・揺らぎ 40/10 → 20/8 のとき、
-  // 雪だるまの対策（買収されたときの代金 exposedCoins を評価に足す・揺らぎ 20/8 → 25/5）のときに更新した。
+  // 雪だるまの対策（買収されたときの代金 exposedCoins を評価に足す・揺らぎ 20/8 → 25/5）、
+  // 2026-10-13 に建物の収入を VP に（凍結ルールの建物は収益 0 → VP がそのまま収入）、札の育ちを評価に足したときに更新した。
   it('seed 0 / 5 の最終コイン残高が既知の値と一致する（回帰検知用）', () => {
     const finish = (difficulty: 'easy' | 'normal', seed: number) => {
       let g = createGame(seed, FROZEN_BALANCE);
@@ -347,6 +359,6 @@ describe('easy / normal の決定性', () => {
       easy5: coins(finish('easy', 5)),
       normal0: coins(finish('normal', 0)),
       normal5: coins(finish('normal', 5)),
-    }).toEqual({ easy0: [0, 13], easy5: [-2, 7], normal0: [5, 4], normal5: [3, 2] });
+    }).toEqual({ easy0: [5, 0], easy5: [0, 8], normal0: [2, 1], normal5: [0, 0] });
   });
 });

@@ -1,4 +1,4 @@
-import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
+import { cardCostAt, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { cardCostFor } from '@/game/reducer';
 import {
   acquireCostFor,
@@ -6,6 +6,8 @@ import {
   activeEffectMax,
   blockadeIncomeLossOf,
   bossDistrictsOf,
+  cardLevelOf,
+  cardXpOf,
   festivalExtraOf,
   handOf,
   incomePerTurnOf,
@@ -16,6 +18,7 @@ import {
   slotBuildBlocked,
   slotLocked,
   slotMaxed,
+  spyDiscountOf,
   titleVpSwing,
   upgradePriceOf,
   vpOfSlot,
@@ -54,6 +57,8 @@ export interface Weights {
   exposed: number;
   /** 相手に買収されたときに受け取る代金（exposed と同じ見込み）。正に効く */
   exposedCoins: number;
+  /** 自分の人物カードの経験値（使った回数。上限は Lv3 まで）1 回分の価値。使うほど札が育つ価値を、序盤ほど重く見る */
+  cardGrowth: number;
 }
 
 export const DEFAULT_WEIGHTS: Weights = {
@@ -73,6 +78,7 @@ export const DEFAULT_WEIGHTS: Weights = {
   exposed: -4,
   // 買収されうる物件の代金。exposed（-4、VP の重み 10 の 4 割）と同じ見込みで、コインの重み 1 の 4 割
   exposedCoins: 0.4,
+  cardGrowth: 0.5,
 };
 
 /** 性格。序盤と終盤で重みが変わる。進行度で線形に補間する。 */
@@ -224,8 +230,8 @@ export function exposureOf(
   // 相手の手札に買収者があれば、使ったうえで割引の効いた値段で買ってくると見る（読み合いの核）
   let discount = 0;
   if (handOf(state, foe, balance).includes('spy')) {
-    discount = balance.spyAcquireDiscount;
-    budget -= balance.cards.spy.cost;
+    discount = spyDiscountOf(state, foe, balance);
+    budget -= cardCostAt(balance, 'spy', cardLevelOf(state, foe, 'spy', balance));
   }
   // 相手の次の手番の時点で、まだ動かせない区画は奪われない
   const foeTurn = state.current === foe ? state.turn : state.turn + 1;
@@ -246,7 +252,7 @@ export function exposureOf(
   }
   // 相手の手札に検査官があり、払えるなら、自分の Lv2 以上の 1 件が 1 段下がる（VP の減りがいちばん大きいもの）。
   // 衛兵の価値（検査官も防ぐ）とアップグレードの危うさを、買収と同じ物差しで数える
-  if (handOf(state, foe, balance).includes('inspector') && budget >= balance.cards.inspector.cost) {
+  if (handOf(state, foe, balance).includes('inspector') && budget >= cardCostAt(balance, 'inspector', cardLevelOf(state, foe, 'inspector', balance))) {
     let worst = 0;
     for (const s of ownedSlots(state, player)) {
       if (s.level < 2) continue;
@@ -255,7 +261,7 @@ export function exposureOf(
     total += worst;
   }
   // 相手の手札に顔役があり、払えるなら、自分が持っている同数の地区の称号を 1 つ取られる
-  if (handOf(state, foe, balance).includes('boss') && budget >= balance.cards.boss.cost) {
+  if (handOf(state, foe, balance).includes('boss') && budget >= cardCostAt(balance, 'boss', cardLevelOf(state, foe, 'boss', balance))) {
     if (bossDistrictsOf(state, foe, balance).length > 0) total += balance.districtTitleVp;
   }
   return { vp: total, coins: 0 };
@@ -289,6 +295,9 @@ export const INFORMER_NEXT_WEIGHT = 1.5;
 function deckHas(p: PlayerState, card: CardId): boolean {
   return p.hand.includes(card) || p.queue.includes(card);
 }
+
+/** 毎ターンの収入の評価に掛ける係数。収入が物件の VP そのものになり（2026-10-13）、VP の項と二重に数えるので小さくする。 */
+export const INCOME_VALUE_SCALE = 1;
 
 /** 試合が終わった局面の評価の大きさ。途中の局面の評価（数百点）より十分に大きく、勝ちを必ず選び、負けを必ず避ける。 */
 export const FINISHED_SCORE = 100_000;
@@ -334,15 +343,21 @@ export function evaluateState(
   ).length;
   // 相手について同じ計算をする（払えない枚数のみ）。相手が詰まっているのは自分に有利
   const opponentStuck = handOf(state, foe, balance).filter(
-    (c) => foeState.coins < balance.cards[c].cost,
+    (c) => foeState.coins < cardCostAt(balance, c, cardLevelOf(state, foe, c, balance)),
   ).length;
 
   // 密告者がある試合だけ、相手の「次」の札の脅威を数える（無い試合では 0 なので既定のデッキの評価は変わらない）
   const foeNext0 = foeState.queue[0];
   const nextThreat = deckHas(p, 'informer') && foeNext0 ? NEXT_CARD_THREAT[foeNext0] * INFORMER_NEXT_WEIGHT : 0;
 
+  // 札の育ち（使った回数。Lv3 に要る回数で頭打ち）。終盤は育てても使い道が減るので序盤ほど重く見る
+  const maxUses = balance.cardLevelUses[1];
+  let growth = 0;
+  for (const c of [...p.hand, ...p.queue]) if (c) growth += Math.min(cardXpOf(state, player, c), maxUses);
+
   return (
     -nextThreat +
+    growth * weights.cardGrowth * (1 - late) +
     scoreOf(state, player, balance) * weights.vp * (0.5 + late) +
     scoreOf(state, foe, balance) * weights.opponentVp * (0.5 + late) +
     p.coins * weights.coin +
@@ -355,8 +370,8 @@ export function evaluateState(
     // 祝祭は次の収入に 1 度だけ上乗せされる（毎ターンの収入ではない）。投資カードと同じ物差しで数える
     myNext * festivalExtraOf(state, player, balance) * weights.pendingIncome +
     foeNext * festivalExtraOf(state, foe, balance) * weights.opponentCoin +
-    incomePerTurn * weights.incomePerTurn * (1 - late) +
-    opponentIncome * weights.opponentIncome +
+    incomePerTurn * INCOME_VALUE_SCALE * weights.incomePerTurn * (1 - late) +
+    opponentIncome * INCOME_VALUE_SCALE * weights.opponentIncome +
     ownedSlots(state, player).length * 2 +
     reach * weights.reach +
     opponentReach * weights.opponentReach +

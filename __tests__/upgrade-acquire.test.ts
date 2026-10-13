@@ -1,3 +1,4 @@
+import { buildingIncomeOf as incomeAt } from '@/game/balance';
 import { describe, expect, it } from 'vitest';
 
 import { exposedVpOf, reachOf } from '@/ai/evaluate';
@@ -87,8 +88,8 @@ describe('アップグレード', () => {
       B.buildings.tradingHouse.cost + B.upgrades.tradingHouse.cost + B.upgrades3.tradingHouse.cost,
     );
     expect(vpOfSlot(g, g.market[house]!, B)).toBe(B.upgrades3.tradingHouse.vp);
-    expect(incomePerTurnOf(g, 'you', B)).toBe(B.baseIncome + B.upgrades3.tradingHouse.income);
-    expect(buildingTextFor('tradingHouse', B, 3)).toContain(`+${B.upgrades3.tradingHouse.income}`);
+    expect(incomePerTurnOf(g, 'you', B)).toBe(B.baseIncome + incomeAt(B, 'tradingHouse', 3));
+    expect(buildingTextFor('tradingHouse', B, 3)).toContain(`+${B.level3.tradingHouseIncome}`);
     expect(canUpgrade(pass(pass(g)), house, B)).toBe(false);
   });
 
@@ -310,7 +311,7 @@ describe('Lv2 の効果', () => {
   it('商館: 毎ターンの収入が Lv2 の値になる', () => {
     const g = owned('tradingHouse', 'you', 2);
     const stage = incomeStages(g, B).find((s) => s.kind === 'building')!;
-    expect(stage.amount).toBe(B.upgrades.tradingHouse.income);
+    expect(stage.amount).toBe(incomeAt(B, 'tradingHouse', 2));
   });
 
   it('工場: 最初のカードの割引が Lv2 の値になる', () => {
@@ -345,8 +346,8 @@ describe('Lv2 の効果', () => {
   });
 
   it('説明文はレベルの値で書かれる', () => {
-    expect(buildingTextFor('tradingHouse', B, 2)).toContain(`+${B.upgrades.tradingHouse.income}`);
-    expect(buildingTextFor('tradingHouse', B)).toContain(`+${B.buildings.tradingHouse.income}`);
+    expect(buildingTextFor('tradingHouse', B, 2)).toContain(`+${B.level2.tradingHouseIncome}`);
+    expect(buildingTextFor('tradingHouse', B)).toContain(`+${B.tradingHouseIncome}`);
     expect(buildingTextFor('mine', B, 2)).toContain(`+${B.level2.mineMinerBonus}`);
   });
 });

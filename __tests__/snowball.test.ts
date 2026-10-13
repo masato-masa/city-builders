@@ -17,14 +17,14 @@ function board(): GameState {
   return g;
 }
 
-describe('徴税官は相手の建物の収益が多いほど多く引く', () => {
-  it('基本 + 相手の建物の収益 × 率（端数は切り捨て）', () => {
-    const B = { ...DEFAULT_BALANCE, taxmanAmount: 3, taxmanIncomeRate: 0.5 };
+describe('徴税官は相手の VP が多いほど多く引く', () => {
+  it('基本 + 相手の VP × 率（端数は切り捨て）', () => {
+    const B = { ...DEFAULT_BALANCE, taxmanAmount: 3, taxmanIncomeRate: 0.5, cardXpBehindBonus: 0 };
     const g = board();
     expect(taxmanAmountOf(g, 'you', B)).toBe(3);
-    // 商館 2 件（収益 3 + 3）と石切場（1）: 7 × 0.5 = 3.5 → 3
+    // 商館 2 件と石切場の VP の合計 × 0.5（端数は切り捨て）
     for (const id of [0, 1, 2]) g.market[id]!.owner = 'cpu';
-    const income = [0, 1, 2].reduce((n, id) => n + B.buildings[g.market[id]!.buildingId].income, 0);
+    const income = [0, 1, 2].reduce((n, id) => n + B.buildings[g.market[id]!.buildingId].vp, 0);
     expect(taxmanAmountOf(g, 'you', B)).toBe(3 + Math.floor(income * 0.5));
     const after = reduce(g, { type: 'useCard', card: 'taxman' }, B);
     expect(after.players.cpu.pendingTax).toBe(3 + Math.floor(income * 0.5));
@@ -37,9 +37,9 @@ describe('徴税官は相手の建物の収益が多いほど多く引く', () =
     expect(after.players.cpu.pendingTax).toBe(0);
   });
 
-  it('説明文に収益で増えることが出る', () => {
+  it('説明文に相手の VP で増えることが出る', () => {
     const B = { ...DEFAULT_BALANCE, taxmanAmount: 3, taxmanIncomeRate: 0.5 };
-    expect(cardTextFor('taxman', B)).toContain('3 ＋ 相手の建物の収益の半分');
+    expect(cardTextFor('taxman', B)).toContain('3 ＋ 相手の VP の半分');
     expect(cardTextFor('taxman', { ...B, taxmanIncomeRate: 0 })).toContain('コイン −3（');
   });
 });
