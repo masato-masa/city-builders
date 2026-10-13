@@ -410,6 +410,20 @@ export function playUpgrade(): void {
   });
 }
 
+/** 人物カードの Lv が上がった: きらめき（cardBuff）のあとに小さな鐘（yourTurn）。専用の音源は持たない（既存の音の組み合わせ）。
+ *  Lv3 は鐘をもう一度重ねる。使った札の音と同じ瞬間に起きるので、間引きに消されないよう force で少し遅らせて鳴らす。 */
+export function playCardLevelUp(level: number): void {
+  play(true, (c) => {
+    const shine = sample(c, 'cardBuff', 0.04, 0.25);
+    const bell = sample(c, 'yourTurn', 0.03, 0.4);
+    if (level >= 3) sample(c, 'yourTurn', 0.03, 0.62);
+    if (shine || bell) return;
+    [660, 880, level >= 3 ? 1320 : 1100].forEach((freq, i) => {
+      tone(c, { freq, duration: 0.16, type: 'sine', gain: 0.1, delay: 0.25 + i * 0.09 });
+    });
+  });
+}
+
 /** 物件を買収する（した・された）: 一撃（cardAttack）のあとにコインが相手へ渡る音。
  *  カードの「買収者」とは別の行動だが、相手から奪う手触りは同じ系統にそろえる。 */
 export function playAcquire(): void {

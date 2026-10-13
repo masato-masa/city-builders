@@ -191,12 +191,8 @@ export interface SpecRow {
   value: string;
 }
 
-/** 建物の収益（毎ターン入るコイン）を balance から読む。balance.buildings[id] に数の income があれば Lv1 の値、
- *  無ければ null（行を出さない）。ルール変更で収益が入ったら、ここだけ合わせればよい。 */
-export function buildingIncomeOf(balance: Balance, id: BuildingId): number | null {
-  const v = (balance.buildings[id] as { income?: unknown }).income;
-  return typeof v === 'number' ? v : null;
-}
+/** 建物の収入は VP がそのまま入る（建物の詳細に添える 1 行）。 */
+export const VP_IS_INCOME_NOTE = 'VP ＝ 毎ターンの収入';
 
 /** 建物そのものの固定の数値（盤面の状態によらない）。Lv ごとに変わる値は「Lv1 / Lv2 / Lv3」の順に並べる。
  *  レベル数は balance.maxLevel から（直書きしない）。 */
@@ -222,8 +218,10 @@ export function buildingSpecRows(id: BuildingId, balance: Balance): SpecRow[] {
     },
   ];
   if (upgrades) rows.push({ label: '増築コスト', value: upgrades });
-  const income = buildingIncomeOf(balance, id);
-  if (income !== null) rows.push({ label: '収益', value: `毎ターン +${income}` });
+  // 商館だけ VP が低い代わりに、効果で追加の収入が入る
+  if (id === 'tradingHouse') {
+    rows.push({ label: '追加収入', value: `毎ターン +${levels.map((lv) => buildingEffect(balance, 'tradingHouseIncome', lv)).join(' / ')}` });
+  }
   return rows;
 }
 

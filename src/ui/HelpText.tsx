@@ -72,14 +72,14 @@ function HelpSection({ id, balance, deck }: { id: HelpSectionId; balance: Balanc
             物件を建てて <b>VP（勝利点）</b>を集めます。{balance.market.length} 件すべてが建つか、
             それぞれ {balance.maxTurnsPerPlayer} ターンを終えたら、VP の多いほうの勝ち。
           </p>
-          <p className="sheet-text">VP は物件・アップグレード・地区の称号で増えます。</p>
+          <p className="sheet-text">VP は物件・アップグレード・地区の称号で増えます。<b>物件の VP ＝ 毎ターンの収入</b>（商館だけ VP が低い代わりに、効果で追加の収入）。</p>
         </>
       );
     case 'turn':
       return (
         <ol className="help-steps">
           <li>
-            始めに<b>収入</b>が入る（基礎 +{balance.baseIncome}・物件・前のターンの投資）
+            始めに<b>収入</b>が入る（基礎 +{balance.baseIncome}・物件の VP・前のターンの投資）
           </li>
           <li>
             カードを盤面へ<b>ドラッグ</b>して使う。コインがあれば何枚でも（同じ札は 1 ターンに 1 回）
@@ -129,6 +129,10 @@ function HelpSection({ id, balance, deck }: { id: HelpSectionId; balance: Balanc
       );
     case 'cards':
       return (
+        <>
+        <p className="sheet-text">
+          同じカードを {balance.cardLevelUses[0]} 回使うと <b>Lv2</b>、{balance.cardLevelUses[1]} 回で <b>Lv3</b>（この試合の中だけ）。効果が上がります。長押しで今の効果と次の Lv が見られます。
+        </p>
         <ul className="help-cards">
           {helpCards(deck, balance).map((c) => {
             const art = cardArtOf(c.card);
@@ -147,6 +151,7 @@ function HelpSection({ id, balance, deck }: { id: HelpSectionId; balance: Balanc
             );
           })}
         </ul>
+        </>
       );
   }
 }

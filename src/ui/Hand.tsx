@@ -3,14 +3,14 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 
 import { CARD_NAMES, cardTextFor, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { cardCostFor } from '@/game/reducer';
-import { handSlotsOf, nextCardOf } from '@/game/selectors';
+import { cardLevelOf, handSlotsOf, nextCardOf, usesToNextLevel } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
 import { cardArtOf } from './art';
 import { cardStaticNoteOf, classifyPress, doubleNoteOf, DRAG_THRESHOLD_PX, LONG_PRESS_MS, TAP_HINT, useHintOf, type PressKind } from './card-input';
 import { hapticTap } from './haptics';
 import { MenuIcon } from './icons';
-import { playSelect } from './sound';
+import { playCardLevelUp, playSelect } from './sound';
 
 /** 手札 4 枚の枠番号。PlayerState.hand は常に長さ 4 の固定スロット配列で、
  *  添字がそのまま画面上の枠に対応する（要望 6）。 */
@@ -21,6 +21,11 @@ const TAP_HINT_MS = 1600;
 
 /** 使えなかった理由を出しておく時間（読み切れる長さ。演出は既定でゆっくり）。 */
 const NOTICE_MS = 2400;
+
+/** カードの Lv の印。Lv1 は何も出さず、Lv2 は星 1 つ、Lv3 は星 2 つ。 */
+export function lvStars(level: number): string {
+  return level >= 2 ? '★'.repeat(level - 1) : '';
+}
 
 /** 手札の上に出す「使えなかった理由」。id は出し直しの合図。 */
 export interface HandNotice {
@@ -86,6 +91,30 @@ export function Hand({
     return () => window.clearTimeout(t);
   }, [notice]);
 
+  // 札の Lv が上がった瞬間: 手札の上に短く出し、音を鳴らす（札は使った瞬間に山へ戻るので、札自身では見せられない）
+  const [lvUp, setLvUp] = useState<{ id: number; card: CardId; level: number } | null>(null);
+  const seenLv = useRef<{ viewer: PlayerId; levels: Partial<Record<CardId, number>> } | null>(null);
+  useEffect(() => {
+    const cards = [...state.players[viewer].hand, ...state.players[viewer].queue].filter((c): c is CardId => c !== null);
+    const levels: Partial<Record<CardId, number>> = {};
+    for (const c of cards) levels[c] = cardLevelOf(state, viewer, c, balance);
+    const prev = seenLv.current;
+    seenLv.current = { viewer, levels };
+    if (!prev || prev.viewer !== viewer) return;
+    for (const c of cards) {
+      if ((levels[c] ?? 1) > (prev.levels[c] ?? 1)) {
+        setLvUp({ id: Date.now(), card: c, level: levels[c]! });
+        playCardLevelUp(levels[c]!);
+        break;
+      }
+    }
+  }, [state, viewer, balance]);
+  useEffect(() => {
+    if (!lvUp) return;
+    const t = window.setTimeout(() => setLvUp((n) => (n?.id === lvUp.id ? null : n)), NOTICE_MS);
+    return () => window.clearTimeout(t);
+  }, [lvUp]);
+
   const heraldDrag = dragging === 'herald';
   return (
     <div className={`hand-row hand-row-${viewer}`}>
@@ -141,6 +170,18 @@ export function Hand({
       <AnimatePresence>
         {peek ? (
           <CardPeek key={`peek-${peek}`} card={peek} state={state} viewer={viewer} balance={balance} />
+        ) : lvUp ? (
+          <motion.div
+            key={`lvup-${lvUp.id}`}
+            className="hand-hint is-lvup"
+            role="status"
+            initial={{ opacity: 0, y: 8, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, pointerEvents: 'none' }}
+            transition={{ type: 'spring', stiffness: 460, damping: 26 }}
+          >
+            {CARD_NAMES[lvUp.card]} Lv{lvUp.level} {lvStars(lvUp.level)}
+          </motion.div>
         ) : shownNotice ? (
           <motion.div
             key={`notice-${shownNotice.id}`}
@@ -184,6 +225,7 @@ function CardPeek({
   balance: Balance;
 }) {
   const art = cardArtOf(card);
+  const level = cardLevelOf(state, viewer, card, balance);
   return (
     <motion.div
       className="card-peek"
@@ -198,9 +240,15 @@ function CardPeek({
       <div className="card-peek-body">
         <p className="card-peek-title">
           {CARD_NAMES[card]}
+          <span className="card-peek-lv">Lv{level}{level >= 2 ? ` ${lvStars(level)}` : ''}</span>
           <span className="card-peek-cost">コスト {cardCostFor(state, viewer, card, balance)}</span>
         </p>
-        <p className="card-peek-text">{cardTextFor(card, balance)}</p>
+        <p className="card-peek-text">{cardTextFor(card, balance, level)}</p>
+        {level < balance.maxLevel ? (
+          <p className="card-peek-note">
+            あと {usesToNextLevel(state, viewer, card, balance)} 回使うと Lv{level + 1}: {cardTextFor(card, balance, level + 1)}
+          </p>
+        ) : null}
         {cardStaticNoteOf(card) ? <p className="card-peek-note">{cardStaticNoteOf(card)}</p> : null}
         {card === 'double' ? <p className="card-peek-note">{doubleNoteOf(state, viewer, card, balance)}</p> : null}
         <p className="card-peek-note">{useHintOf(state, viewer, card)}</p>
@@ -364,6 +412,11 @@ function CardButton({
         <span className="card-body">
           {art ? <img className="card-art" src={art} alt="" draggable={false} /> : null}
           <span className="card-name">{CARD_NAMES[card]}</span>
+          {cardLevelOf(state, viewer, card, balance) >= 2 ? (
+            <span className="card-lv" aria-label={`Lv${cardLevelOf(state, viewer, card, balance)}`}>
+              {lvStars(cardLevelOf(state, viewer, card, balance))}
+            </span>
+          ) : null}
         </span>
         {/* コストは金貨の宝石バッジ（クラロワのエリクサーの雫に当たる）。 */}
         <span className="card-cost">

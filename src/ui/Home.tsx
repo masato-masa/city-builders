@@ -468,19 +468,11 @@ export function Home({
 
             <div className="dev-section-title">建物: 効果</div>
             <label>
-              {BUILDING_NAMES.tradingHouse}: 収益（Lv1）
+              {BUILDING_NAMES.tradingHouse}: 追加収入（Lv1）
               <input
                 type="number"
-                value={balance.buildings.tradingHouse.income}
-                onChange={(e) =>
-                  put({
-                    ...balance,
-                    buildings: {
-                      ...balance.buildings,
-                      tradingHouse: { ...balance.buildings.tradingHouse, income: Number(e.target.value) },
-                    },
-                  })
-                }
+                value={balance.tradingHouseIncome}
+                onChange={(e) => put({ ...balance, tradingHouseIncome: Number(e.target.value) })}
               />
             </label>
             <label>

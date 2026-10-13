@@ -10,6 +10,7 @@ import {
   acquireButton,
   acquireNote,
   buildingSpecRows,
+  VP_IS_INCOME_NOTE,
   districtNote,
   isMaxLevel,
   levelEffects,
@@ -69,6 +70,7 @@ export function SlotSheet({
           </div>
         ))}
       </dl>
+      <p className="sheet-text spec-note">{VP_IS_INCOME_NOTE}</p>
       {next ? (
         // いまの Lv と、上げたあとの Lv を左右に並べる（何が増えるかを比べて決められるように）。
         <div className="level-compare">

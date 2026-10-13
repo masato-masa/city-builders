@@ -3,7 +3,8 @@ import { drawDeck } from '@/game/setup';
 import type { CardId } from '@/game/types';
 
 // 2026-10-11 のルール変更（建物の収益・鉱山・封鎖の作り替え）で Balance の形が変わったので、古い上書きは読まない
-const KEY = 'city-builders:balance:v2';
+// 2026-10-13（建物の収入 = VP・カードの Lv・商館の追加収入）でも形が変わったので v3
+const KEY = 'city-builders:balance:v3';
 
 /** 数値の上書き。遊びながら調整するための仕組み。
  *  壊れた値が入っていても既定値に戻せるよう、浅くマージするだけにする。

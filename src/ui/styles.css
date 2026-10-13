@@ -1934,6 +1934,37 @@
 }
 
 /* 使えなかった理由。案内と同じ形で、縁だけ赤みにして「はじかれた」と分かるようにする。 */
+/* カードの Lv の印（星）。札の左上に小さく重ねる。寸法は動かさない（絶対配置）。 */
+.card-lv {
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  padding: 1px 3px;
+  border-radius: 6px;
+  background: rgb(16 24 32 / 0.78);
+  color: #ffd84a;
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: -1px;
+  pointer-events: none;
+}
+
+.card-peek-lv {
+  margin-left: 6px;
+  color: #ffd84a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* Lv が上がった知らせ。金の縁で、案内より目立たせる。 */
+.hand-hint.is-lvup {
+  color: #ffe9a0;
+  box-shadow:
+    inset 0 0 0 1.5px #ffd84a,
+    0 0 16px 2px rgb(255 216 74 / 0.5),
+    0 4px 14px rgb(0 0 0 / 0.4);
+}
+
 .hand-hint.is-reject {
   box-shadow:
     inset 0 0 0 1.5px #ff7a5c,
@@ -2217,4 +2248,33 @@
   margin: 6px 0 0;
   color: var(--muted);
   font-size: 11px;
+}
+
+/* 相手の育った札（Lv2 以上）。2 段目に小さく並べる。長いときは切る（寸法は動かさない）。 */
+.info-board-sub .coinbar-forecast {
+  flex: none;
+}
+
+.cpu-lv {
+  flex: 1 1 0;
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.cpu-lv-chip {
+  padding: 0 4px;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.14);
+  color: #ffd84a;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 14px;
+  white-space: nowrap;
+}
+
+.cpu-lv-chip.lv3 {
+  background: rgb(255 216 74 / 0.28);
 }

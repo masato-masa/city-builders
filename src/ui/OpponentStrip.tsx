@@ -1,9 +1,9 @@
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 
-import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
-import { scoreOf } from '@/game/selectors';
-import type { GameState } from '@/game/types';
+import { CARD_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
+import { cardLevelOf, scoreOf } from '@/game/selectors';
+import type { CardId, GameState } from '@/game/types';
 
 import { forecast } from './CoinBar';
 import { incomeLine } from './income-text';
@@ -33,6 +33,12 @@ export function OpponentStrip({
   const latest = log.length > 0 ? log[log.length - 1] : null;
   const rest = log.length > 1 ? log.slice(0, -1) : [];
   const income = forecast(state, 'cpu', balance);
+  // 相手の育った札（Lv2 以上）。名前の頭 1 文字と星だけ（文字は最小限）
+  const grown = [...state.players.cpu.hand, ...state.players.cpu.queue]
+    .filter((c): c is CardId => c !== null)
+    .map((card) => ({ card, level: cardLevelOf(state, 'cpu', card, balance) }))
+    .filter((x) => x.level >= 2)
+    .sort((a, b) => b.level - a.level);
   return (
     <div className="opponent-wrap">
       <InfoBoard
@@ -58,7 +64,21 @@ export function OpponentStrip({
             ) : null}
           </div>
         }
-        sub={<span className="coinbar-forecast">{incomeLine(income)}</span>}
+        sub={
+          <>
+            <span className="coinbar-forecast">{incomeLine(income)}</span>
+            {grown.length > 0 ? (
+              <span className="cpu-lv" aria-label="相手の育った札">
+                {grown.map((g) => (
+                  <span key={g.card} className={`cpu-lv-chip lv${g.level}`} title={`${CARD_NAMES[g.card]} Lv${g.level}`}>
+                    {CARD_NAMES[g.card].slice(0, 1)}
+                    {'★'.repeat(g.level - 1)}
+                  </span>
+                ))}
+              </span>
+            ) : null}
+          </>
+        }
       />
       {overlay}
     </div>
