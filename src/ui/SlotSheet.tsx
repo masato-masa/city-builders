@@ -3,7 +3,6 @@ import { buildCostFor, canBuild, canUseRoad } from '@/game/reducer';
 import { handSlotsOf, roadUsesRemaining, slotBuildBlocked, slotEffectStopped } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
-import { starSlots } from '@/game/card-text';
 
 import { cardArtOf } from './art';
 import { roadReason } from './feel';
@@ -71,13 +70,10 @@ export function SlotSheet({
           </div>
         ))}
       </dl>
-      {/* Lv: 数字は別の字体で金、★は 3 枠で常に。VP（＝収入）の行を 1 行目に固定し、次の Lv は変わる数字だけ「元 → 新」で 1 行ずつ。 */}
+      {/* Lv: 数字は別の字体で金（カードの下の Lv と同じく数字だけ）。VP（＝収入）の行を 1 行目に固定し、次の Lv は変わる数字だけ「元 → 新」で 1 行ずつ。 */}
       <p className="lv-head">
         <span>
           Lv<b className="tx-lvnum tx-lv">{view.level}</b>
-        </span>
-        <span className="lv-stars" aria-label={`Lv${view.level}`}>
-          {starSlots(view.level, balance.maxLevel)}
         </span>
         {view.maxed ? <b className="level-max">最大</b> : null}
       </p>

@@ -967,12 +967,13 @@
   color: var(--coin);
 }
 
-/* アップグレード費は VP・コインの右に足す。絶対配置なので、出ても出なくても 2 枚は動かない。 */
+/* アップグレード費は VP・コインの下（右揃え）に足す。絶対配置なので、出ても出なくても 2 枚は動かない。
+   右に足すと右端の列で盤面と画面の外へはみ出した（コインの右端 345px ＋ 約 44px ＞ 画面 375px）。 */
 .plot-upgrade {
   position: absolute;
-  left: 100%;
-  top: 0;
-  margin-left: 0.9cqw;
+  right: 0;
+  top: 100%;
+  margin-top: 0.6cqw;
   color: #7ee08a;
 }
 

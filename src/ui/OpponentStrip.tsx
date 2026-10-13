@@ -72,7 +72,7 @@ export function OpponentStrip({
                 {grown.map((g) => (
                   <span key={g.card} className={`cpu-lv-chip lv${g.level}`} title={`${CARD_NAMES[g.card]} Lv${g.level}`}>
                     {CARD_NAMES[g.card].slice(0, 1)}
-                    {'★'.repeat(g.level - 1)}
+                    {g.level}
                   </span>
                 ))}
               </span>
