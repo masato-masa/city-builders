@@ -352,7 +352,8 @@ export const DEFAULT_BALANCE: Balance = {
     taxman: { cost: 3 },
     // 封鎖者 5 → 3: 効果が「次の相手のターンだけ」になったので（card-value 200 で 5: 禁止 46.0 / 優先 30.0%、3: 43.5 / 40.0%、2: 38.5 / 32.0%）
     // 2026-10-12 3 → 2（card-value 400: 3 で 禁止 41.5 / 優先 31.3%、2 で 41.3 / 37.0%、1 で 34.5 / 43.5%）
-    blockader: { cost: 2 },
+    // 2026-10-13 2 → 3（収入 = VP で物件の多い地区ほど封鎖が痛くなった。card-value 300: 2 で 禁止 29.3 / 優先 53.7%、3 で 37.0 / 44.7%）
+    blockader: { cost: 3 },
     // 新しいカード（既定のデッキには入っていない。NEW_CARDS_DECK で測る）
     // 職人: 設計書の 2 コスト・−5 は優先 34.1%（上げる物件が無い手番にも撃つ損）。0 コスト・−3 で禁止 44.1 / 優先 49.4%
     // （card-value 400 --deck=new。1/−5 は 37.4/36.3、0/−5 は 39.1/54.3、0/−2 は 45.6/51.0）
@@ -478,7 +479,7 @@ export const DEFAULT_BALANCE: Balance = {
     usurer: { cost: 0, power: 4 },
     spy: { cost: 1, power: 4 },
     taxman: { cost: 3, power: 4 },
-    blockader: { cost: 2, power: 0 },
+    blockader: { cost: 3, power: 0 },
     craftsman: { cost: 0, power: 4 },
     inspector: { cost: 4, power: 0 },
     boss: { cost: 1, power: 0 },
@@ -496,7 +497,8 @@ export const DEFAULT_BALANCE: Balance = {
     usurer: { cost: 0, power: 4 },
     spy: { cost: 1, power: 5 },
     taxman: { cost: 3, power: 5 },
-    blockader: { cost: 2, power: 1 },
+    // 封鎖が続く手番を増やす案（power 1）は 禁止 29.3 / 優先 53.0% で強すぎたので、コストを下げるだけ
+    blockader: { cost: 2, power: 0 },
     craftsman: { cost: 0, power: 5 },
     inspector: { cost: 3, power: 0 },
     boss: { cost: 1, power: 0 },

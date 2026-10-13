@@ -174,11 +174,12 @@ describe('持つ側ほど痛い・持たない側が撃ちやすい', () => {
     expect(after.players.you.acquireDiscount).toBe(spyDiscountOf(g, 'you', B0));
   });
 
-  it('Lv3 の封鎖者は封鎖が続く手番が増える', () => {
+  it('封鎖者の power を足すと、封鎖が続く手番が増える（既定は 0）', () => {
+    const BL = { ...B, cardLv3: { ...B.cardLv3, blockader: { cost: 2, power: 1 } } };
     let g = used(fixture(), 'blockader', B.cardLevelUses[1] - 1);
     g.players.you.hand = ['blockader', 'miner', 'banker', 'architect'];
-    g = reduce(g, { type: 'useCard', card: 'blockader', district: 0 }, B);
+    g = reduce(g, { type: 'useCard', card: 'blockader', district: 0 }, BL);
     const turns = g.blockades[0]!.untilTurn - g.turn;
-    expect(turns).toBe(1 + 2 * cardPower(B, 'blockader', 3));
+    expect(turns).toBe(1 + 2 * cardPower(BL, 'blockader', 3));
   });
 });
