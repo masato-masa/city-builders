@@ -6,8 +6,9 @@ import type { CardId } from '@/game/types';
 
 import { cardArtOf } from './art';
 import { districtRuleText } from './district-view';
-import { HELP_SECTIONS, helpCards, helpSummary, type HelpSectionId } from './help-content';
+import { HELP_SECTIONS, helpCards, helpSummary, helpWords, MARK_LEGEND, type HelpSectionId } from './help-content';
 import { CoinBagIcon, UpArrowIcon } from './icons';
+import { RichNum, RichLines } from './RichText';
 import { playUiTap } from './sound';
 
 /** あそびかた（CPU 戦・2 人対戦で共通）。上に 3 行の要点、その下に項目ごとに開く見出し。
@@ -127,6 +128,30 @@ function HelpSection({ id, balance, deck }: { id: HelpSectionId; balance: Balanc
           <p className="sheet-text">端の名札（旗の色が称号の持ち主）をタップすると、自分と相手の値と区画の一覧が見られます。</p>
         </>
       );
+    case 'marks':
+      return (
+        <>
+          <ul className="mark-legend">
+            {MARK_LEGEND.map((m) => (
+              <li key={m.kind}>
+                <RichNum seg={{ t: 'num', text: m.sample, kind: m.kind, mark: m.mark }} />
+                <span>{m.meaning}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="sheet-text">★ は Lv（★☆☆ → ★★★）。点（●○）は次の Lv までの回数。説明文の<u>下線の言葉</u>はタップで意味が出ます。</p>
+        </>
+      );
+    case 'words':
+      return (
+        <ul className="word-list">
+          {helpWords(balance).map((w) => (
+            <li key={w.id}>
+              <b>{w.label}</b>: {w.def}
+            </li>
+          ))}
+        </ul>
+      );
     case 'cards':
       return (
         <>
@@ -144,7 +169,7 @@ function HelpSection({ id, balance, deck }: { id: HelpSectionId; balance: Balanc
                     {c.name}
                     <span className="help-card-cost">コスト {c.cost}</span>
                   </span>
-                  <span className="help-card-text">{c.text}</span>
+                  <RichLines className="help-card-text" lines={c.lines} balance={balance} interactive reserveDef={false} />
                   {c.note ? <span className="help-card-note">{c.note}</span> : null}
                 </span>
               </li>

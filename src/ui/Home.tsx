@@ -308,6 +308,15 @@ export function Home({
               />
             </label>
             <label>
+              目標 VP（届いたら勝ち）
+              <input
+                type="number"
+                min={1}
+                value={balance.winVp}
+                onChange={(e) => put({ ...balance, winVp: Number(e.target.value) })}
+              />
+            </label>
+            <label>
               最大ターン数
               <input
                 type="number"

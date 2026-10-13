@@ -29,7 +29,7 @@ import type { Action, BuildingId, CardId, GameState, PlayerId, PlayerState } fro
 
 /** 効果が生きている自分の物件のうち、指定した種類を持っているか。
  *  封鎖で効果が止まっている物件は「持っていない」扱いになる。 */
-function hasActiveBuilding(state: GameState, player: PlayerId, id: BuildingId, balance: Balance): boolean {
+export function hasActiveBuilding(state: GameState, player: PlayerId, id: BuildingId, balance: Balance): boolean {
   return activeOwnedSlots(state, player, balance).some((s) => s.buildingId === id);
 }
 

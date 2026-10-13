@@ -8,7 +8,7 @@ const B = DEFAULT_BALANCE;
 
 describe('あそびかた（?）', () => {
   it('項目の順: 勝ち方 → 1 手番 → 建てる/上げる/買う → 地区 → カード一覧', () => {
-    expect(HELP_SECTIONS.map((s) => s.id)).toEqual(['win', 'turn', 'plots', 'districts', 'cards']);
+    expect(HELP_SECTIONS.map((s) => s.id)).toEqual(['win', 'turn', 'plots', 'districts', 'marks', 'words', 'cards']);
   });
 
   it('要点は 3 行で、数字は balance から', () => {

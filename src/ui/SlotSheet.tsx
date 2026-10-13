@@ -3,17 +3,18 @@ import { buildCostFor, canBuild, canUseRoad } from '@/game/reducer';
 import { handSlotsOf, roadUsesRemaining, slotBuildBlocked, slotEffectStopped } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
+import { starSlots } from '@/game/card-text';
+
 import { cardArtOf } from './art';
 import { roadReason } from './feel';
+import { RichLines } from './RichText';
 import { Sheet } from './Sheets';
 import {
   acquireButton,
   acquireNote,
   buildingSpecRows,
-  VP_IS_INCOME_NOTE,
   districtNote,
-  isMaxLevel,
-  levelEffects,
+  levelView,
   slotStatusLine,
   upgradeButton,
   type SlotButton,
@@ -52,7 +53,7 @@ export function SlotSheet({
   onClose: () => void;
 }) {
   const slot = state.market[slotId]!;
-  const { current, next } = levelEffects(state, slotId, balance);
+  const view = levelView(state, slotId, balance);
   const owned = slot.owner !== null;
   const disabledByBlockade = owned && slotEffectStopped(state, slot, balance);
   const buildBlocked = !owned && slotBuildBlocked(state, viewer, slotId, balance);
@@ -70,30 +71,23 @@ export function SlotSheet({
           </div>
         ))}
       </dl>
-      <p className="sheet-text spec-note">{VP_IS_INCOME_NOTE}</p>
-      {next ? (
-        // いまの Lv と、上げたあとの Lv を左右に並べる（何が増えるかを比べて決められるように）。
-        <div className="level-compare">
-          <div className="level-col">
-            <span className="level-tag">Lv{current.level}（いま）</span>
-            <span className="level-vp">{current.vp}</span>
-            <span className="level-text">{current.text}</span>
-          </div>
-          <span className="level-arrow" aria-hidden="true">
-            ▶
-          </span>
-          <div className="level-col is-next">
-            <span className="level-tag">Lv{next.level}</span>
-            <span className="level-vp">{next.vp}</span>
-            <span className="level-text">{next.text}</span>
-          </div>
+      {/* Lv: 数字は別の字体で金、★は 3 枠で常に。VP（＝収入）の行を 1 行目に固定し、次の Lv は変わる数字だけ「元 → 新」で 1 行ずつ。 */}
+      <p className="lv-head">
+        <span>
+          Lv<b className="tx-lvnum tx-lv">{view.level}</b>
+        </span>
+        <span className="lv-stars" aria-label={`Lv${view.level}`}>
+          {starSlots(view.level, balance.maxLevel)}
+        </span>
+        {view.maxed ? <b className="level-max">最大</b> : null}
+      </p>
+      <RichLines lines={view.lines} balance={balance} interactive />
+      {view.upgrade.length > 0 ? (
+        <div className="lv-next">
+          <p className="lv-next-title">次の Lv{view.level + 1}</p>
+          <RichLines lines={view.upgrade} balance={balance} />
         </div>
-      ) : (
-        <p className="sheet-text">
-          {isMaxLevel(state, slotId, balance) ? <b className="level-max">Lv{current.level}（最大）</b> : null}
-          {current.text}
-        </p>
-      )}
+      ) : null}
       {disabledByBlockade ? (
         <p className="sheet-text">封鎖者の封鎖で効果（収益を含む）が止まっています（VP は残ります）。封鎖を受けた側のターンの終わりで解けます。</p>
       ) : null}

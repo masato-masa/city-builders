@@ -1,15 +1,17 @@
 import { animate, AnimatePresence, motion, useMotionValue } from 'motion/react';
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 
-import { CARD_NAMES, cardTextFor, DEFAULT_BALANCE, type Balance } from '@/game/balance';
-import { cardCostFor } from '@/game/reducer';
-import { cardLevelOf, handSlotsOf, nextCardOf, usesToNextLevel } from '@/game/selectors';
+import { CARD_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
+import { cardCostInfo, costDetailText, costMark } from '@/game/card-cost';
+import { cardLinesFor, cardUpgradeLines, levelProgress, progressDots, starSlots } from '@/game/card-text';
+import { cardLevelOf, cardXpOf, handSlotsOf, nextCardOf } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
 import { cardArtOf } from './art';
 import { cardStaticNoteOf, classifyPress, doubleNoteOf, DRAG_THRESHOLD_PX, LONG_PRESS_MS, TAP_HINT, useHintOf, type PressKind } from './card-input';
 import { hapticTap } from './haptics';
 import { MenuIcon } from './icons';
+import { RichLines } from './RichText';
 import { playCardLevelUp, playSelect } from './sound';
 
 /** 手札 4 枚の枠番号。PlayerState.hand は常に長さ 4 の固定スロット配列で、
@@ -22,9 +24,20 @@ const TAP_HINT_MS = 1600;
 /** 使えなかった理由を出しておく時間（読み切れる長さ。演出は既定でゆっくり）。 */
 const NOTICE_MS = 2400;
 
-/** カードの Lv の印。Lv1 は何も出さず、Lv2 は星 1 つ、Lv3 は星 2 つ。 */
+/** カードの Lv の印。星は 3 枠で常に出す（Lv1 は ★☆☆、Lv3 は ★★★）。 */
 export function lvStars(level: number): string {
-  return level >= 2 ? '★'.repeat(level - 1) : '';
+  return starSlots(level);
+}
+
+/** ★の 3 枠。点いている星だけ金、空きは薄く。 */
+function LvStars({ level }: { level: number }) {
+  const on = Math.max(0, Math.min(3, level));
+  return (
+    <span className="lv-stars" aria-label={`Lv${level}`}>
+      <span className="lv-stars-on">{'★'.repeat(on)}</span>
+      <span className="lv-stars-off">{'☆'.repeat(3 - on)}</span>
+    </span>
+  );
 }
 
 /** 手札の上に出す「使えなかった理由」。id は出し直しの合図。 */
@@ -226,6 +239,9 @@ function CardPeek({
 }) {
   const art = cardArtOf(card);
   const level = cardLevelOf(state, viewer, card, balance);
+  const cost = cardCostInfo(state, viewer, card, balance);
+  const progress = levelProgress(balance, cardXpOf(state, viewer, card));
+  const upgrade = cardUpgradeLines(card, balance, level);
   return (
     <motion.div
       className="card-peek"
@@ -240,15 +256,24 @@ function CardPeek({
       <div className="card-peek-body">
         <p className="card-peek-title">
           {CARD_NAMES[card]}
-          <span className="card-peek-lv">Lv{level}{level >= 2 ? ` ${lvStars(level)}` : ''}</span>
-          <span className="card-peek-cost">コスト {cardCostFor(state, viewer, card, balance)}</span>
+          <span className="card-peek-lv">
+            Lv<b className="tx-lvnum">{level}</b> <LvStars level={level} />
+          </span>
+          <span className={`card-peek-cost tx-${cost.kind === 'plain' ? 'plain' : cost.kind}`}>
+            コスト <b className="tx-lvnum">{cost.now}</b>
+            {cost.kind !== 'plain' ? <span className="tx-mark">{costMark(cost.kind)}</span> : null}
+          </span>
         </p>
-        <p className="card-peek-text">{cardTextFor(card, balance, level)}</p>
-        {level < balance.maxLevel ? (
-          <p className="card-peek-note">
-            あと {usesToNextLevel(state, viewer, card, balance)} 回使うと Lv{level + 1}: {cardTextFor(card, balance, level + 1)}
+        {cost.kind !== 'plain' || cost.now !== cost.base ? (
+          <p className={`card-peek-note tx-${cost.kind}`}>{costDetailText(cost)}</p>
+        ) : null}
+        <RichLines className="card-peek-text" lines={cardLinesFor(card, balance, level)} balance={balance} />
+        {progress ? (
+          <p className="card-peek-note card-peek-next">
+            <span>次の Lv まで</span> <span className="lv-dots">{progressDots(progress.filled, progress.total)}</span>
           </p>
         ) : null}
+        {upgrade.length > 0 ? <RichLines className="card-peek-upgrade" lines={upgrade} balance={balance} /> : null}
         {cardStaticNoteOf(card) ? <p className="card-peek-note">{cardStaticNoteOf(card)}</p> : null}
         {card === 'double' ? <p className="card-peek-note">{doubleNoteOf(state, viewer, card, balance)}</p> : null}
         <p className="card-peek-note">{useHintOf(state, viewer, card)}</p>
@@ -297,6 +322,7 @@ function CardButton({
   onTap: () => void;
 }) {
   const art = cardArtOf(card);
+  const costInfo = cardCostInfo(state, viewer, card, balance);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const press = useRef<Press | null>(null);
@@ -412,15 +438,14 @@ function CardButton({
         <span className="card-body">
           {art ? <img className="card-art" src={art} alt="" draggable={false} /> : null}
           <span className="card-name">{CARD_NAMES[card]}</span>
-          {cardLevelOf(state, viewer, card, balance) >= 2 ? (
-            <span className="card-lv" aria-label={`Lv${cardLevelOf(state, viewer, card, balance)}`}>
-              {lvStars(cardLevelOf(state, viewer, card, balance))}
-            </span>
-          ) : null}
+          <span className="card-lv">
+            <LvStars level={cardLevelOf(state, viewer, card, balance)} />
+          </span>
         </span>
         {/* コストは金貨の宝石バッジ（クラロワのエリクサーの雫に当たる）。 */}
-        <span className="card-cost">
-          <span className="card-cost-num">{cardCostFor(state, viewer, card, balance)}</span>
+        <span className={`card-cost${costInfo.kind === 'plain' ? '' : ` is-${costInfo.kind}`}`} aria-label={costDetailText(costInfo)}>
+          <span className="card-cost-num">{costInfo.now}</span>
+          {costInfo.kind !== 'plain' ? <span className="card-cost-mark">{costMark(costInfo.kind)}</span> : null}
         </span>
       </motion.button>
     </motion.div>

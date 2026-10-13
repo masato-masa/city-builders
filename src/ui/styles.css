@@ -1911,7 +1911,7 @@
 
 .card-peek-note {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
   color: var(--chrome-ink-dim);
 }
@@ -1947,6 +1947,10 @@
   line-height: 1;
   letter-spacing: -1px;
   pointer-events: none;
+}
+
+.card-lv .lv-stars-off {
+  opacity: 0.45;
 }
 
 .card-peek-lv {
@@ -2241,7 +2245,7 @@
 
 .help-card-note {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .help-foot {
@@ -2277,4 +2281,244 @@
 
 .cpu-lv-chip.lv3 {
   background: rgb(255 216 74 / 0.28);
+}
+
+
+/* ---- 説明文の表記（docs/autopilot/text-style.md）----
+   金=Lv で上がった値／緑=持ち主に得／赤=損。色だけに頼らず印（▲▼）と「元の値 →」も付ける。 */
+:root {
+  --tx-lv: #a86f00;
+  --tx-good: #1c7f3a;
+  --tx-bad: #bf3b2c;
+}
+
+.card-peek {
+  --tx-lv: #ffd84a;
+  --tx-good: #72e08f;
+  --tx-bad: #ff8f80;
+}
+
+.tx-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tx-line {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.tx-line.is-main {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tx-num {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.tx-num.tx-lv,
+.tx-lv {
+  color: var(--tx-lv);
+}
+
+.tx-num.tx-good,
+.tx-good {
+  color: var(--tx-good);
+}
+
+.tx-num.tx-bad,
+.tx-bad {
+  color: var(--tx-bad);
+}
+
+.tx-from {
+  opacity: 0.7;
+  font-weight: 600;
+}
+
+.tx-arrow {
+  opacity: 0.7;
+}
+
+.tx-mark {
+  margin-left: 1px;
+  font-size: 0.75em;
+}
+
+/* Lv の数字だけ別の字体で目立たせる（ポケポケの数字の扱い） */
+.tx-lvnum {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 900;
+  font-size: 1.15em;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-peek-lv .tx-lvnum {
+  color: #ffd84a;
+}
+
+.card-peek-cost.tx-good,
+.card-peek-cost.tx-bad {
+  font-weight: 800;
+}
+
+/* キーワード: 下線語。タップできる所では指に合わせて少し大きく当たりを取る */
+.tx-kw {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.tx-kw.is-tappable {
+  cursor: pointer;
+  padding: 2px 1px;
+  margin: -2px 0;
+}
+
+.tx-kw.is-open {
+  text-decoration-style: solid;
+  color: var(--tx-lv);
+}
+
+.tx-kwdef {
+  margin: 2px 0 0;
+  min-height: 2.9em;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* 手札のコストバッジ: 変わったら宝石の色を替える（緑=安い・赤=高い）＋印 */
+.card-cost.is-good {
+  background: radial-gradient(circle at 34% 28%, #eaffd8 0 10%, #6fdc6a 32%, #1f9a3a 70%, #0f5f22 100%);
+}
+
+.card-cost.is-bad {
+  background: radial-gradient(circle at 34% 28%, #ffe0d8 0 10%, #ff7a62 32%, #d02e22 70%, #7c150f 100%);
+}
+
+.card-cost-mark {
+  position: absolute;
+  right: -6px;
+  top: -7px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  color: #fff;
+  -webkit-text-stroke: 2.5px #1b1b1b;
+  paint-order: stroke fill;
+  pointer-events: none;
+}
+
+.card-cost.is-good .card-cost-mark {
+  color: #9bf5a8;
+}
+
+.card-cost.is-bad .card-cost-mark {
+  color: #ffb0a2;
+}
+
+.card-peek-next {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin-top: 4px;
+}
+
+.lv-dots {
+  color: #ffd84a;
+  letter-spacing: 2px;
+}
+
+.card-peek-upgrade {
+  margin-top: 2px;
+}
+
+.card-peek-upgrade .tx-line {
+  font-size: 12px;
+}
+
+.lv-stars-on {
+  color: var(--tx-lv, #ffd84a);
+}
+
+.lv-stars-off {
+  opacity: 0.4;
+}
+
+/* 区画のシート: Lv 見出しと次の Lv の差分 */
+.lv-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 10px 0 4px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.lv-head .lv-stars {
+  color: var(--tx-lv);
+}
+
+.lv-next {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgb(255 200 61 / 0.18);
+  box-shadow: inset 0 0 0 1.5px rgb(214 150 20 / 0.45);
+}
+
+.lv-next-title {
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+/* あそびかた: 色と印の意味 */
+.mark-legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.mark-legend li {
+  display: grid;
+  grid-template-columns: 4.4em minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.mark-legend .tx-num {
+  font-size: 15px;
+}
+
+.word-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.word-list b {
+  color: var(--title);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
 }

@@ -21,6 +21,8 @@ export interface NumSeg {
   kind: NumKind;
   /** 次の Lv との差分表示で、いまの値（「+4 → +5」の左側）。 */
   from?: string;
+  /** 色だけに頼らない印。コストが下がれば ▼、上がれば ▲（効果の数値は ▲=増・▼=減） */
+  mark?: string;
 }
 
 export type KeywordId = 'income' | 'harass' | 'guard' | 'blockade' | 'acquire' | 'marketValue' | 'debt';
@@ -198,7 +200,7 @@ export function cardUpgradeLines(card: CardId, balance: Balance, level: number):
   const lines = cardLinesRaw(card, balance, level + 1, level).filter(lineHasDiff);
   const before = cardCostAt(balance, card, level);
   const after = cardCostAt(balance, card, level + 1);
-  if (before !== after) lines.unshift(['コスト ', { t: 'num', text: String(after), kind: after < before ? 'good' : 'bad', from: String(before) }]);
+  if (before !== after) lines.unshift(['コスト ', { t: 'num', text: String(after), kind: after < before ? 'good' : 'bad', from: String(before), mark: after < before ? '▼' : '▲' }]);
   return lines;
 }
 

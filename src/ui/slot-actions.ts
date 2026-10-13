@@ -3,6 +3,7 @@
 // ここは「なぜ押せないか」を言葉にするだけ。
 
 import { BUILDING_NAMES, buildingEffect, buildingTextFor, buildingVp, type Balance } from '@/game/balance';
+import { buildingLinesFor, buildingUpgradeLines, type TextLine } from '@/game/card-text';
 import { canAcquire, canUpgrade } from '@/game/reducer';
 import {
   acquireBlockOf,
@@ -281,6 +282,24 @@ export function levelEffects(
       ? null
       : { level: level + 1, vp: vpAt(level + 1), text: buildingTextFor(slot.buildingId, balance, level + 1) };
   return { current, next };
+}
+
+/** 区画の詳細の Lv 表示用。level=いまの Lv（未建設は Lv1 の見込み）、lines=VP（＝収入）の行を先頭にした効果、
+ *  upgrade=次の Lv で変わる行だけ（「+4 → +5」の差分。最大なら空）。 */
+export function levelView(
+  state: GameState,
+  slotId: number,
+  balance: Balance,
+): { level: number; lines: TextLine[]; upgrade: TextLine[]; maxed: boolean } {
+  const slot = state.market[slotId]!;
+  const level = slot.owner === null ? 1 : slot.level;
+  const maxed = slot.owner !== null && isMaxLevel(state, slotId, balance);
+  return {
+    level,
+    lines: buildingLinesFor(slot.buildingId, balance, level, true),
+    upgrade: slot.owner === null || maxed ? [] : buildingUpgradeLines(slot.buildingId, balance, level),
+    maxed,
+  };
 }
 
 /** CPU（相手）の行動を、盤面の上の吹き出しに出す文。誰が何をしたかを主語から言う。
