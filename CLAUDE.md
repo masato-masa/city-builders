@@ -23,6 +23,11 @@
   効果音と BGM は別のバス（`src/ui/audio-graph.ts`）で、最後にコンプレッサーとリミッター。BGM は効果音より約 9dB 小さく、
   買収・Lv2・決着で一拍下げる（ダッキング）。設定の「BGM」スイッチ（`city-builders:bgm`）。聴き比べは `sfx.html`。
 
+## ブラウザで試すとき
+
+**URL に `?mute` を付けて開く**（例: `http://localhost:5185/city-builders/?mute`）。効果音と BGM が必ず止まる（ユーザーの PC から音を出さない。保存された設定は変えない）。
+サブエージェントに実画面の確認を頼むときも、この URL を渡す。
+
 ## 自走改善
 
 ユーザーの指示が無くても改善を続ける。取り決めは `docs/autopilot/charter.md`、
