@@ -128,24 +128,20 @@ describe('地区の見せ方（district-view）', () => {
 });
 
 describe('建物の詳細の固定の数値（buildingSpecRows）', () => {
-  it('いつも VP・建築コスト・買収コスト・増築コスト（・追加収入）の順', () => {
+  it('いつも VP・建築コスト・増築コスト（・追加収入）の順（買収コストの行は無い）', () => {
     const rows = buildingSpecRows('tradingHouse', B);
-    expect(rows.map((r) => r.label)).toEqual(['VP', '建築コスト', '買収コスト', '増築コスト', '追加収入']);
+    expect(rows.map((r) => r.label)).toEqual(['VP', '建築コスト', '増築コスト', '追加収入']);
     expect(rows[0]!.value).toBe(
       `${B.buildings.tradingHouse.vp} / ${B.upgrades.tradingHouse.vp} / ${B.upgrades3.tradingHouse.vp}（Lv1/2/3）`,
     );
     expect(rows[1]!.value).toBe(`${B.buildings.tradingHouse.cost}`);
-    const mv = (lv: number) =>
-      (B.buildings.tradingHouse.cost + (lv >= 2 ? B.upgrades.tradingHouse.cost : 0)) * B.acquireMultiplier;
-    expect(rows[2]!.value).toBe(`市場価値 × ${B.acquireMultiplier}（${mv(1)} / ${mv(2)}。Lv3 は買収されない）`);
-    expect(rows[3]!.value).toBe(`Lv2 ${B.upgrades.tradingHouse.cost} ・ Lv3 ${B.upgrades3.tradingHouse.cost}`);
+    expect(rows[2]!.value).toBe(`Lv2 ${B.upgrades.tradingHouse.cost} ・ Lv3 ${B.upgrades3.tradingHouse.cost}`);
   });
 
   it('balance の値に追従する（買収の倍率・最大レベル）', () => {
     const b: Balance = { ...B, acquireMultiplier: 3, maxLevel: 2 };
     const rows = buildingSpecRows('wall', b);
-    expect(rows[2]!.value).toBe(`市場価値 × 3（${B.buildings.wall.cost * 3}。Lv2 は買収されない）`);
-    expect(rows[3]!.value).toBe(`Lv2 ${B.upgrades.wall.cost}`);
+    expect(rows[2]!.value).toBe(`Lv2 ${B.upgrades.wall.cost}`);
   });
 
   it('収入は VP がそのまま入る。追加の収入の行があるのは商館だけ', () => {
@@ -167,7 +163,7 @@ describe('区画の今の状態（slotStatusLine）', () => {
     g.market[0] = { ...g.market[0]!, owner: 'cpu', level: 2 };
     const mvWall = B.buildings.tradingHouse.cost + B.upgrades.tradingHouse.cost;
     expect(slotStatusLine(g, 0, 'you', B, NAMES, 7)).toBe(
-      `CPUの物件 ・ Lv2 ・ 市場価値 ${mvWall} ・ 買収 ${mvWall * B.acquireMultiplier}（×${B.acquireMultiplier}）`,
+      `CPUの物件 ・ Lv2 ・ 市場価値 ${mvWall} ・ 買収 ${mvWall * B.acquireMultiplier}`,
     );
     g.market[0]!.level = B.maxLevel;
     expect(slotStatusLine(g, 0, 'you', B, NAMES, 7)).toBe(`CPUの物件 ・ Lv${B.maxLevel} ・ 最終段階のため買収不可`);

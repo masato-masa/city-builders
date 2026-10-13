@@ -150,8 +150,8 @@ export function acquireNote(state: GameState, slotId: number, balance: Balance):
   if (!slot || slot.owner === null) return null;
   const buyer = opponentOf(slot.owner);
   const discount = state.players[buyer].acquireDiscount;
-  const spy = discount > 0 && buyer === state.current ? ` − 買収者 ${discount}` : '';
-  return `市場価値 ${marketValueOf(slot, balance)} × ${balance.acquireMultiplier}${spy}。払ったコインは消え（相手には渡らない）、物件と VP が移ります`;
+  const spy = discount > 0 && buyer === state.current ? `買収者の割引 −${discount}。` : '';
+  return `${spy}払ったコインは消え（相手には渡らない）、物件と VP が移ります`;
 }
 
 /** 区画のシートに出す地区の 1 行。取れば称号が来る／奪われると称号を失う、を先に言い、
@@ -186,7 +186,7 @@ export function districtNote(
     : `${name}: ${tally}。称号は${names[holder]}`;
 }
 
-/** 建物の詳細に並べる固定の数値の 1 行。label は常に同じ並び（VP・建築コスト・買収コスト・増築コスト・収益）。 */
+/** 建物の詳細に並べる固定の数値の 1 行。label は常に同じ並び（VP・建築コスト・増築コスト・収益）。 */
 export interface SpecRow {
   label: string;
   value: string;
@@ -210,13 +210,6 @@ export function buildingSpecRows(id: BuildingId, balance: Balance): SpecRow[] {
   const rows: SpecRow[] = [
     { label: 'VP', value: levels.length > 1 ? `${vp}（Lv${levels.join('/')}）` : vp },
     { label: '建築コスト', value: `${balance.buildings[id].cost}` },
-    {
-      label: '買収コスト',
-      value: `市場価値 × ${balance.acquireMultiplier}（${levels
-        .slice(0, Math.max(1, levels.length - 1))
-        .map((lv) => marketValueOf({ slotId: 0, buildingId: id, owner: null, level: lv, touchedTurn: 0 }, balance) * balance.acquireMultiplier)
-        .join(' / ')}。Lv${balance.maxLevel} は買収されない）`,
-    },
   ];
   if (upgrades) rows.push({ label: '増築コスト', value: upgrades });
   // 商館だけ VP が低い代わりに、効果で追加の収入が入る
@@ -242,7 +235,7 @@ export function slotStatusLine(
   if (slotMaxed(slot, balance)) return `${head} ・ 最終段階のため買収不可`;
   const buyer = opponentOf(slot.owner);
   const price = acquireCostFor(state, buyer, slot, balance);
-  return `${head} ・ 市場価値 ${marketValueOf(slot, balance)} ・ 買収 ${price}（×${balance.acquireMultiplier}）`;
+  return `${head} ・ 市場価値 ${marketValueOf(slot, balance)} ・ 買収 ${price}`;
 }
 
 export interface LevelEffect {

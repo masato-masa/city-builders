@@ -3,11 +3,12 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 
 import { CARD_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { cardCostInfo, costDetailText, costMark } from '@/game/card-cost';
-import { cardLinesFor, cardUpgradeLines, levelProgress, progressDots, starSlots } from '@/game/card-text';
+import { cardLinesFor, cardUpgradeLines } from '@/game/card-text';
 import { cardLevelOf, cardXpOf, handSlotsOf, nextCardOf } from '@/game/selectors';
 import type { CardId, GameState, PlayerId } from '@/game/types';
 
 import { cardArtOf } from './art';
+import { levelBarOf, type LevelBar } from './card-plot-view';
 import { cardStaticNoteOf, classifyPress, doubleNoteOf, DRAG_THRESHOLD_PX, LONG_PRESS_MS, TAP_HINT, useHintOf, type PressKind } from './card-input';
 import { hapticTap } from './haptics';
 import { MenuIcon } from './icons';
@@ -24,18 +25,20 @@ const TAP_HINT_MS = 1600;
 /** 使えなかった理由を出しておく時間（読み切れる長さ。演出は既定でゆっくり）。 */
 const NOTICE_MS = 2400;
 
-/** カードの Lv の印。星は 3 枠で常に出す（Lv1 は ★☆☆、Lv3 は ★★★）。 */
-export function lvStars(level: number): string {
-  return starSlots(level);
-}
-
-/** ★の 3 枠。点いている星だけ金、空きは薄く。 */
-function LvStars({ level }: { level: number }) {
-  const on = Math.max(0, Math.min(3, level));
+/** Lv の帯。背景を「次の Lv まで何回」で区切ったバーにし、使った回数ぶんの区画が満ちる。
+ *  最大 Lv は区切りなしで満タン。数字はバーの上に重ねる。 */
+function LvBar({ bar, className = '' }: { bar: LevelBar; className?: string }) {
   return (
-    <span className="lv-stars" aria-label={`Lv${level}`}>
-      <span className="lv-stars-on">{'★'.repeat(on)}</span>
-      <span className="lv-stars-off">{'☆'.repeat(3 - on)}</span>
+    <span
+      className={`lv-bar${bar.maxed ? ' is-max' : ''} ${className}`.trim()}
+      data-segments={bar.segments}
+      data-filled={bar.filled}
+      aria-label={`Lv${bar.level}${bar.maxed ? '（最大）' : `（次の Lv まで ${bar.filled}/${bar.segments}）`}`}
+    >
+      {Array.from({ length: bar.segments }, (_, i) => (
+        <span key={i} className={`lv-bar-seg${i < bar.filled ? ' is-on' : ''}`} />
+      ))}
+      <span className="lv-bar-text">Lv.{bar.level}</span>
     </span>
   );
 }
@@ -193,7 +196,7 @@ export function Hand({
             exit={{ opacity: 0, pointerEvents: 'none' }}
             transition={{ type: 'spring', stiffness: 460, damping: 26 }}
           >
-            {CARD_NAMES[lvUp.card]} Lv{lvUp.level} {lvStars(lvUp.level)}
+            {CARD_NAMES[lvUp.card]} Lv.{lvUp.level}
           </motion.div>
         ) : shownNotice ? (
           <motion.div
@@ -240,7 +243,7 @@ function CardPeek({
   const art = cardArtOf(card);
   const level = cardLevelOf(state, viewer, card, balance);
   const cost = cardCostInfo(state, viewer, card, balance);
-  const progress = levelProgress(balance, cardXpOf(state, viewer, card));
+  const bar = levelBarOf(balance, level, cardXpOf(state, viewer, card));
   const upgrade = cardUpgradeLines(card, balance, level);
   return (
     <motion.div
@@ -257,7 +260,7 @@ function CardPeek({
         <p className="card-peek-title">
           {CARD_NAMES[card]}
           <span className="card-peek-lv">
-            Lv<b className="tx-lvnum">{level}</b> <LvStars level={level} />
+            Lv.<b className="tx-lvnum">{level}</b>
           </span>
           <span className={`card-peek-cost tx-${cost.kind === 'plain' ? 'plain' : cost.kind}`}>
             コスト <b className="tx-lvnum">{cost.now}</b>
@@ -268,9 +271,9 @@ function CardPeek({
           <p className={`card-peek-note tx-${cost.kind}`}>{costDetailText(cost)}</p>
         ) : null}
         <RichLines className="card-peek-text" lines={cardLinesFor(card, balance, level)} balance={balance} />
-        {progress ? (
+        {!bar.maxed ? (
           <p className="card-peek-note card-peek-next">
-            <span>次の Lv まで</span> <span className="lv-dots">{progressDots(progress.filled, progress.total)}</span>
+            <span>次の Lv まで</span> <LvBar bar={bar} className="is-peek" />
           </p>
         ) : null}
         {upgrade.length > 0 ? <RichLines className="card-peek-upgrade" lines={upgrade} balance={balance} /> : null}
@@ -438,9 +441,7 @@ function CardButton({
         <span className="card-body">
           {art ? <img className="card-art" src={art} alt="" draggable={false} /> : null}
           <span className="card-name">{CARD_NAMES[card]}</span>
-          <span className="card-lv">
-            <LvStars level={cardLevelOf(state, viewer, card, balance)} />
-          </span>
+          <LvBar bar={levelBarOf(balance, cardLevelOf(state, viewer, card, balance), cardXpOf(state, viewer, card))} className="card-lvbar" />
         </span>
         {/* コストは金貨の宝石バッジ（クラロワのエリクサーの雫に当たる）。 */}
         <span className={`card-cost${costInfo.kind === 'plain' ? '' : ` is-${costInfo.kind}`}`} aria-label={costDetailText(costInfo)}>

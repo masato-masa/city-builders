@@ -139,7 +139,7 @@ function HelpSection({ id, balance, deck }: { id: HelpSectionId; balance: Balanc
               </li>
             ))}
           </ul>
-          <p className="sheet-text">★ は Lv（★☆☆ → ★★★）。点（●○）は次の Lv までの回数。説明文の<u>下線の言葉</u>はタップで意味が出ます。</p>
+          <p className="sheet-text">カード下の帯の数字は Lv。帯の区切りは次の Lv までの回数で、使うたびに 1 区画ずつ満ちます。説明文の<u>下線の言葉</u>はタップで意味が出ます。</p>
         </>
       );
     case 'words':

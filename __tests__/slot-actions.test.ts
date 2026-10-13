@@ -82,7 +82,7 @@ describe('acquireButton', () => {
     s.players.you.coins = price;
     const b = acquireButton(s, 7, 'you', B)!;
     expect(b).toEqual({ price, enabled: true, label: `買収（${price}コイン）`, reason: null });
-    expect(acquireNote(s, 7, B)).toContain(`市場価値 ${B.buildings.fortress.cost} × ${B.acquireMultiplier}`);
+    expect(acquireNote(s, 7, B)).not.toContain('×');
   });
 
   it('自分の物件・空き地では出さない', () => {

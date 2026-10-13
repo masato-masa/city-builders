@@ -28,6 +28,7 @@ import {
   type Segment,
 } from './board-layout';
 import { ChainIcon, CoinBagIcon, LockIcon, UpArrowIcon } from './icons';
+import { plotTagOf } from './card-plot-view';
 import { isMaxLevel, plotFigures } from './slot-actions';
 import { playTitle } from './sound';
 
@@ -194,9 +195,6 @@ function DistrictTag({
         animate={moved > 0 ? { scale: [1, 1.35, 0.95, 1] } : { scale: 1 }}
         transition={{ duration: 0.6, times: [0, 0.3, 0.7, 1], ease: 'easeOut' }}
       >
-        <span className="district-flag" aria-hidden="true">
-          {holder ? <Flag owner={holder} /> : <span className="district-flag-empty" />}
-        </span>
         <span className="district-name">{name}</span>
       </motion.span>
       {moved > 0 && holder ? (
@@ -282,6 +280,7 @@ function PlotView({
   const leveled = owned && slot.level >= 2;
   const maxed = owned && isMaxLevel(state, slotId, balance);
   const figures = plotFigures(state, slotId, viewer, balance, (id) => buildCostFor(state, viewer, id, balance));
+  const tag = plotTagOf(figures, owner);
 
   // 封鎖中の空き地。封鎖は「押せない」判定のため受ける側ごとに
   // 持つ値だが、盤面はどちらの操作でも同じ 1 枚を共有しているので、
@@ -490,32 +489,27 @@ function PlotView({
           </span>
         ) : null}
         <span className="plot-badges">
-          {/* 実際にいま払う額を出す。建築家や石切場の割引が効いているターンは
-              基準費用と食い違うので、基準費用を出すと画面が嘘の数字を出す。
-              「買う前と後で情報を変えない」は出す項目の話であって、
-              値を固定しろという意味ではない。 */}
-          {figures.kind === 'unbuilt' ? <span className="plot-cost">{figures.build}</span> : null}
-          <span className={`plot-vp${owned ? ` owner-${owner}` : ''}`}>{vpText}</span>
-          {/* 建った物件は数字を 2 つ: 市場価値（買収に要るコイン、袋の印）とアップグレード費（上矢印）。
-              凡例が無くても分かるよう、色だけでなく印を添える。最大レベルならアップグレードは出さない。 */}
-          {figures.kind === 'built' ? (
-            figures.value === null ? (
-              // 最終段階は買収できない。盤面では文字を出さず鍵の印だけ（理由は区画の詳細シートで言う）。
-              // 数字の札と同じ高さの小さな札にして、名札が下へ伸びないようにする。
+          {/* 並びは「VP・コイン」で固定。買う前後で変わるのは VP の札の色（持ち主）だけ。
+              コインの札は、買う前が実際にいま払う建設費（建築家や石切場の割引込み）、
+              買った後が買収に要るコイン。最終段階は鍵。 */}
+          <span className="plot-pair">
+            <span className={`plot-vp${tag.vpOwner ? ` owner-${tag.vpOwner}` : ''}`}>{vpText}</span>
+            {tag.coin.kind === 'locked' ? (
               <span className="plot-value is-locked" title="最終段階のため買収不可">
                 <LockIcon />
               </span>
             ) : (
               <span className="plot-value">
                 <CoinBagIcon />
-                {figures.value}
+                {tag.coin.value}
               </span>
-            )
-          ) : null}
-          {figures.kind === 'built' && figures.upgrade !== null ? (
+            )}
+          </span>
+          {/* アップグレード費は右に足す。出ていなくても VP とコインの位置は動かない（絶対配置）。 */}
+          {tag.upgrade !== null ? (
             <span className="plot-upgrade">
               <UpArrowIcon />
-              {figures.upgrade}
+              {tag.upgrade}
             </span>
           ) : null}
         </span>

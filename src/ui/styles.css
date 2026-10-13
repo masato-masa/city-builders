@@ -895,27 +895,19 @@
   left: 50%;
   top: 83%;
   transform: translateX(-50%);
-  display: flex;
-  gap: 0.9cqw;
 }
 
-.plot-cost {
-  min-width: 6.6cqw;
-  padding: 0.35cqw 1.5cqw;
-  border-radius: 3cqw;
-  background: var(--coin);
-  color: var(--coin-ink);
-  font-size: max(9.5px, 3.2cqw);
-  font-weight: 700;
-  line-height: 1.2;
-  text-align: center;
-  box-shadow: 0 0.5cqw 0 rgb(0 0 0 / 0.35);
+/* VP とコインの 2 枚。幅は固定（数字の桁・購入前後・Lv で動かない）。 */
+.plot-pair {
+  display: flex;
+  gap: 0.9cqw;
 }
 
 /* VP。地を所有者の色にする（要望 5）。大聖堂だけ未建設のとき
    「1 件につき +2」の形（+N/件）に文字が変わる例外を持つ（Board.tsx 参照）。 */
 .plot-vp {
-  min-width: 9cqw;
+  box-sizing: border-box;
+  width: 12.5cqw;
   padding: 0.35cqw 1.5cqw;
   border-radius: 3cqw;
   background: rgb(20 16 12 / 0.72);
@@ -957,6 +949,8 @@
 .plot-upgrade {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   gap: 0.3cqw;
   padding: 0.35cqw 1.1cqw 0.35cqw 0.8cqw;
   border-radius: 3cqw;
@@ -969,10 +963,16 @@
 }
 
 .plot-value {
+  width: 12cqw;
   color: var(--coin);
 }
 
+/* アップグレード費は VP・コインの右に足す。絶対配置なので、出ても出なくても 2 枚は動かない。 */
 .plot-upgrade {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  margin-left: 0.9cqw;
   color: #7ee08a;
 }
 
@@ -1037,19 +1037,12 @@
   box-shadow: inset 0 0 0 1.5px var(--owner-cpu-glow);
 }
 
-.district-flag {
-  display: block;
-  width: 4cqw;
-  height: 6.2cqw;
+.district-tag.owner-you .district-name {
+  color: var(--owner-you-glow);
 }
 
-/* 誰も持っていない地区は、旗竿だけの空の旗 */
-.district-flag-empty {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-left: 0.5cqw solid rgb(255 238 204 / 0.35);
-  margin-left: 0.4cqw;
+.district-tag.owner-cpu .district-name {
+  color: var(--owner-cpu-glow);
 }
 
 .district-name {
@@ -1338,7 +1331,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 3px 3px 15px;
+  padding: 3px 3px 17px;
   background: linear-gradient(to top, rgb(0 0 0 / 0.82) 40%, rgb(0 0 0 / 0));
   font-size: 10px;
   font-weight: 800;
@@ -1353,9 +1346,8 @@
    読みやすさを優先して直径は実測より 4px 大きい 23px。 */
 .card-cost {
   position: absolute;
-  left: 50%;
-  bottom: -11px;
-  translate: -50% 0;
+  left: -7px;
+  top: -8px;
   width: 23px;
   height: 23px;
   border-radius: 50%;
@@ -1649,7 +1641,6 @@
 }
 
 /* 盤面の上に乗る数字は、縁取りで読ませる。 */
-.plot-cost,
 .plot-vp,
 .plot-value,
 .plot-upgrade {
@@ -1934,23 +1925,61 @@
 }
 
 /* 使えなかった理由。案内と同じ形で、縁だけ赤みにして「はじかれた」と分かるようにする。 */
-/* カードの Lv の印（星）。札の左上に小さく重ねる。寸法は動かさない（絶対配置）。 */
-.card-lv {
-  position: absolute;
-  left: 3px;
-  top: 3px;
-  padding: 1px 3px;
-  border-radius: 6px;
-  background: rgb(16 24 32 / 0.78);
-  color: #ffd84a;
-  font-size: 9px;
-  line-height: 1;
-  letter-spacing: -1px;
+/* カードの Lv 帯。下端いっぱいに敷き、背景を「次の Lv まで何回」で区切ったバーにする。
+   区画が満ちた分だけ金。数字は上に重ねる。絶対配置で、カードの寸法は動かさない。 */
+.lv-bar {
+  position: relative;
+  display: flex;
+  gap: 1px;
+  height: 14px;
+  background: #0b1520;
   pointer-events: none;
 }
 
-.card-lv .lv-stars-off {
-  opacity: 0.45;
+.card-lvbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-top: 1px solid #0b1520;
+}
+
+.lv-bar-seg {
+  flex: 1 1 0;
+  min-width: 0;
+  background: #2b3d52;
+}
+
+.lv-bar-seg.is-on,
+.lv-bar.is-max .lv-bar-seg {
+  background: linear-gradient(#ffe36a, #e0a300);
+}
+
+.lv-bar-text {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  -webkit-text-stroke: 2.5px #0b1520;
+  paint-order: stroke fill;
+  letter-spacing: 0.02em;
+}
+
+.lv-bar.is-peek {
+  display: inline-flex;
+  width: 72px;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.lv-bar.is-peek .lv-bar-text {
+  display: none;
 }
 
 .card-peek-lv {
