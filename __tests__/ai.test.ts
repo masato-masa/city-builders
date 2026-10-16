@@ -202,7 +202,7 @@ describe('AiOptions への分解', () => {
       profile: CPU_PROFILE,
     });
     expect(optionsFor('hard')).toEqual({
-      noise: 0,
+      noise: 18,
       harassRate: 1,
       lookahead: true,
       profile: CPU_PROFILE,
