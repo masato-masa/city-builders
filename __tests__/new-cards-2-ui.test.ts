@@ -137,10 +137,10 @@ describe('テスト用の抽選デッキ・仮のカード面', () => {
     expect(testDeckCards(42, 'default')).toBeUndefined();
   });
 
-  it('新しい 4 枚にも仮の面がある（文字の SVG）', () => {
+  it('新しい 4 枚にも絵がある', () => {
     for (const c of ['boss', 'informer', 'double', 'clerk'] as const) {
-      expect(hasCardArt(c)).toBe(false);
-      expect(cardArtOf(c)).toMatch(/^data:image\/svg\+xml/);
+      expect(hasCardArt(c)).toBe(true);
+      expect(cardArtOf(c)).not.toMatch(/^data:image\/svg\+xml/);
     }
   });
 });

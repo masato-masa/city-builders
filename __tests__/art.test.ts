@@ -30,12 +30,12 @@ describe('素材の対応表', () => {
     expect(done).toBeLessThanOrEqual(new Set(DEFAULT_BALANCE.market).size);
   });
 
-  it('市場の物件はすべて絵を持つ（鉱山は石切場の絵を仮に使い、空き地に見えない）', () => {
+  it('市場の物件はすべて自分の絵を持つ（空き地に見えない）', () => {
     for (const id of new Set(DEFAULT_BALANCE.market)) {
       expect(BUILDING_ART[id]?.url, id).toBeTruthy();
     }
-    expect(hasBuildingArt('mine')).toBe(false);
-    expect(BUILDING_ART.mine?.url).toBe(BUILDING_ART.quarry?.url);
+    expect(hasBuildingArt('mine')).toBe(true);
+    expect(BUILDING_ART.mine?.url).not.toBe(BUILDING_ART.quarry?.url);
   });
 
   it('登録されているカード絵は、すべて実在するカード ID のもの', () => {
@@ -67,7 +67,7 @@ describe('素材の対応表', () => {
         expect(decodeURIComponent(url), id).toContain(CARD_PLACEHOLDER[id]?.mark ?? '');
       }
     }
-    expect(hasCardArt('craftsman')).toBe(false);
-    expect(hasCardArt('inspector')).toBe(false);
+    // 2026-10-17: 全 16 枚に絵がそろった
+    for (const id of Object.keys(DEFAULT_BALANCE.cards) as CardId[]) expect(hasCardArt(id), id).toBe(true);
   });
 });

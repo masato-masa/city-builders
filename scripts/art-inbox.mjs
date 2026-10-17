@@ -36,6 +36,22 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+const RECV_PAGE = `<!doctype html><meta charset="utf-8"><title>inbox</title><pre id="log">待機中</pre><script>
+const log = (t) => (document.getElementById('log').textContent += '\n' + t);
+addEventListener('message', async (e) => {
+  const { name, dataUrl } = e.data || {};
+  if (!name || !dataUrl) return;
+  const bin = atob(dataUrl.split(',')[1]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const r = await fetch('/save?name=' + encodeURIComponent(name), { method: 'POST', body: bytes });
+  log(name + ' ' + r.status + ' ' + bytes.length);
+  e.source && e.source.postMessage({ saved: name, status: r.status }, '*');
+});
+// 開いた側は window.open の戻り値でなく、この合図の e.source を宛先に使う（戻り値では届かなかった）
+if (window.opener) window.opener.postMessage({ inboxReady: true }, '*');
+</script>`;
+
 const server = createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, CORS);
@@ -44,6 +60,13 @@ const server = createServer(async (req, res) => {
   }
 
   const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
+  // chatgpt.com は CSP で localhost への fetch を止めるので、別窓（このページ）を開いて
+  // postMessage で {name, dataUrl} を渡す。このページが同じオリジンの /save へ送る。
+  if (req.method === 'GET' && url.pathname === '/recv') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(RECV_PAGE);
+    return;
+  }
   if (req.method !== 'POST' || url.pathname !== '/save') {
     res.writeHead(404, CORS);
     res.end('not found');

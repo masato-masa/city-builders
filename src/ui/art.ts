@@ -6,6 +6,7 @@ import cathedralUrl from '@/assets/art/buildings/cathedral.webp';
 import exchangeUrl from '@/assets/art/buildings/exchange.webp';
 import factoryUrl from '@/assets/art/buildings/factory.webp';
 import fortressUrl from '@/assets/art/buildings/fortress.webp';
+import mineUrl from '@/assets/art/buildings/mine.webp';
 import quarryUrl from '@/assets/art/buildings/quarry.webp';
 import roadUrl from '@/assets/art/buildings/road.webp';
 import tradingHouseUrl from '@/assets/art/buildings/tradingHouse.webp';
@@ -20,6 +21,12 @@ import spyUrl from '@/assets/art/cards/spy.webp';
 import taxmanUrl from '@/assets/art/cards/taxman.webp';
 import blockaderUrl from '@/assets/art/cards/blockader.webp';
 import usurerUrl from '@/assets/art/cards/usurer.webp';
+import craftsmanUrl from '@/assets/art/cards/craftsman.webp';
+import inspectorUrl from '@/assets/art/cards/inspector.webp';
+import bossUrl from '@/assets/art/cards/boss.webp';
+import informerUrl from '@/assets/art/cards/informer.webp';
+import doubleUrl from '@/assets/art/cards/double.webp';
+import clerkUrl from '@/assets/art/cards/clerk.webp';
 import coinUrl from '@/assets/art/ui/coin.webp';
 
 /** 盤面の地。縦横比 2:3（711×1067）。盤面（.board、2:3）に cover で敷くので切れない。画面全体の背景にも使う。 */
@@ -46,13 +53,12 @@ const OWN_BUILDING_ART: Partial<Record<BuildingId, BuildingArt>> = {
   road: { url: roadUrl, scale: 0.91 },
   exchange: { url: exchangeUrl, scale: 0.95 },
   quarry: { url: quarryUrl, scale: 0.97 },
+  mine: { url: mineUrl, scale: 0.91 },
 };
 
 /** 絵がまだ無い物件に仮に使う、近い物件の絵。鉱山は石切場（同じ「掘る」場所）。
  *  空き地のように描かれると「建っていない」と読めてしまうため（2026-10-11）。本物の絵ができたら OWN_BUILDING_ART に足し、ここから消す。 */
-export const BUILDING_ART_STANDIN: Partial<Record<BuildingId, BuildingId>> = {
-  mine: 'quarry',
-};
+export const BUILDING_ART_STANDIN: Partial<Record<BuildingId, BuildingId>> = {};
 
 export const BUILDING_ART: Partial<Record<BuildingId, BuildingArt>> = { ...OWN_BUILDING_ART };
 for (const [id, from] of Object.entries(BUILDING_ART_STANDIN) as [BuildingId, BuildingId][]) {
@@ -78,6 +84,12 @@ export const CARD_ART: Partial<Record<CardId, string>> = {
   spy: spyUrl,
   taxman: taxmanUrl,
   blockader: blockaderUrl,
+  craftsman: craftsmanUrl,
+  inspector: inspectorUrl,
+  boss: bossUrl,
+  informer: informerUrl,
+  double: doubleUrl,
+  clerk: clerkUrl,
 };
 
 /** 絵がまだ無いカードの仮の面（文字と色だけ）。上下 2 色のグラデーションに、名前の 1 文字を大きく置く。
@@ -90,20 +102,7 @@ export interface CardPlaceholder {
   bottom: string;
 }
 
-export const CARD_PLACEHOLDER: Partial<Record<CardId, CardPlaceholder>> = {
-  // 職人: 上げて固める（建物側の色。建築家の暖色に寄せた銅色）
-  craftsman: { mark: '職', top: '#d39a4a', bottom: '#6a3d14' },
-  // 検査官: 相手を削る（妨害側の色。徴税官・封鎖者の寒色に寄せた藍）
-  inspector: { mark: '検', top: '#5c7fbf', bottom: '#1d2a50' },
-  // 顔役: 称号を奪う（妨害側。紫寄りの藍）
-  boss: { mark: '顔', top: '#8a5cbf', bottom: '#2f1d50' },
-  // 密告者: 相手の手順を崩す（妨害側。くすんだ青緑）
-  informer: { mark: '密', top: '#4f9a9a', bottom: '#173838' },
-  // 影武者: 直前の札をもう一度（中立。灰がかった墨色）
-  double: { mark: '影', top: '#8c8c9c', bottom: '#2a2a36' },
-  // 番頭: 商館から即金（投資側。黄土色）
-  clerk: { mark: '番', top: '#c9a640', bottom: '#5e4a10' },
-};
+export const CARD_PLACEHOLDER: Partial<Record<CardId, CardPlaceholder>> = {};
 
 /** 仮の面の既定（CARD_PLACEHOLDER にも無いカード）。名前の頭の 1 文字を灰色の地に置く。 */
 function placeholderOf(card: CardId): CardPlaceholder {
