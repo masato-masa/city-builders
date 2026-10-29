@@ -30,6 +30,6 @@
 
 ## 自走改善
 
-ユーザーの指示が無くても改善を続ける。取り決めは `docs/autopilot/charter.md`、
-次にやることは `backlog.md`、過去の試行と結果は `journal.md`。**作業を始める前に 3 つとも読む。**
+ユーザーの指示が無くても改善を続ける。取り決めは `Obsidian:Projects/city-builders/autopilot/charter.md`、
+次にやることは同じフォルダの `backlog.md`、過去の試行と結果は `journal.md`（Vault は `C:\claude\claude-obsidian`、Obsidian MCP で読み書きする）。**作業を始める前に 3 つとも読む。**
 ルール・演出・音・公開まで任されている。変更前に `autopilot/<連番>-<名前>` のタグでバックアップを取る。

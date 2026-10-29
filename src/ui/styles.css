@@ -2314,7 +2314,7 @@
 }
 
 
-/* ---- 説明文の表記（docs/autopilot/text-style.md）----
+/* ---- 説明文の表記（Obsidian:Projects/city-builders/autopilot/text-style.md）----
    金=Lv で上がった値／緑=持ち主に得／赤=損。色だけに頼らず印（▲▼）と「元の値 →」も付ける。 */
 :root {
   --tx-lv: #a86f00;

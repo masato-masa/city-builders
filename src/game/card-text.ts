@@ -1,5 +1,5 @@
 // 札・建物の説明文。「行の配列（主文 1 行＋補足 1〜2 行）」で返し、数字には種類を付ける（描画側が色と印を付ける）。
-// 表記の決まりは docs/autopilot/text-style.md。数値は全部 balance から差し込む（ルールの中身は変えない）。
+// 表記の決まりは Obsidian:Projects/city-builders/autopilot/text-style.md。数値は全部 balance から差し込む（ルールの中身は変えない）。
 
 import {
   buildingEffect,

@@ -1,5 +1,5 @@
 // 手触り（衝撃・カード使用の 3 段・決着）の判定と数値。React や DOM に触らない純粋関数だけを置き、
-// テストで値の上限（docs/autopilot/standards.md §1）を確かめられるようにする。
+// テストで値の上限（Obsidian:Projects/city-builders/autopilot/standards.md §1）を確かめられるようにする。
 
 import { CARD_NAMES, DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import { cardCostFor } from '@/game/reducer';

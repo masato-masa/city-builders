@@ -3,7 +3,7 @@
  *
  *  条件は DEFAULT_BALANCE に重ねる小さな差分として持つ（balance.ts の既定値は書き換えない）。
  *  差分は「いまの既定値から −2」のように既定値を受け取る関数で書くので、既定値が調整されても追従する。
- *  採用した条件は `npm run lab` で先手勝率 45〜55% に収まったものだけ（docs/autopilot/journal.md）。 */
+ *  採用した条件は `npm run lab` で先手勝率 45〜55% に収まったものだけ（Obsidian:Projects/city-builders/autopilot/journal.md）。 */
 import type { Difficulty } from '@/ai/choose';
 import { DEFAULT_BALANCE, type Balance } from '@/game/balance';
 import type { PlayerId } from '@/game/types';
