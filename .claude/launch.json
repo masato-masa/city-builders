@@ -4,8 +4,22 @@
     {
       "name": "city-builders",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5185
+    },
+    {
+      "name": "riale-cardbatlle",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "C:/claude/riale-cardbatlle",
+        "run",
+        "dev"
+      ],
+      "port": 5190
     }
   ]
 }
