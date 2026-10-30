@@ -11,7 +11,7 @@
  *   4. カード 2 枚の組み合わせの偏り（足し算で説明できない分が大きい組）
  * を出す。乱数は seed だけから決まり、同じコマンドは同じ結果になる。並列は子プロセス（workers）。 */
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { chooseAction, type AiOptions } from '../src/ai/choose';
@@ -179,6 +179,8 @@ async function main(): Promise<void> {
     ),
   );
   results.sort((a, b) => a.index - b.index);
+  const dump = argv.find((a) => a.startsWith('dump='))?.slice('dump='.length);
+  if (dump) writeFileSync(dump, JSON.stringify(results));
   report(results, (Date.now() - started) / 1000);
 }
 
@@ -213,18 +215,19 @@ function fit(rows: { x: number[]; y: number; w: number }[]): number[] {
   return A.map((row, i) => row[k]! / row[i]!);
 }
 
-/** 12 種から 6 の全組み合わせ */
-function allDecks(): CardId[][] {
-  const out: CardId[][] = [];
-  const pick = (start: number, cur: CardId[]) => {
-    if (cur.length === 6) {
-      out.push([...CORE_CARDS, ...cur]);
-      return;
-    }
-    for (let i = start; i < OPTIONAL.length; i++) pick(i + 1, [...cur, OPTIONAL[i]!]);
-  };
-  pick(0, []);
-  return out;
+/** 抽選で出るデッキと、その出やすさ（seed 0〜19999 の drawDeck の頻度）。抽選に偏り（役割ごとの最低枚数など）が
+ *  あっても、実際に配られる割合で数える */
+function drawnDecks(): { deck: CardId[]; weight: number }[] {
+  const freq = new Map<string, { deck: CardId[]; weight: number }>();
+  const N = 20_000;
+  for (let s = 0; s < N; s++) {
+    const d = drawDeck(s, balance);
+    const key = d.join(',');
+    const e = freq.get(key);
+    if (e) e.weight += 1 / N;
+    else freq.set(key, { deck: d, weight: 1 / N });
+  }
+  return [...freq.values()];
 }
 
 function report(results: DeckResult[], seconds: number): void {
@@ -285,34 +288,38 @@ function report(results: DeckResult[], seconds: number): void {
   console.log('');
 
   const predict = (coef: number[], deck: CardId[]) => x(deck).reduce((s, v, i) => s + v * coef[i]!, 0);
-  const every = allDecks();
-  const flagged = every.map((deck) => {
+  const every = drawnDecks();
+  const flagged = every.map(({ deck, weight }) => {
     const f = predict(firstCoef, deck);
     const ps = personaCoef.map((co) => predict(co, deck));
     const firstOut = f < 0.45 || f > 0.55;
     const personaOut = ps.some((v) => v < 0.42 || v > 0.58);
-    return { deck, f, ps, firstOut, personaOut };
+    return { deck, weight, f, ps, firstOut, personaOut };
   });
-  const nFirst = flagged.filter((d) => d.firstOut).length;
-  const nPersona = flagged.filter((d) => d.personaOut).length;
-  const nEither = flagged.filter((d) => d.firstOut || d.personaOut).length;
-  console.log(`## ありうる全デッキ（${every.length} 通り）の推定`);
+  const share = (fn: (d: (typeof flagged)[number]) => boolean) =>
+    flagged.filter(fn).reduce((s, d) => s + d.weight, 0);
+  const nFirst = share((d) => d.firstOut);
+  const nPersona = share((d) => d.personaOut);
+  const nEither = share((d) => d.firstOut || d.personaOut);
+  console.log(`## 抽選で出るデッキ（${every.length} 通り、出やすさで重み付け）の推定`);
   console.log('');
-  console.log('| 条件 | 外れるデッキ |');
+  console.log('| 条件 | 外れるデッキの割合 |');
   console.log('|---|---|');
-  console.log(`| 先手 45〜55% | ${nFirst}（${pct(nFirst / every.length)}） |`);
-  console.log(`| 4 性格 42〜58% | ${nPersona}（${pct(nPersona / every.length)}） |`);
-  console.log(`| どちらか | ${nEither}（${pct(nEither / every.length)}） |`);
+  console.log(`| 先手 45〜55% | ${pct(nFirst)} |`);
+  console.log(`| 4 性格 42〜58% | ${pct(nPersona)} |`);
+  console.log(`| どちらか | ${pct(nEither)} |`);
   console.log('');
   const out = flagged.filter((d) => d.firstOut || d.personaOut);
   if (out.length > 0) {
-    console.log('外れるデッキに入っている割合（全デッキでは各 50%）:');
+    const outW = out.reduce((s, d) => s + d.weight, 0);
+    const inAll = (c: CardId) => share((d) => d.deck.includes(c));
+    console.log('外れるデッキに入っている割合（右は抽選で出るデッキ全体での割合）:');
     console.log('');
-    console.log('| カード | 外れるデッキでの割合 |');
-    console.log('|---|---|');
-    OPTIONAL.map((c) => ({ c, r: out.filter((d) => d.deck.includes(c)).length / out.length }))
-      .sort((a, b) => Math.abs(b.r - 0.5) - Math.abs(a.r - 0.5))
-      .forEach(({ c, r }) => console.log(`| ${CARD_NAMES[c]} | ${pct(r)} |`));
+    console.log('| カード | 外れるデッキでの割合 | 全体 |');
+    console.log('|---|---|---|');
+    OPTIONAL.map((c) => ({ c, r: out.filter((d) => d.deck.includes(c)).reduce((s, d) => s + d.weight, 0) / outW, all: inAll(c) }))
+      .sort((a, b) => Math.abs(b.r - b.all) - Math.abs(a.r - a.all))
+      .forEach(({ c, r, all }) => console.log(`| ${CARD_NAMES[c]} | ${pct(r)} | ${pct(all)} |`));
     console.log('');
     const worst = [...out]
       .sort((a, b) => {
