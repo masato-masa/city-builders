@@ -2558,3 +2558,30 @@
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+
+/* ---- ホーム画面に追加したアプリ ----
+   viewport-fit=cover と black-translucent で画面が時計の帯・ノッチの下まで広がるので、
+   上と左右にセーフエリアの分だけ余白を足す（下は shared の .app が持っている）。
+   ブラウザでは env() が 0 なので見た目は変わらない。 */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+.app.app-home,
+.app.app-play {
+  padding-left: calc(16px + env(safe-area-inset-left));
+  padding-right: calc(16px + env(safe-area-inset-right));
+}
+
+.app.app-home {
+  padding-top: calc(16px + env(safe-area-inset-top));
+}
+
+.app.app-play {
+  padding-top: calc(6px + env(safe-area-inset-top));
+}
+
+.app.app-home > .dev-pill {
+  right: calc(12px + env(safe-area-inset-right));
+}
