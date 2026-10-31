@@ -157,6 +157,12 @@ function HelpSection({ id, balance, deck }: { id: HelpSectionId; balance: Balanc
         <>
         <p className="sheet-text">
           同じカードを {balance.cardLevelUses[0]} 回使うと <b>Lv2</b>、{balance.cardLevelUses[1]} 回で <b>Lv3</b>（この試合の中だけ）。効果が上がります。長押しで今の効果と次の Lv が見られます。
+          {balance.cardXpBehindBonus > 0 ? (
+            <>
+              {' '}
+              VP で負けているときに使うと、<b>{1 + balance.cardXpBehindBonus} 回ぶん</b>育ちます（追い上げのチャンス）。
+            </>
+          ) : null}
         </p>
         <ul className="help-cards">
           {helpCards(deck, balance).map((c) => {
