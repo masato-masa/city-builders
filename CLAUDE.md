@@ -2,6 +2,13 @@
 
 共通の進め方は `C:\claude\CLAUDE.md`。ここにはこのアプリ固有のことだけ書く。
 
+## ブランチと共通 UI
+
+- **最新は `phase5-balance`。** GitHub の既定ブランチ `phase1-2` は 2026-09-14 の Phase 1/2 の状態で古い。
+  clone したら `git checkout phase5-balance` してから作業する（2026-10-30 に既定ブランチのまま公開して、公開版が簡素な旧画面に戻った）。
+- `src/ui/shared/` は昔 shared-ui から配られた写しだが、**今はこのゲームのもの**。shared-ui はパズルゲーム限定で、ここへは配らない（2026-10-31）。
+  ホーム画面アプリ用のセーフエリアは `src/ui/styles.css` の末尾で持つ。
+
 ## 効果音
 
 **全アプリ共通の「WebAudio で合成・ファイルを持たない」の例外**（ユーザー指定）。ElevenLabs の Sound Effects で
