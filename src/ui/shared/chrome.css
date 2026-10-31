@@ -52,7 +52,11 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  padding: 16px 16px calc(20px + env(safe-area-inset-bottom));
+  /* ホーム画面に追加したアプリは、時計の帯やノッチの下まで画面が広がる
+     （index.html の viewport-fit=cover と black-translucent）。
+     その分だけ内側に下げないと、戻る・設定のボタンが時計に重なる。 */
+  padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+    calc(20px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
 }
 
 /* 盤面とツール行を、ヘッダーの下に残った高さの中央に置く。
@@ -261,8 +265,8 @@ body {
 /* ホーム右上。設定だけを置く（遊びかたはプレイ画面の ? に集約する）。 */
 .home-top {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: calc(16px + env(safe-area-inset-top));
+  right: calc(16px + env(safe-area-inset-right));
   display: flex;
   gap: 6px;
 }
@@ -351,7 +355,7 @@ body {
 /* 本番の操作導線には出さない。ホーム右下の小さなピルからだけ開く。 */
 .dev-pill {
   position: absolute;
-  right: 12px;
+  right: calc(12px + env(safe-area-inset-right));
   bottom: calc(12px + env(safe-area-inset-bottom));
   border: 0;
   border-radius: 999px;
@@ -392,7 +396,7 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
   background: rgb(246 245 239 / 0.66);
   backdrop-filter: blur(3px);
   z-index: 10;

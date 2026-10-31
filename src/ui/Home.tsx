@@ -24,7 +24,7 @@ export function Home({ onStart }: { onStart: (d: Difficulty) => void }) {
   };
 
   return (
-    <div className="app-home">
+    <div className="app app-home">
       <div className="home">
         <h1 className="home-title">シティビルダーズ</h1>
         <p className="home-sub">人物を回して、都市を建てる</p>
