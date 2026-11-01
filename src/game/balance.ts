@@ -133,6 +133,8 @@ export interface Balance {
   /** 影武者で写せない札。伝令（対象が手札で、写すと手札の並びが崩れる）・影武者自身・
    *  祝祭と衛兵（2 回目は何も起きない: 次の手番の祝祭・守りはもう立っている）が最低限 */
   doubleExcluded: CardId[];
+  /** 抽選デッキでコア以外の札が選ばれやすさ（書いていない札は 1）。条件で縛らず、出やすさで偏りを減らす */
+  drawWeights?: Partial<Record<CardId, number>>;
   /** Lv1 の建設費・VP（VP がそのまま毎ターンの収入） */
   buildings: Record<BuildingId, BuildingLevel>;
   factoryDiscount: number;
@@ -309,7 +311,14 @@ export const DEFAULT_BALANCE: Balance = {
   craftsmanDiscount: 3,
   clerkPerHouse: 2,
   clerkMaxHouses: 3,
-  doubleExcluded: ['herald', 'double', 'festival', 'guard'],
+  // 建築家を足した（2026-11-01 CB-4）。建築家を写すと 1 手番で −8 の割引になり、抽選デッキで影武者が入ると
+  // 回転 −2.7・大器晩成 −3.7・均衡 +4.4 点（deck-audit 240×144 の係数）と性格の勝率が大きく振れた。外すと影武者の係数は ±1.3 以内、
+  // 4 性格 42〜58% を外れるデッキ 43.8 → 18.2%（924 通りの足し算の推定）。既定のデッキには影武者が無いので数字は変わらない
+  doubleExcluded: ['herald', 'double', 'festival', 'guard', 'architect'],
+  // 抽選デッキの出やすさ（2026-11-01 CB-4）。衛兵・徴税官が入り封鎖者が無いデッキで、回転が下がり均衡・妨害が上がる
+  // （外れるデッキの 84% に衛兵、77% に徴税官、封鎖者は 17%）。条件で縛らず出やすさを動かす: 入る割合 衛兵 35%・徴税官 35%・封鎖者 69%（他は約 51%）。
+  // 配られるデッキのうち 4 性格 42〜58% を外れる割合 18.2 → 9.4%（deck-audit 240×144）
+  drawWeights: { guard: 0.6, taxman: 0.6, blockader: 1.6 },
   // 建物の毎ターンの収入 = その物件の VP（ユーザー指定 2026-10-13）。商館だけ VP が低く、効果で追加の収入（tradingHouseIncome）。
   // 城塞 25（ユーザー指定）・鉱山 15（ユーザー指定）
   buildings: {

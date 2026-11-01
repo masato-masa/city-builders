@@ -82,11 +82,12 @@ describe('影武者のドラッグ', () => {
   });
 
   it('使った余韻は写した札の効果で言う。CPU の実況は「影武者で◯◯をもう一度」', () => {
-    let g = fixture(['architect', 'double', 'usurer', 'herald'], 20);
-    g = reduce(g, { type: 'useCard', card: 'architect' }, B);
+    // 建築家は写せない（CB-4）ので、同じ「割引」の型の職人で確かめる
+    let g = fixture(['craftsman', 'double', 'usurer', 'herald'], 20);
+    g = reduce(g, { type: 'useCard', card: 'craftsman' }, B);
     const after = reduce(g, { type: 'useCard', card: 'double' }, B);
-    expect(cardAftermath(g, after, 'double', B)?.text).toBe(`建設費 −${B.architectDiscount}`);
-    expect(describeAction(g, { type: 'useCard', card: 'double' })).toBe(`影武者で${CARD_NAMES.architect}をもう一度`);
+    expect(cardAftermath(g, after, 'double', B)?.text).toBe(`アップグレード費 −${B.craftsmanDiscount}`);
+    expect(describeAction(g, { type: 'useCard', card: 'double' })).toBe(`影武者で${CARD_NAMES.craftsman}をもう一度`);
   });
 });
 

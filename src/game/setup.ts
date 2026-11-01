@@ -93,12 +93,26 @@ export function createGame(
 const DRAW_SALT = 0x5eed_d3c4;
 
 /** 抽選（ドミニオン式）のデッキ。コア 4 枚（CORE_CARDS）は必ず入り、残りの札（CARD_POOL からコアを除いた 12 種）から
- *  seed で 6 枚を選ぶ。両者共通で使う。同じ seed からは必ず同じ 10 枚（決定性）。
+ *  seed で 6 枚を選ぶ（balance.drawWeights の重みつき、書いていない札は 1）。両者共通で使う。同じ seed からは必ず同じ 10 枚（決定性）。
  *  並びは CARD_POOL の順に揃える（山札の並べ替えは createGame が行う）。 */
 export function drawDeck(seed: number, balance: Balance = DEFAULT_BALANCE): CardId[] {
   const rng = createRng((seed ^ DRAW_SALT) >>> 0);
   const rest = CARD_POOL.filter((c) => !CORE_CARDS.includes(c) && balance.cards[c]);
   const size = 10;
-  const picked = new Set<CardId>([...CORE_CARDS, ...shuffle(rest, rng).slice(0, size - CORE_CARDS.length)]);
+  const picked = new Set<CardId>(CORE_CARDS);
+  const weights = balance.drawWeights ?? {};
+  // 重みつきで 1 枚ずつ引く（引いた札は戻さない）。重みがすべて 1 なら一様
+  const pool = [...rest];
+  while (picked.size < size && pool.length > 0) {
+    const total = pool.reduce((s, c) => s + Math.max(0, weights[c] ?? 1), 0);
+    let r = rng.next() * total;
+    let i = 0;
+    for (; i < pool.length - 1; i++) {
+      r -= Math.max(0, weights[pool[i]!] ?? 1);
+      if (r < 0) break;
+    }
+    picked.add(pool[i]!);
+    pool.splice(i, 1);
+  }
   return CARD_POOL.filter((c) => picked.has(c));
 }

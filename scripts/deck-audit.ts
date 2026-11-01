@@ -51,12 +51,15 @@ const P = PERSONAS.length;
 const PAIRS: [number, number][] = [];
 for (let i = 0; i < P; i++) for (let j = i + 1; j < P; j++) PAIRS.push([i, j]);
 
-/** 監査するデッキの並び。seed 0, 1, 2, … の抽選から重複を除いて DECKS 通り */
+/** 監査するデッキの並び。seed 0, 1, 2, … の抽選から重複を除いて DECKS 通り。
+ *  足し算の係数をどの札でも同じ精度で推すため、抽選の重み（drawWeights）は外して一様に選ぶ。
+ *  重みは集計の「配られるデッキのうち外れる割合」で効かせる */
 function deckList(): CardId[][] {
   const seen = new Set<string>();
   const out: CardId[][] = [];
+  const uniform = { ...balance, drawWeights: {} };
   for (let s = 0; out.length < DECKS && s < DECKS * 50; s++) {
-    const d = drawDeck(s, balance);
+    const d = drawDeck(s, uniform);
     const key = d.join(',');
     if (seen.has(key)) continue;
     seen.add(key);
@@ -251,20 +254,31 @@ function report(results: DeckResult[], seconds: number): void {
   // 2. デッキごとのばらつき（実測の分散 と 二項分布の誤差の分散）
   console.log('## デッキごとの実測のばらつき（誤差だけなら「実測の標準偏差 ≒ 誤差の標準偏差」）');
   console.log('');
-  console.log('| 指標 | デッキごとの平均 | 実測の標準偏差 | 誤差の標準偏差 | デッキ由来の標準偏差（推定） | 範囲外のデッキ（実測） |');
-  console.log('|---|---|---|---|---|---|');
+  console.log('| 指標 | デッキごとの平均 | 実測の標準偏差 | 誤差の標準偏差 | デッキ由来の標準偏差（推定） | 範囲外のデッキ（実測） | 範囲外（誤差を縮めた推定） |');
+  console.log('|---|---|---|---|---|---|---|');
+  /** 誤差を縮めた推定（経験ベイズ）: 実測を平均へ「デッキ由来の分散 /（デッキ由来 + 誤差の分散）」の割合だけ寄せる。
+   *  1 デッキ数十試合の実測は誤差が大きく、そのまま範囲外を数えると誤差を数えてしまうため */
+  const shrunkOut = new Array(results.length).fill(false) as boolean[];
   const spread = (name: string, vals: number[], n: number, lo: number, hi: number) => {
     const m = vals.reduce((s, v) => s + v, 0) / vals.length;
     const sd = Math.sqrt(vals.reduce((s, v) => s + (v - m) ** 2, 0) / (vals.length - 1));
     const noise = Math.sqrt((m * (1 - m)) / n);
     const real = Math.sqrt(Math.max(0, sd ** 2 - noise ** 2));
     const out = vals.filter((v) => v < lo || v > hi).length;
-    console.log(`| ${name} | ${pct(m)} | ${pct(sd)} | ${pct(noise)} | ${pct(real)} | ${out}/${vals.length} |`);
+    const k = real ** 2 / (real ** 2 + noise ** 2);
+    const shrunk = vals.map((v) => m + k * (v - m));
+    shrunk.forEach((v, i) => {
+      if (v < lo || v > hi) shrunkOut[i] = true;
+    });
+    const sOut = shrunk.filter((v) => v < lo || v > hi).length;
+    console.log(`| ${name} | ${pct(m)} | ${pct(sd)} | ${pct(noise)} | ${pct(real)} | ${out}/${vals.length} | ${sOut}/${vals.length} |`);
   };
   spread('先手勝率', results.map((r) => r.first / r.games), GAMES, 0.45, 0.55);
   PERSONAS.forEach((p, k) =>
     spread(`${p.name}の勝率`, results.map((r) => r.score[k]! / r.played[k]!), GAMES / 2, 0.42, 0.58),
   );
+  console.log('');
+  console.log(`誤差を縮めた推定で、先手か 4 性格のどれかが外れるデッキ: ${shrunkOut.filter(Boolean).length}/${results.length}（${pct(shrunkOut.filter(Boolean).length / results.length)}）`);
   console.log('');
 
   // 3. カードの有無の足し算で、ありうる全デッキの勝率を推定する
@@ -303,6 +317,13 @@ function report(results: DeckResult[], seconds: number): void {
   console.log(`| 先手 45〜55% | ${nFirst}（${pct(nFirst / every.length)}） |`);
   console.log(`| 4 性格 42〜58% | ${nPersona}（${pct(nPersona / every.length)}） |`);
   console.log(`| どちらか | ${nEither}（${pct(nEither / every.length)}） |`);
+  // 抽選の重みで配られる確率をかけた割合（20000 回の抽選で数える。重みがすべて 1 なら上とほぼ同じ）
+  const keyOf = (deck: CardId[]) => deck.filter((c) => !CORE_CARDS.includes(c)).sort().join(',');
+  const outKeys = new Set(flagged.filter((d) => d.firstOut || d.personaOut).map((d) => keyOf(d.deck)));
+  const DRAWS = 20000;
+  let dealtOut = 0;
+  for (let s = 0; s < DRAWS; s++) if (outKeys.has(keyOf(drawDeck(900_000 + s, balance)))) dealtOut++;
+  console.log(`| 配られるデッキのうち外れる（抽選の重みこみ） | ${pct(dealtOut / DRAWS)} |`);
   console.log('');
   const out = flagged.filter((d) => d.firstOut || d.personaOut);
   if (out.length > 0) {

@@ -141,17 +141,27 @@ describe('影武者', () => {
     expect(canUseCard(g, 'double', B)).toBe(false);
   });
 
-  it('建築家のあと: 割引がもう一度乗る。コストは影武者 + 建築家の元のコスト', () => {
-    let g = fixture(['double', 'architect', 'usurer', 'herald'], 20);
-    g = reduce(g, { type: 'useCard', card: 'architect' }, B);
-    expect(doubleSourceOf(g, 'you')).toBe('architect');
+  it('採掘師のあと: コストは影武者 + 採掘師の元のコスト', () => {
+    let g = fixture(['double', 'miner', 'usurer', 'herald'], 20);
+    g = reduce(g, { type: 'useCard', card: 'miner' }, B);
+    expect(doubleSourceOf(g, 'you')).toBe('miner');
     const cost = cardCostFor(g, 'you', 'double', B);
-    expect(cost).toBe(B.cards.double.cost + B.cards.architect.cost);
+    expect(cost).toBe(B.cards.double.cost + B.cards.miner.cost);
     const coins = g.players.you.coins;
     g = reduce(g, { type: 'useCard', card: 'double' }, B);
-    expect(g.players.you.buildDiscount).toBe(B.architectDiscount * 2);
     expect(g.players.you.coins).toBe(coins - cost);
-    expect(g.players.you.usedThisTurn).toEqual(['architect', 'double']);
+    expect(g.players.you.usedThisTurn).toEqual(['miner', 'double']);
+  });
+
+  it('建築家は写せない（CB-4: 1 手番で割引 2 回分が、抽選デッキの性格の勝率を大きく振った）', () => {
+    let g = fixture(['double', 'architect', 'usurer', 'herald'], 20);
+    g = reduce(g, { type: 'useCard', card: 'architect' }, B);
+    expect(doubleSourceOf(g, 'you')).toBeNull();
+    expect(canUseCard(g, 'double', B)).toBe(false);
+    // 写せない札を外せば、割引がもう一度乗る（仕組みとしては動く）
+    const B2 = { ...B, doubleExcluded: B.doubleExcluded.filter((c) => c !== 'architect') };
+    const g2 = reduce(g, { type: 'useCard', card: 'double' }, B2);
+    expect(g2.players.you.buildDiscount).toBe(B.architectDiscount * 2);
   });
 
   it('高利貸のあと: コインも借りも 2 回分', () => {
@@ -194,7 +204,7 @@ describe('影武者', () => {
   });
 
   it('伝令・祝祭・衛兵は写せない。影武者のあとにもう一度は無い', () => {
-    for (const c of B.doubleExcluded) expect(['herald', 'double', 'festival', 'guard']).toContain(c);
+    for (const c of B.doubleExcluded) expect(['herald', 'double', 'festival', 'guard', 'architect']).toContain(c);
     let g = fixture(['double', 'herald', 'usurer', 'miner'], 20);
     g = reduce(g, { type: 'useCard', card: 'herald', heraldTarget: 'usurer' }, B);
     expect(canUseCard(g, 'double', B)).toBe(false);
@@ -232,6 +242,17 @@ describe('番頭', () => {
 });
 
 describe('抽選デッキ', () => {
+  it('重みがすべて 1 なら、コア以外の 12 種がどれも 40〜60% で入る', () => {
+    const count = new Map<CardId, number>();
+    const flat = { ...B, drawWeights: {} };
+    for (let seed = 0; seed < 1000; seed++) for (const c of drawDeck(seed, flat)) count.set(c, (count.get(c) ?? 0) + 1);
+    for (const c of CARD_POOL) {
+      if (CORE_CARDS.includes(c)) continue;
+      expect(count.get(c) ?? 0).toBeGreaterThan(400);
+      expect(count.get(c) ?? 0).toBeLessThan(600);
+    }
+  });
+
   it('同じ seed から同じ 10 枚。コア 4 枚は必ず入り、デッキとして使える', () => {
     for (let seed = 0; seed < 300; seed++) {
       const d = drawDeck(seed);
@@ -246,7 +267,7 @@ describe('抽選デッキ', () => {
     for (let seed = 0; seed < 300; seed++) expect(drawDeck(seed)).toContain('usurer');
   });
 
-  it('1000 通りの seed で 200 通り以上のデッキが出て、コア以外の 12 種がどれも 40〜60% で入る', () => {
+  it('1000 通りの seed で 200 通り以上のデッキが出て、重みが 1 の札は 40〜60%・重みの軽い札は少なく・重い札は多く入る', () => {
     const seen = new Set<string>();
     const count = new Map<CardId, number>();
     for (let seed = 0; seed < 1000; seed++) {
@@ -257,8 +278,18 @@ describe('抽選デッキ', () => {
     expect(seen.size).toBeGreaterThanOrEqual(200);
     for (const c of CARD_POOL) {
       if (CORE_CARDS.includes(c)) continue;
-      expect(count.get(c) ?? 0).toBeGreaterThan(400);
-      expect(count.get(c) ?? 0).toBeLessThan(600);
+      const w = B.drawWeights?.[c] ?? 1;
+      const n = count.get(c) ?? 0;
+      if (w === 1) {
+        expect(n).toBeGreaterThan(400);
+        expect(n).toBeLessThan(600);
+      } else if (w < 1) {
+        expect(n).toBeGreaterThan(200);
+        expect(n).toBeLessThan(480);
+      } else {
+        expect(n).toBeGreaterThan(520);
+        expect(n).toBeLessThan(850);
+      }
     }
   });
 });
