@@ -42,7 +42,8 @@ interface Persona {
   profile: Profile;
 }
 function loadPersonas(): Persona[] {
-  const path = fileURLToPath(new URL('./searched-profiles.json', import.meta.url));
+  // PERSONAS_FILE=<json> で別の重みの束を試せる（balance-lab と同じ口）
+  const path = process.env.PERSONAS_FILE ?? fileURLToPath(new URL('./searched-profiles.json', import.meta.url));
   if (!existsSync(path)) throw new Error('scripts/searched-profiles.json がありません（npm run search の結果）');
   return (JSON.parse(readFileSync(path, 'utf-8')) as Persona[]).map((r) => ({ name: r.name, profile: r.profile }));
 }

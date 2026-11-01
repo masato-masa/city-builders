@@ -90,9 +90,14 @@ const HAND_PLACED_PERSONAS: Persona[] = [
 ];
 
 /** scripts/weight-search.ts（npm run search）が書き出した収束後の重み。
+ *  2026-11-01 CB-11: 妨害・大器晩成の early.reach だけ手で 6.5 にそろえた（元 7.51 / 5.70）。妨害が勝ち越していたのは
+ *  妨害の札ではなく序盤の reach（買える VP）の重みで、1 項ずつ他 3 性格の平均に置き換えると reach が最も効いた
+ *  （既定のデッキ lab 300: 妨害 56.9 → 52.4%）。妨害の札の使用率は 4 性格でほぼ同じ（16.1〜16.7%）。
+ *  lab 300 の総合勝率 既定 45.1〜56.9 → 47.3〜51.6%、抽選 46.9〜52.2 → 46.4〜52.6%。探索をやり直すとこの手直しは上書きされる。
  *  ファイルが無ければ（＝探索をまだ実行していなければ）手で置いた重みで動く。 */
 function loadSearchedPersonas(): Persona[] | null {
-  const path = fileURLToPath(new URL('./searched-profiles.json', import.meta.url));
+  // PERSONAS_FILE=<json> で別の重みの束を試せる（性格の重みを振って比べるため。既定は searched-profiles.json）
+  const path = process.env.PERSONAS_FILE ?? fileURLToPath(new URL('./searched-profiles.json', import.meta.url));
   if (!existsSync(path)) return null;
   const raw = JSON.parse(readFileSync(path, 'utf-8')) as { name: string; profile: Profile }[];
   return raw.map((r) => ({ name: r.name, profile: r.profile }));
