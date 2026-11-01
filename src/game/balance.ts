@@ -270,7 +270,9 @@ export const DEFAULT_BALANCE: Balance = {
     guard: { cost: 1 },
     usurer: { cost: 0 },
     spy: { cost: 1 },
-    taxman: { cost: 3 },
+    // 徴税官 3 → 2（2026-11-01 CB-2。手札にある手番の約半分は相手の衛兵・城壁で効かず、払えない手番も 2 割あって、
+    // 使用のシェアが 3.8% だった。card-value 300 で 禁止 46.3 / 優先 53.7% と弱い札ではないので、効果でなくコストで出せる場面を増やした）
+    taxman: { cost: 2 },
     // 封鎖者 5 → 3: 効果が「次の相手のターンだけ」になったので（card-value 200 で 5: 禁止 46.0 / 優先 30.0%、3: 43.5 / 40.0%、2: 38.5 / 32.0%）
     // 2026-10-12 3 → 2（card-value 400: 3 で 禁止 41.5 / 優先 31.3%、2 で 41.3 / 37.0%、1 で 34.5 / 43.5%）
     // 2026-10-13 2 → 3（収入 = VP で物件の多い地区ほど封鎖が痛くなった。card-value 300: 2 で 禁止 29.3 / 優先 53.7%、3 で 37.0 / 44.7%）
@@ -401,8 +403,9 @@ export const DEFAULT_BALANCE: Balance = {
     guard: { cost: 1, power: 0 },
     usurer: { cost: 0, power: 4 },
     spy: { cost: 1, power: 4 },
-    taxman: { cost: 3, power: 4 },
-    blockader: { cost: 3, power: 0 },
+    taxman: { cost: 2, power: 4 },
+    // 封鎖者 Lv2 3 → 2（CB-2。徴税官を安くするとシェアが 5.6 → 5.4% に下がったので、育てた封鎖者を Lv3 と同じコストに）
+    blockader: { cost: 2, power: 0 },
     craftsman: { cost: 0, power: 4 },
     inspector: { cost: 4, power: 0 },
     boss: { cost: 1, power: 0 },
@@ -419,7 +422,7 @@ export const DEFAULT_BALANCE: Balance = {
     guard: { cost: 1, power: 1 },
     usurer: { cost: 0, power: 4 },
     spy: { cost: 1, power: 5 },
-    taxman: { cost: 3, power: 5 },
+    taxman: { cost: 2, power: 5 },
     // 封鎖が続く手番を増やす案（power 1）は 禁止 29.3 / 優先 53.0% で強すぎたので、コストを下げるだけ
     blockader: { cost: 2, power: 0 },
     craftsman: { cost: 0, power: 5 },

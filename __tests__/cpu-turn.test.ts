@@ -47,8 +47,8 @@ describe('playTurnSteps', () => {
     base.current = 'cpu';
     base.turn = 3;
     base.players.cpu.coins = 0;
-    base.players.cpu.hand = ['banker', 'taxman', 'festival', 'blockader'];
-    base.players.cpu.queue = ['usurer', 'herald', 'miner', 'guard', 'architect', 'spy'];
+    base.players.cpu.hand = ['banker', 'miner', 'festival', 'blockader'];
+    base.players.cpu.queue = ['usurer', 'herald', 'taxman', 'guard', 'architect', 'spy'];
     const steps = playTurnSteps(base, 'normal', createRng(9), DEFAULT_BALANCE);
     expect(steps).toHaveLength(2);
     expect(steps[0]!.stage?.kind).toBe('base');
