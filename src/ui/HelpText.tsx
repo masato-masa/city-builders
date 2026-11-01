@@ -6,7 +6,7 @@ import type { CardId } from '@/game/types';
 
 import { cardArtOf } from './art';
 import { districtRuleText } from './district-view';
-import { HELP_SECTIONS, helpCards, helpSummary, helpWords, MARK_LEGEND, type HelpSectionId } from './help-content';
+import { HELP_SECTIONS, helpCards, helpSummary, helpWords, MARK_LEGEND, swingHelpLines, type HelpSectionId } from './help-content';
 import { CoinBagIcon, UpArrowIcon } from './icons';
 import { RichNum, RichLines } from './RichText';
 import { playUiTap } from './sound';
@@ -126,6 +126,18 @@ function HelpSection({ id, balance, deck }: { id: HelpSectionId; balance: Balanc
             地区ごとに<b>称号 +{balance.districtTitleVp} VP</b>があります。{districtRuleText(balance)}
           </p>
           <p className="sheet-text">端の名札（旗の色が称号の持ち主）をタップすると、自分と相手の値と区画の一覧が見られます。</p>
+          {swingHelpLines(balance).length > 0 ? (
+            <>
+              <p className="sheet-text">
+                各地区の 1 区画は、試合ごとに建物が入れ替わります（{Math.round((balance.swingChance ?? 0) * 100)}% ずつ）。
+              </p>
+              <ul className="word-list">
+                {swingHelpLines(balance).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </>
+          ) : null}
         </>
       );
     case 'marks':

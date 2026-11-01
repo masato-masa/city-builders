@@ -11,6 +11,9 @@ import quarryUrl from '@/assets/art/buildings/quarry.webp';
 import roadUrl from '@/assets/art/buildings/road.webp';
 import tradingHouseUrl from '@/assets/art/buildings/tradingHouse.webp';
 import wallUrl from '@/assets/art/buildings/wall.webp';
+import watchtowerUrl from '@/assets/art/buildings/watchtower.webp';
+import cityHallUrl from '@/assets/art/buildings/cityHall.webp';
+import tollgateUrl from '@/assets/art/buildings/tollgate.webp';
 import architectUrl from '@/assets/art/cards/architect.webp';
 import bankerUrl from '@/assets/art/cards/banker.webp';
 import festivalUrl from '@/assets/art/cards/festival.webp';
@@ -54,6 +57,11 @@ const OWN_BUILDING_ART: Partial<Record<BuildingId, BuildingArt>> = {
   exchange: { url: exchangeUrl, scale: 0.95 },
   quarry: { url: quarryUrl, scale: 0.97 },
   mine: { url: mineUrl, scale: 0.91 },
+  // 揺れる区画（CB-12）。市庁舎・関所は npm run audit-art の値（面積で城塞にそろえる）。
+  // 見張り塔は細長く、面積でそろえる値（1.75）だと高さが他の建物の 1.6 倍になるので、高さを大聖堂・商館の 1.1 倍までに抑えた
+  watchtower: { url: watchtowerUrl, scale: 1.15 },
+  cityHall: { url: cityHallUrl, scale: 1.14 },
+  tollgate: { url: tollgateUrl, scale: 1.14 },
 };
 
 /** 絵がまだ無い物件に仮に使う、近い物件の絵。鉱山は石切場（同じ「掘る」場所）。

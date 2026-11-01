@@ -16,6 +16,7 @@ import {
   investIncomeOf,
   nextTitles,
   opponentOf,
+  tollTakenFrom,
   roadUsesRemaining,
   scoreOf,
   slotBuildBlocked,
@@ -406,7 +407,8 @@ function applyCardEffect(
 /** 手番の開始で入る収入の 1 段。UI が「基礎収入 → 建物収入 → …」と 1 つずつ見せるために分けてある。
  *  startTurn 自身もこの段の合計を足すので、見せる額と実際に入る額はずれない。 */
 export interface IncomeStage {
-  kind: 'base' | 'building' | 'invest' | 'debt' | 'tax';
+  /** toll: 相手の関所に取られた通行料（CB-12。取られた分は相手のコインへ） */
+  kind: 'base' | 'building' | 'invest' | 'toll' | 'debt' | 'tax';
   /** コインの増減（debt・tax は負） */
   amount: number;
   /** 祝祭が効いているターンか */
@@ -471,6 +473,19 @@ function computeIncomeStages(state: GameState, balance: Balance): IncomeStage[] 
       slots: exchange.map((s) => s.slotId),
       cards: [...p.pendingIncome],
     });
+    // 関所（CB-12）: 相手の関所が、投資カード 1 枚ごとに通行料を取る（その札の収入まで）
+    const toll = tollTakenFrom(state, player, balance);
+    if (toll > 0) {
+      const foe = opponentOf(player);
+      stages.push({
+        kind: 'toll',
+        amount: -toll,
+        festival,
+        festivalExtra: 0,
+        slots: activeOwnedSlots(state, foe, balance).filter((s) => s.buildingId === 'tollgate').map((s) => s.slotId),
+        cards: [...p.pendingIncome],
+      });
+    }
   }
 
   // 高利貸の借り。収入を足したあとに引く。コインがマイナスになるのはここだけ。
@@ -537,7 +552,11 @@ function startTurn(state: GameState, balance: Balance): GameState {
   p.festivalActive = p.festivalQueued;
   p.festivalQueued = false;
 
-  for (const stage of computeIncomeStages(next, balance)) p.coins += stage.amount;
+  for (const stage of computeIncomeStages(next, balance)) {
+    p.coins += stage.amount;
+    // 関所の通行料は相手の手持ちへ移る
+    if (stage.kind === 'toll') next.players[opponentOf(player)].coins -= stage.amount;
+  }
   // 封鎖を受けている側の収入はこれで済んだ（CPU の「次の収入が減る」の見積もりから外す）
   if (next.blockades?.some((b) => b.target === player && b.beforeIncome)) {
     next.blockades = next.blockades.map((b) => (b.target === player ? { ...b, beforeIncome: false } : b));

@@ -1,6 +1,6 @@
 import { CARD_POOL, CORE_CARDS, DEFAULT_BALANCE, DEFAULT_DECK, type Balance } from './balance';
 import { createRng, shuffle } from './rng';
-import type { BuildingSlot, CardId, GameState, PlayerId, PlayerState } from './types';
+import type { BuildingId, BuildingSlot, CardId, GameState, PlayerId, PlayerState } from './types';
 
 function emptyPlayer(
   coins: number,
@@ -61,7 +61,7 @@ export function createGame(
   const first: PlayerId = forcedFirst ?? (rng.int(2) === 0 ? 'you' : 'cpu');
   const second: PlayerId = first === 'you' ? 'cpu' : 'you';
 
-  const market: BuildingSlot[] = balance.market.map((buildingId, slotId) => ({
+  const market: BuildingSlot[] = marketFor(seed, balance).map((buildingId, slotId) => ({
     slotId,
     buildingId,
     owner: null,
@@ -86,6 +86,23 @@ export function createGame(
     blockades: [],
     phase: 'playing',
   };
+}
+
+/** 揺れる区画の乱数の種を、試合の seed から別の系列にずらす定数（山札の並べ替え・抽選デッキと連動させない）。 */
+const MARKET_SALT = 0x3a2c_71b5;
+
+/** その試合の市場の並び（CB-12）。揺れる区画（balance.swingSlots）ごとに、swingChance の確率で alt に入れ替える。
+ *  同じ seed からは必ず同じ並び（決定性）。swingChance が 0 なら balance.market のまま。 */
+export function marketFor(seed: number, balance: Balance = DEFAULT_BALANCE): BuildingId[] {
+  const market = [...balance.market];
+  const swings = balance.swingSlots ?? [];
+  const chance = balance.swingChance ?? 0;
+  if (swings.length === 0 || chance <= 0) return market;
+  const rng = createRng((seed ^ MARKET_SALT) >>> 0);
+  for (const { slot, alt } of swings) {
+    if (rng.next() < chance && slot >= 0 && slot < market.length) market[slot] = alt;
+  }
+  return market;
 }
 
 /** 抽選デッキの乱数の種を、試合の seed から別の系列にずらす定数。createGame の山札の並べ替えと

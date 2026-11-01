@@ -17,7 +17,8 @@ const B = DEFAULT_BALANCE;
 
 /** 自分の手番（turn 5）で、区画 0（商館）が自分、区画 7（城塞）が相手の物件の盤面。 */
 function board(): GameState {
-  const s = createGame(1, B, 'you');
+  // 揺れる区画（CB-12）は止める（区画の建物を決め打ちするため）
+  const s = createGame(1, { ...B, swingChance: 0 }, 'you');
   s.turn = 5;
   s.current = 'you';
   s.players.you.coins = 0;

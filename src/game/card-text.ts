@@ -237,6 +237,14 @@ export function buildingEffectLinesRaw(building: BuildingId, b: Balance, level: 
       return [['建築家を使ったターン、2 件目以降の建設費 さらに ', eff('quarryExtraDiscount', minus)]];
     case 'mine':
       return [['採掘師: コスト ', eff('mineMinerDiscount', minus), '、', K('income'), ' ', eff('mineMinerBonus', plus)]];
+    case 'watchtower':
+      return [['自分の物件すべての', K('acquire'), 'に要るコイン ', eff('watchtowerGuard', plus)]];
+    case 'cityHall':
+      return [['同じ地区の自分の他の物件 1 件につき VP ', eff('cityHallVpPerBuilding', plus)]];
+    case 'tollgate':
+      return [
+        ['相手の採掘師・銀行家の', K('income'), 'から 1 枚につき ', eff('tollgateToll'), ' を自分へ'],
+      ];
   }
 }
 

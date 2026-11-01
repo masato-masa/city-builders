@@ -4,15 +4,17 @@ import { DEFAULT_BALANCE, DEFAULT_DECK } from '@/game/balance';
 import type { CardId } from '@/game/types';
 import { BUILDING_ART, CARD_ART, CARD_PLACEHOLDER, cardArtOf, FIELD_URL, hasBuildingArt, hasCardArt } from '@/ui/art';
 
+/** 市場に出うる物件（元の並び + 揺れる区画で入れ替わる建物。CB-12） */
+const MAY_APPEAR = new Set([...DEFAULT_BALANCE.market, ...DEFAULT_BALANCE.swingSlots.map((s) => s.alt)]);
+
 describe('素材の対応表', () => {
   it('盤面の地の URL がある', () => {
     expect(FIELD_URL).toBeTruthy();
   });
 
   it('登録されている素材は、市場に出る物件のものだけ', () => {
-    const inMarket = new Set(DEFAULT_BALANCE.market);
     for (const id of Object.keys(BUILDING_ART)) {
-      expect(inMarket.has(id as never)).toBe(true);
+      expect(MAY_APPEAR.has(id as never)).toBe(true);
     }
   });
 
@@ -27,11 +29,11 @@ describe('素材の対応表', () => {
   it('まだ素材が無い物件があってよい（空き地で表示する）', () => {
     const done = Object.keys(BUILDING_ART).length;
     expect(done).toBeGreaterThan(0);
-    expect(done).toBeLessThanOrEqual(new Set(DEFAULT_BALANCE.market).size);
+    expect(done).toBeLessThanOrEqual(MAY_APPEAR.size);
   });
 
   it('市場の物件はすべて自分の絵を持つ（空き地に見えない）', () => {
-    for (const id of new Set(DEFAULT_BALANCE.market)) {
+    for (const id of MAY_APPEAR) {
       expect(BUILDING_ART[id]?.url, id).toBeTruthy();
     }
     expect(hasBuildingArt('mine')).toBe(true);

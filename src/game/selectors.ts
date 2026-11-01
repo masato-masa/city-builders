@@ -254,7 +254,12 @@ export function buildingStatsOf(building: BuildingId, balance: Balance = DEFAULT
     out.push({
       level,
       vp: buildingVp(balance, building, level),
-      vpPerOtherBuilding: building === 'cathedral' ? buildingEffect(balance, 'cathedralVpPerBuilding', level) : null,
+      vpPerOtherBuilding:
+        building === 'cathedral'
+          ? buildingEffect(balance, 'cathedralVpPerBuilding', level)
+          : building === 'cityHall'
+            ? buildingEffect(balance, 'cityHallVpPerBuilding', level)
+            : null,
       income: buildingIncomeOf(balance, building, level),
       cost: table[building].cost,
       marketValue: marketValueOf({ slotId: 0, buildingId: building, owner: null, level, touchedTurn: 0 }, balance),
@@ -304,14 +309,37 @@ export function marketValueOf(slot: BuildingSlot, balance: Balance = DEFAULT_BAL
   return v;
 }
 
-/** 区画を買収するときの価格 = 市場価値 × acquireMultiplier。未建設なら Infinity。discount は買収者の割引（0 未満にはしない）。 */
+/** 区画を買収するときの価格 = 市場価値 × acquireMultiplier（+ 持ち主の見張り塔の上乗せ）。未建設なら Infinity。
+ *  discount は買収者の割引（0 未満にはしない）。state を渡したときだけ見張り塔を数える（盤面を見ない表示用の値は渡さない）。 */
 export function acquirePriceOf(
   slot: BuildingSlot,
   balance: Balance = DEFAULT_BALANCE,
   discount = 0,
+  state?: GameState,
 ): number {
   if (slot.owner === null) return Number.POSITIVE_INFINITY;
-  return Math.max(0, marketValueOf(slot, balance) * balance.acquireMultiplier - discount);
+  const guard = state ? watchtowerGuardOf(state, slot.owner, balance) : 0;
+  return Math.max(0, marketValueOf(slot, balance) * balance.acquireMultiplier + guard - discount);
+}
+
+/** 見張り塔（効果が生きているもの）で、player の物件すべての買収価格に足される額。持っていなければ 0。 */
+export function watchtowerGuardOf(state: GameState, player: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
+  return activeEffectMax(state, player, 'watchtower', 'watchtowerGuard', balance);
+}
+
+/** 関所（効果が生きているもの）の持ち主が、相手の投資カード 1 枚の解決ごとに取る通行料。owner が持っていなければ 0。 */
+export function tollgateTollOf(state: GameState, owner: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
+  return activeEffectMax(state, owner, 'tollgate', 'tollgateToll', balance);
+}
+
+/** player の解決待ちの投資カードが次の開始フェーズで関所に取られる額（相手の関所。1 枚ごとに通行料、その札の収入まで）。 */
+export function tollTakenFrom(state: GameState, player: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
+  const toll = tollgateTollOf(state, opponentOf(player), balance);
+  if (toll <= 0) return 0;
+  return state.players[player].pendingIncome.reduce(
+    (n, c) => n + Math.min(toll, Math.max(0, investIncomeOf(state, player, c, balance))),
+    0,
+  );
 }
 
 /** player がいまその区画を買収するときに実際に払う額（このターンの買収者の割引を織り込む）。 */
@@ -321,7 +349,7 @@ export function acquireCostFor(
   slot: BuildingSlot,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
-  return acquirePriceOf(slot, balance, state.players[player].acquireDiscount);
+  return acquirePriceOf(slot, balance, state.players[player].acquireDiscount, state);
 }
 
 /** 区画をアップグレードするときの価格。Lv1 → Lv2 は upgrades、Lv2 → Lv3 は upgrades3。
@@ -404,6 +432,14 @@ export function vpOfSlot(
       (ownedSlots(state, slot.owner).length - 1) *
       buildingEffect(balance, 'cathedralVpPerBuilding', slot.level)
     );
+  }
+  if (slot.buildingId === 'cityHall') {
+    // 市庁舎: 基本の VP + 同じ地区の自分の他の物件 1 件につき +N（CB-12）
+    const district = balance.districts[districtOfSlot(slot.slotId, balance)];
+    const neighbors = (district?.slots ?? []).filter(
+      (id) => id !== slot.slotId && state.market[id]?.owner === slot.owner,
+    ).length;
+    return buildingVp(balance, 'cityHall', slot.level) + neighbors * buildingEffect(balance, 'cityHallVpPerBuilding', slot.level);
   }
   return buildingVp(balance, slot.buildingId, slot.level);
 }
@@ -632,9 +668,11 @@ export function investIncomeOf(
   }
 }
 
-/** 解決待ちの投資カードが次の開始フェーズで生むコインの合計（いまの盤面で見積もる）。 */
+/** 解決待ちの投資カードが次の開始フェーズで生むコインの合計（いまの盤面で見積もる）。
+ *  関所（CB-12）の通行料を織り込む: 相手の関所に取られる分を引き、相手の投資から自分の関所が取る分を足す。 */
 export function pendingInvestOf(state: GameState, player: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
-  return state.players[player].pendingIncome.reduce((n, c) => n + investIncomeOf(state, player, c, balance), 0);
+  const own = state.players[player].pendingIncome.reduce((n, c) => n + investIncomeOf(state, player, c, balance), 0);
+  return own - tollTakenFrom(state, player, balance) + tollTakenFrom(state, opponentOf(player), balance);
 }
 
 // ---------------------------------------------------------------------------

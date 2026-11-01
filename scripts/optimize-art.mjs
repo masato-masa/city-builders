@@ -110,6 +110,31 @@ const JOBS = [
     quality: 85,
     alpha: true,
   },
+  // 揺れる区画（CB-12）。refs/art/v2/fortress.png と tradingHouse.png を見本に添付して ChatGPT で生成
+  {
+    label: '見張り塔 (watchtower)',
+    input: 'refs/art/v2/watchtower.png',
+    output: 'src/assets/art/buildings/watchtower.webp',
+    longEdge: 320,
+    quality: 85,
+    alpha: true,
+  },
+  {
+    label: '市庁舎 (cityHall)',
+    input: 'refs/art/v2/cityHall.png',
+    output: 'src/assets/art/buildings/cityHall.webp',
+    longEdge: 320,
+    quality: 85,
+    alpha: true,
+  },
+  {
+    label: '関所 (tollgate)',
+    input: 'refs/art/v2/tollgate.png',
+    output: 'src/assets/art/buildings/tollgate.webp',
+    longEdge: 320,
+    quality: 85,
+    alpha: true,
+  },
   {
     label: '大聖堂 (cathedral)',
     input: 'refs/art/v2/cathedral.png',
@@ -264,7 +289,9 @@ const fmtKB = (bytes) => `${(bytes / 1024).toFixed(1)}KB`;
 console.log('| 素材 | 出力 | 画素数 | 容量 |');
 console.log('|---|---|---|---|');
 
-for (const job of JOBS) {
+// 引数で絞れる（例: node scripts/optimize-art.mjs watchtower cityHall）。出力のファイル名に含む語で選ぶ
+const only = process.argv.slice(2);
+for (const job of JOBS.filter((j) => only.length === 0 || only.some((w) => j.output.includes(`/${w}.`)))) {
   if (!existsSync(job.input)) {
     console.error(`${job.input} が見つかりません。原寸素材は refs/art/ に置くこと。`);
     process.exit(1);

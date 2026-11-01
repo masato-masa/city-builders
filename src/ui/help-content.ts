@@ -1,7 +1,7 @@
 // あそびかた（?）の中身。文は balance から組み立てる（テスト用メニューで数値を変えても食い違わない）。
 // カード一覧の説明は、手札の長押しの説明と同じ文（cardTextFor・cardStaticNoteOf）を使う。
 
-import { CARD_NAMES, DEFAULT_DECK, type Balance } from '@/game/balance';
+import { BUILDING_NAMES, CARD_NAMES, DEFAULT_DECK, type Balance } from '@/game/balance';
 import { cardLinesFor, cardTextFor, KEYWORD_LABELS, KEYWORD_ORDER, keywordDefs, type TextLine } from '@/game/card-text';
 import type { CardId } from '@/game/types';
 
@@ -52,6 +52,20 @@ export function helpCards(deck: readonly CardId[] | undefined, balance: Balance)
 }
 
 /** 色と印の意味（あそびかたの 1 画面）。例の数字は固定の見本で、ルールの値ではない。 */
+/** 揺れる区画（CB-12）の説明。地区ごとに「元 ↔ 入れ替わる建物: 効果」の 1 行。数値は balance から（Lv1 の値）。 */
+export function swingHelpLines(balance: Balance): string[] {
+  return (balance.swingSlots ?? []).map(({ slot, alt }) => {
+    const from = BUILDING_NAMES[balance.market[slot]!];
+    const b = balance.buildings[alt];
+    const effect: Record<string, string> = {
+      watchtower: `自分の物件すべての買収に要るコイン +${balance.watchtowerGuard}`,
+      cityHall: `VP ${b.vp} ＋ 同じ地区の自分の他の物件 1 件につき +${balance.cityHallVpPerBuilding}`,
+      tollgate: `相手の採掘師・銀行家の収入から 1 枚につき ${balance.tollgateToll} を自分へ`,
+    };
+    return `${from} ↔ ${BUILDING_NAMES[alt]}（建設 ${b.cost}）: ${effect[alt] ?? ''}`;
+  });
+}
+
 export const MARK_LEGEND: readonly { kind: 'lv' | 'good' | 'bad'; sample: string; mark?: string; meaning: string }[] = [
   { kind: 'lv', sample: '+5', meaning: '金: Lv で上がった値。「+4 → +5」は次の Lv で変わる分' },
   { kind: 'good', sample: '1', mark: '▼', meaning: '緑: 持ち主に得な変化。▼ はコストが下がった（長押しで元の値と理由）' },

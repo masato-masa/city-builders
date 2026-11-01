@@ -25,5 +25,7 @@ export function stageText(stage: IncomeStage, balance: Balance): string {
       return `高利貸の返済 −${Math.abs(amount)}`;
     case 'tax':
       return `徴税官に徴収された −${Math.abs(amount)}`;
+    case 'toll':
+      return `関所の通行料 −${Math.abs(amount)}`;
   }
 }

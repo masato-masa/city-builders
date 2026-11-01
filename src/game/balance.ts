@@ -62,10 +62,19 @@ export const BUILDING_NAMES: Record<BuildingId, string> = {
   exchange: '取引所',
   quarry: '石切場',
   mine: '鉱山',
+  watchtower: '見張り塔',
+  cityHall: '市庁舎',
+  tollgate: '関所',
 };
 
 // 札・建物の説明文は card-text.ts（行の配列。数字に種類を付けて返す）。旧 API の文字列版をここから再公開する
 export { buildingEffectTextFor, buildingTextFor, cardTextFor } from './card-text';
+
+/** 揺れる区画（CB-12）。試合ごとに seed で、slot の建物を alt に入れ替えるかを決める。 */
+export interface SwingSlot {
+  slot: number;
+  alt: BuildingId;
+}
 
 /** レベルに応じた物件の毎ターンの収入（手番の開始で入る。封鎖で効果が止まっている物件は入らない）。
  *  収入 = その物件の VP（+ 商館だけ効果の追加収入）。大聖堂の VP は他の物件の数で決まるので、
@@ -84,7 +93,10 @@ export type Level2EffectKey =
   | 'roadUses'
   | 'mineMinerBonus'
   | 'mineMinerDiscount'
-  | 'tradingHouseIncome';
+  | 'tradingHouseIncome'
+  | 'watchtowerGuard'
+  | 'cityHallVpPerBuilding'
+  | 'tollgateToll';
 
 /** レベルに応じた物件の効果値。数値はすべて balance から引く（ロジックに直書きしない）。 */
 export function buildingEffect(balance: Balance, key: Level2EffectKey, level: number): number {
@@ -181,8 +193,18 @@ export interface Balance {
   /** Lv2・Lv3 でのカードの数値。cost は払う額、power はそのカードの主な数値（cardPowerBase の項目）を置き換える */
   cardLv2: Record<CardId, CardLevelRow>;
   cardLv3: Record<CardId, CardLevelRow>;
-  /** 市場のスロット順。長さ 10 */
+  /** 市場のスロット順。長さ 10（揺れる区画で入れ替わる前の並び） */
   market: BuildingId[];
+  /** 揺れる区画（CB-12）。各地区に 1 つ。試合ごとに swingChance の確率で alt に入れ替わる（seed で決まる） */
+  swingSlots: SwingSlot[];
+  /** 揺れる区画が alt になる確率。0 なら市場は market のまま、1 なら必ず alt */
+  swingChance: number;
+  /** 見張り塔: 持ち主の物件すべての買収価格に足す額（Lv1。Lv2・Lv3 は level2・level3） */
+  watchtowerGuard: number;
+  /** 市庁舎: 同じ地区の自分の他の物件 1 件あたりの VP（基本の VP に足す） */
+  cityHallVpPerBuilding: number;
+  /** 関所: 相手の投資カード（採掘師・銀行家）1 枚の解決ごとに、その収入から持ち主へ移す額 */
+  tollgateToll: number;
   /** 市場を分けた地区。slots は区画の番号。地区ごとに、地区内の物件の VP の合計が相手より多い側が称号を持つ */
   districts: District[];
   /** 称号 1 つの VP */
@@ -331,6 +353,13 @@ export const DEFAULT_BALANCE: Balance = {
     cathedral: { cost: 20, vp: 0 },
     exchange: { cost: 24, vp: 4 },
     fortress: { cost: 25, vp: 8 },
+    // 揺れる区画（CB-12）。入れ替わる元（商館・大聖堂・城塞）より VP が少ないと、市場全体の VP が減って試合が延びる。
+    // lab 400 --shape（ふつう同士、その区画だけ必ず入れ替え）の手番 / 上限で終わる割合: 見張り塔 8/2VP 16.7 / 15.3%、
+    // 市庁舎 18/2VP・+2 17.3 / 24.5%、関所 18/4VP 17.1 / 20.5%（元の市場 16.3 / 11.0%）→ VP を上げた（見張り塔 9/3VP 16.3 / 12.0%、
+    // 市庁舎 18/4VP・+3 16.8 / 15.3%、関所 22/7VP 16.7 / 14.5%）。市庁舎はさらに 5VP に
+    watchtower: { cost: 9, vp: 3 },
+    cityHall: { cost: 18, vp: 5 },
+    tollgate: { cost: 22, vp: 7 },
   },
   factoryDiscount: 2,
   cathedralVpPerBuilding: 2,
@@ -358,6 +387,9 @@ export const DEFAULT_BALANCE: Balance = {
     cathedral: { cost: 18, vp: 0 },
     exchange: { cost: 22, vp: 6 },
     fortress: { cost: 25, vp: 11 },
+    watchtower: { cost: 8, vp: 4 },
+    cityHall: { cost: 16, vp: 7 },
+    tollgate: { cost: 20, vp: 10 },
   },
   level2: {
     factoryDiscount: 4,
@@ -368,6 +400,9 @@ export const DEFAULT_BALANCE: Balance = {
     roadUses: 2,
     mineMinerBonus: 3,
     mineMinerDiscount: 2,
+    watchtowerGuard: 4,
+    cityHallVpPerBuilding: 4,
+    tollgateToll: 2,
   },
   // Lv3 の費用は建設費 +3。lab 100（Lv3 の費用 → 終了時に Lv3 の物件の割合 / 1 試合の買収）:
   // 建設費と同額 29.2% / 3.94 回、+1 25.3% / 4.01 回、+3 15.3% / 4.39 回（Lv3 なし 4.42 回）。
@@ -382,6 +417,9 @@ export const DEFAULT_BALANCE: Balance = {
     cathedral: { cost: 21, vp: 0 },
     exchange: { cost: 25, vp: 8 },
     fortress: { cost: 28, vp: 14 },
+    watchtower: { cost: 11, vp: 5 },
+    cityHall: { cost: 19, vp: 9 },
+    tollgate: { cost: 23, vp: 13 },
   },
   level3: {
     factoryDiscount: 6,
@@ -392,6 +430,9 @@ export const DEFAULT_BALANCE: Balance = {
     roadUses: 3,
     mineMinerBonus: 4,
     mineMinerDiscount: 2,
+    watchtowerGuard: 6,
+    cityHallVpPerBuilding: 5,
+    tollgateToll: 3,
   },
   maxLevel: 3,
   acquireMultiplier: 2,
@@ -453,6 +494,16 @@ export const DEFAULT_BALANCE: Balance = {
     'mine',
     'exchange',
   ],
+  // 揺れる区画（CB-12、設計書 §2）。各地区に 1 つ。商人街の 2 つ目の商館 ↔ 見張り塔、職人街の大聖堂 ↔ 市庁舎、城下の城塞 ↔ 関所
+  swingSlots: [
+    { slot: 1, alt: 'watchtower' },
+    { slot: 6, alt: 'cityHall' },
+    { slot: 7, alt: 'tollgate' },
+  ],
+  swingChance: 0.5,
+  watchtowerGuard: 2,
+  cityHallVpPerBuilding: 3,
+  tollgateToll: 1,
   // 盤面の段（2/3/2/3）を通りで区切った形。上の段＋2 段目の左 / 2 段目の中・右＋3 段目の右 / 3 段目の左＋最下段
   districts: [
     { name: '商人街', slots: [0, 1, 2] },

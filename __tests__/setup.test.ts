@@ -112,7 +112,7 @@ describe('派生値', () => {
   });
 
   it('大聖堂は他の物件 1 件につき +2 VP', () => {
-    const g = createGame(5);
+    const g = createGame(5, { ...DEFAULT_BALANCE, swingChance: 0 });
     // 大聖堂 + 城塞 + 商館 を所有させる
     const cathedral = g.market.find((s) => s.buildingId === 'cathedral')!;
     const fortress = g.market.find((s) => s.buildingId === 'fortress')!;
@@ -127,7 +127,7 @@ describe('派生値', () => {
   });
 
   it('区画ごとの VP を単体で取れる', () => {
-    const g = createGame(5);
+    const g = createGame(5, { ...DEFAULT_BALANCE, swingChance: 0 });
     const fortress = g.market.find((s) => s.buildingId === 'fortress')!;
     const cathedral = g.market.find((s) => s.buildingId === 'cathedral')!;
     const house = g.market.find((s) => s.buildingId === 'tradingHouse')!;

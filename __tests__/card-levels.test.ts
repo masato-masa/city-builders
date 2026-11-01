@@ -18,7 +18,8 @@ import type { CardId, GameState } from '@/game/types';
 const DECK: CardId[] = ['miner', 'usurer', 'banker', 'architect', 'spy', 'herald', 'taxman', 'blockader'];
 
 function fixture(coins = 30): GameState {
-  const g = createGame(1);
+  // 揺れる区画（CB-12）は止める（区画の建物を決め打ちするため）
+  const g = createGame(1, { ...B, swingChance: 0 });
   g.current = 'you';
   g.players.you.hand = DECK.slice(0, 4);
   g.players.you.queue = DECK.slice(4);

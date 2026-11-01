@@ -161,7 +161,10 @@ export function reachOf(
       const b = balance.buildings[s.buildingId];
       candidates.push({
         // 建てると地区の称号が取れるなら、その VP も込みで測る（あと 1 件で取れる）
-        vp: b.vp + titleVpSwing(state, s.slotId, player, player, balance),
+        // 市庁舎（CB-12）は同じ地区の自分の物件で VP が決まるので、建てた形で数える
+        vp:
+          (s.buildingId === 'cityHall' ? vpOfSlot(state, { ...s, owner: player, level: 1 }, balance) : b.vp) +
+          titleVpSwing(state, s.slotId, player, player, balance),
         isBuild: true,
         cost: (builds) => {
           let discount = buildDiscount;
@@ -249,7 +252,8 @@ export function exposureOf(
     .map((s) => ({
       // 奪われると地区の称号も失うなら、その VP も込みで測る（あと 1 件で奪われる）
       vp: vpOfSlot(state, s, balance) - titleVpSwing(state, s.slotId, foe, player, balance),
-      price: acquirePriceOf(s, balance, discount),
+      // 見張り塔（CB-12）の上乗せも込みの値段（state を渡す）
+      price: acquirePriceOf(s, balance, discount, state),
     }))
     .sort((a, b) => b.vp - a.vp);
   let total = 0;

@@ -28,7 +28,8 @@ const B = {
 
 /** you の手番から始まる局面。手札・待機列は createGame のまま。 */
 function fixture(youCoins: number, cpuCoins: number): GameState {
-  const g = createGame(1);
+  // 揺れる区画（CB-12）は止める（区画の建物を決め打ちするため）
+  const g = createGame(1, { ...DEFAULT_BALANCE, swingChance: 0 });
   g.current = 'you';
   g.turn = 3;
   g.players.you.coins = youCoins;

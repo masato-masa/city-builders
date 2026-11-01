@@ -69,6 +69,10 @@ const FROZEN_BALANCE: Balance = {
     exchange: { cost: 20, vp: 3 },
     quarry: { cost: 13, vp: 3 },
     mine: { cost: 15, vp: 3 },
+    // 揺れる区画（CB-12）は当時なかった（市場に無いので使われない。型を満たすためだけに置く）
+    watchtower: { cost: 99, vp: 0 },
+    cityHall: { cost: 99, vp: 0 },
+    tollgate: { cost: 99, vp: 0 },
   },
   factoryDiscount: 2,
   cathedralVpPerBuilding: 2,
@@ -93,6 +97,9 @@ const FROZEN_BALANCE: Balance = {
     exchange: { cost: 20, vp: 5 },
     quarry: { cost: 13, vp: 5 },
     mine: { cost: 15, vp: 5 },
+    watchtower: { cost: 99, vp: 0 },
+    cityHall: { cost: 99, vp: 0 },
+    tollgate: { cost: 99, vp: 0 },
   },
   level2: {
     factoryDiscount: 4,
@@ -103,6 +110,9 @@ const FROZEN_BALANCE: Balance = {
     mineMinerBonus: 0,
     mineMinerDiscount: 0,
     tradingHouseIncome: 0,
+    watchtowerGuard: 0,
+    cityHallVpPerBuilding: 0,
+    tollgateToll: 0,
   },
   // Lv3 は凍結時点のルールに無かったので上限 2 のまま（表は型を満たすためだけに置く）
   upgrades3: {
@@ -115,6 +125,9 @@ const FROZEN_BALANCE: Balance = {
     exchange: { cost: 21, vp: 7 },
     quarry: { cost: 14, vp: 7 },
     mine: { cost: 18, vp: 7 },
+    watchtower: { cost: 99, vp: 0 },
+    cityHall: { cost: 99, vp: 0 },
+    tollgate: { cost: 99, vp: 0 },
   },
   level3: {
     factoryDiscount: 6,
@@ -125,6 +138,9 @@ const FROZEN_BALANCE: Balance = {
     mineMinerBonus: 0,
     mineMinerDiscount: 0,
     tradingHouseIncome: 0,
+    watchtowerGuard: 0,
+    cityHallVpPerBuilding: 0,
+    tollgateToll: 0,
   },
   maxLevel: 2,
   acquireMultiplier: 2,
@@ -141,6 +157,12 @@ const FROZEN_BALANCE: Balance = {
     'fortress',
     'exchange',
   ],
+  // 揺れる区画は当時なかった
+  swingSlots: [],
+  swingChance: 0,
+  watchtowerGuard: 0,
+  cityHallVpPerBuilding: 0,
+  tollgateToll: 0,
   // 地区の称号は当時なかった（地区なし = 称号なし）
   districts: [],
   districtTitleVp: 0,

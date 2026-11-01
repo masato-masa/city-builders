@@ -27,6 +27,8 @@ export function stageCallout(
       return { id, tone, kind: 'card', art: cardArtOf('usurer'), text };
     case 'tax':
       return { id, tone, kind: 'card', art: cardArtOf('taxman'), text };
+    case 'toll':
+      return { id, tone, kind: 'building', art: BUILDING_ART.tollgate?.url, text };
   }
 }
 
