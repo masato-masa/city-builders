@@ -2,7 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_BALANCE, DEFAULT_DECK } from '@/game/balance';
 import type { CardId } from '@/game/types';
-import { BUILDING_ART, CARD_ART, CARD_PLACEHOLDER, cardArtOf, FIELD_URL, hasBuildingArt, hasCardArt } from '@/ui/art';
+import {
+  BUILDING_ART,
+  buildingArtFor,
+  CARD_ART,
+  CARD_PLACEHOLDER,
+  cardArtOf,
+  FIELD_URL,
+  hasBuildingArt,
+  hasCardArt,
+  SCAFFOLD_URL,
+} from '@/ui/art';
 
 /** 市場に出うる物件（元の並び + 揺れる区画で入れ替わる建物。CB-12） */
 const MAY_APPEAR = new Set([...DEFAULT_BALANCE.market, ...DEFAULT_BALANCE.swingSlots.map((s) => s.alt)]);
@@ -38,6 +48,21 @@ describe('素材の対応表', () => {
     }
     expect(hasBuildingArt('mine')).toBe(true);
     expect(BUILDING_ART.mine?.url).not.toBe(BUILDING_ART.quarry?.url);
+  });
+
+  it('Lv2 以上は Lv2 の絵、Lv1 と未建設は元の絵。倍率は Lv1 と同じ（CB-5）', () => {
+    for (const id of MAY_APPEAR) {
+      const lv1 = buildingArtFor(id, 1);
+      const lv2 = buildingArtFor(id, 2);
+      expect(lv1, id).toEqual(BUILDING_ART[id]);
+      expect(lv2?.url, id).toContain('/lv2/');
+      expect(buildingArtFor(id, 3)?.url, id).toBe(lv2?.url);
+      expect(lv2?.scale, id).toBe(lv1?.scale);
+    }
+  });
+
+  it('建設の足場の絵がある（CB-5）', () => {
+    expect(SCAFFOLD_URL).toBeTruthy();
   });
 
   it('登録されているカード絵は、すべて実在するカード ID のもの', () => {

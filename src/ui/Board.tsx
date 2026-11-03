@@ -14,7 +14,7 @@ import {
 } from '@/game/selectors';
 import type { GameState, PlayerId } from '@/game/types';
 
-import { BUILDING_ART } from './art';
+import { buildingArtFor, SCAFFOLD_URL } from './art';
 import {
   DISTRICT_TAGS,
   PLOTS,
@@ -76,6 +76,9 @@ function boxStyle(i: number): CSSProperties {
 }
 
 /** 着地の土埃。角度を等分して決め打ちにする（毎回同じ形で出る）。 */
+/** 建てた瞬間、建物が落ちてくる前に足場を見せる時間（秒）。足場の絵が無ければ 0（CB-5）。 */
+const SCAFFOLD_LEAD = SCAFFOLD_URL ? 0.3 : 0;
+
 const DUST = Array.from({ length: 10 }, (_, k) => {
   const a = (k / 10) * Math.PI * 2 + 0.3;
   const r = k % 2 === 0 ? 1 : 0.7;
@@ -303,7 +306,8 @@ function PlotView({
         : // 封鎖者: 対象は地区。まだ封鎖していない地区の区画すべて（自分の物件の上でもよい）
           targeting && blockadeDistrictsOf(state, viewer, balance).includes(districtOfSlot(slotId, balance));
   const targetInvalid = !!targeting && !targetable;
-  const art = BUILDING_ART[slot.buildingId];
+  // Lv2 以上は Lv2 の絵（CB-5）。未建設は Lv1 の絵で「何が建つか」を見せる
+  const art = buildingArtFor(slot.buildingId, owned ? slot.level : 1);
   // 建った区画は plot-art の alt="" で物件名が読み上げに出ないので、
   // ボタン自体に物件名と VP を含む aria-label を付ける。
   const vpText = vpTextFor(state, slotId, balance);
@@ -402,6 +406,21 @@ function PlotView({
         {/* 建物の絵。未建設でも最初から置く（何が建つ区画か分かるように）。
             建つと絵を差し替え、上から落として着地させる。どちらも絶対配置なので
             区画の矩形は 1px も動かない。 */}
+        {landing > 0 && owned && SCAFFOLD_URL && art ? (
+          // 建設の連続コマ（CB-5）: 足場が下から組み上がり、建物が落ちてくると同時に消える。
+          <motion.img
+            key={`scaffold-${landing}`}
+            className="plot-scaffold"
+            src={SCAFFOLD_URL}
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+            style={{ width: `${art.scale * 92}%`, left: `${(100 - art.scale * 92) / 2}%` }}
+            initial={{ scaleY: 0.2, opacity: 0 }}
+            animate={{ scaleY: [0.2, 1.05, 1, 1], opacity: [0, 1, 1, 0] }}
+            transition={{ duration: SCAFFOLD_LEAD + 0.25, times: [0, 0.45, 0.7, 1], ease: 'easeOut' }}
+          />
+        ) : null}
         {art ? (
           <AnimatePresence initial={false}>
             <motion.span
@@ -412,8 +431,8 @@ function PlotView({
               animate={{ y: 0, opacity: 1 }}
               exit={{ opacity: 0, transition: { duration: 0.12 } }}
               transition={{
-                y: { type: 'spring', stiffness: 520, damping: 19, mass: 0.9 },
-                opacity: { duration: 0.08 },
+                y: { type: 'spring', stiffness: 520, damping: 19, mass: 0.9, delay: landing > 0 ? SCAFFOLD_LEAD : 0 },
+                opacity: { duration: 0.08, delay: landing > 0 ? SCAFFOLD_LEAD : 0 },
               }}
             >
               {/* アップグレードの瞬間だけ少し膨らむ（transform なので区画の矩形は動かない）。 */}
@@ -449,7 +468,7 @@ function PlotView({
                 style={{ width: d.size, height: d.size, marginLeft: -d.size / 2, marginTop: -d.size / 2 }}
                 initial={{ x: 0, y: 0, opacity: 0, scale: 0.4 }}
                 animate={{ x: d.dx, y: d.dy, opacity: [0, 0.9, 0], scale: 1.6 }}
-                transition={{ delay: 0.13, duration: 0.6, ease: 'easeOut' }}
+                transition={{ delay: 0.13 + SCAFFOLD_LEAD, duration: 0.6, ease: 'easeOut' }}
               />
             ))}
           </span>
@@ -460,7 +479,7 @@ function PlotView({
             className="plot-flag-wrap"
             initial={landing > 0 || acquired ? { scaleY: 0 } : false}
             animate={{ scaleY: 1 }}
-            transition={{ delay: 0.22, type: 'spring', stiffness: 420, damping: 14 }}
+            transition={{ delay: 0.22 + SCAFFOLD_LEAD, type: 'spring', stiffness: 420, damping: 14 }}
           >
             <Flag owner={owner} />
           </motion.span>

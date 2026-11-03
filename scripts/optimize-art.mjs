@@ -272,6 +272,25 @@ const JOBS = [
     quality: 85,
     alpha: true,
   },
+  // Lv2 の姿（CB-5）。refs/art/v2/<id>.png を添付して ChatGPT に「同じ構図で一段豪華に」と描き直させた。
+  // Lv1 と同じ倍率で縮めるため、長辺も同じ 320px。置いた物件だけ作る（無い物件は Lv1 の絵のまま）
+  ...[
+    'fortress', 'cathedral', 'tradingHouse', 'wall', 'factory', 'road',
+    'exchange', 'quarry', 'mine', 'watchtower', 'cityHall', 'tollgate',
+  ]
+    .filter((id) => existsSync(`refs/art/v2/lv2/${id}.png`))
+    .map((id) => ({
+      label: `Lv2 (${id})`,
+      input: `refs/art/v2/lv2/${id}.png`,
+      output: `src/assets/art/buildings/lv2/${id}.webp`,
+      longEdge: 320,
+      quality: 85,
+      alpha: true,
+    })),
+  // 建設の足場（CB-5）。全物件で共通
+  ...(existsSync('refs/art/v2/scaffold.png')
+    ? [{ label: '足場 (scaffold)', input: 'refs/art/v2/scaffold.png', output: 'src/assets/art/buildings/scaffold.webp', longEdge: 320, quality: 85, alpha: true }]
+    : []),
   // UI 素材。盤面の建物・カードと違い表示は小さい（コインバッジ 24px 角）ので、
   // 長辺は控えめでよいが、Retina 表示ぶんの余裕は持たせる。
   {

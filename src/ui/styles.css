@@ -544,7 +544,17 @@
 /* 封鎖者に効果を止められている既存物件。空き地の封鎖（.is-blocked）と
    違って建物の絵はそのまま見えるので、沈めるだけでなく鎖マーク
    （.plot-chain-badge）も重ねて誤読を防ぐ。 */
-.plot.is-disabled .plot-art {
+.plot.is-disabled .plot-scaffold {
+  /* 建設の足場（CB-5）。建物の絵と同じ足元に置き、下から伸ばす。区画の矩形は動かさない */
+  position: absolute;
+  bottom: 34%;
+  height: auto;
+  transform-origin: 50% 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+.plot-art {
   filter: grayscale(0.55) brightness(0.75) drop-shadow(-0.9cqw 0.9cqw 0.6cqw rgb(0 0 0 / 0.4));
 }
 

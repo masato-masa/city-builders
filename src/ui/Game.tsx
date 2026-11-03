@@ -17,7 +17,7 @@ import { nextTip, type TipId, tipClosedBy, tipsActive, withFinished, withSeen } 
 import { loadOnboarding, saveOnboarding } from '@/storage/onboarding';
 import { loadProgress, saveProgress, withResult } from '@/storage/storage';
 
-import { BUILDING_ART, cardArtOf, FIELD_URL } from './art';
+import { buildingArtFor, cardArtOf, FIELD_URL } from './art';
 import { Board, boardTargetingOf, type IncomeFlash } from './Board';
 import { cardBlockReason, dragGuide, resolveDrop, slotPick, slotTargetModeOf, type SlotTargetMode } from './card-input';
 import { DistrictSheet } from './DistrictSheet';
@@ -392,7 +392,11 @@ export function Game({
               ? {
                   id,
                   kind: 'building',
-                  art: BUILDING_ART[state.market[a.slotId]!.buildingId]?.url,
+                  // アップグレードは上がった後の姿（Lv2 の絵）を見せる（CB-5）
+                  art: buildingArtFor(
+                    state.market[a.slotId]!.buildingId,
+                    a.type === 'upgrade' ? state.market[a.slotId]!.level + 1 : a.type === 'acquire' ? state.market[a.slotId]!.level : 1,
+                  )?.url,
                   // アップグレード・買収は「CPU が◯◯を…」と主語から言う（自分の物件が奪われたと分かるように）
                   text: cpuActionCallout(state, a) ?? step.log,
                 }

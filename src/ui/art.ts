@@ -73,6 +73,34 @@ for (const [id, from] of Object.entries(BUILDING_ART_STANDIN) as [BuildingId, Bu
   if (!BUILDING_ART[id] && OWN_BUILDING_ART[from]) BUILDING_ART[id] = OWN_BUILDING_ART[from];
 }
 
+/** Lv2 以上の姿（CB-5）。Lv1 の絵を ChatGPT で「一段豪華にした姿」に描き直したもの。
+ *  ファイル名は物件の ID（src/assets/art/buildings/lv2/<id>.webp）。置けば使われ、無い物件は Lv1 の絵のまま。
+ *  表示倍率は Lv1 と同じ値を使う（同じ構図・同じ輪郭の幅で描かせている）。 */
+const LV2_URLS = import.meta.glob('../assets/art/buildings/lv2/*.webp', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+const LV2_ART: Partial<Record<BuildingId, string>> = {};
+for (const [path, url] of Object.entries(LV2_URLS)) {
+  LV2_ART[path.slice(path.lastIndexOf('/') + 1, -'.webp'.length) as BuildingId] = url;
+}
+
+/** 区画のレベルに合わせた絵。Lv2 以上で Lv2 の絵があればそちら。 */
+export function buildingArtFor(id: BuildingId, level: number): BuildingArt | undefined {
+  const base = BUILDING_ART[id];
+  const lv2 = level >= 2 ? LV2_ART[id] : undefined;
+  return base && lv2 ? { ...base, url: lv2 } : base;
+}
+
+/** 建設中の足場（CB-5）。建てた瞬間に一瞬だけ出し、建物に差し替える。全物件で共通。 */
+const SCAFFOLD_URLS = import.meta.glob('../assets/art/buildings/scaffold.webp', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+export const SCAFFOLD_URL: string | undefined = Object.values(SCAFFOLD_URLS)[0];
+
 /** 本物の絵があるか（仮の絵ではないか）。 */
 export function hasBuildingArt(id: BuildingId): boolean {
   return !!OWN_BUILDING_ART[id];
