@@ -183,6 +183,9 @@ export interface Balance {
   /** 買収費用 = 市場価値 × これ。市場価値 = 建物の建設費の定価 + 到達した Lv までのアップグレード費の定価。
    *  買収の代金は相手に渡らない（買う側が払うだけ） */
   acquireMultiplier: number;
+  /** 先頭への向かい風（CB-13）。買収する側より VP が多い持ち主の物件は、その差 1 VP につき perVp だけ買収費用が下がる（最大 max）。
+   *  perVp 0 で無効。先に走った側が奪われやすくなる、という「追われる緊張」を作る。 */
+  leaderAcquireDiscount: { perVp: number; max: number };
   /** 建設・アップグレード・買収のあと、その区画を動かせないターン数（1 人の手番を 1 と数える）。
    *  1 で「同じ区画は 1 ターンに 1 回まで」 */
   slotLockTurns: number;
@@ -436,6 +439,7 @@ export const DEFAULT_BALANCE: Balance = {
   },
   maxLevel: 3,
   acquireMultiplier: 2,
+  leaderAcquireDiscount: { perVp: 0.5, max: 6 },
   slotLockTurns: 1,
   // 人物カードの Lv: 累計 2 回で Lv2、5 回で Lv3（仮置き）
   // 劣勢の側は使うと経験値が 2 倍（ユーザーの狙い: 劣勢側が人物カードで育って逆転する）。lab 400（ふつう同士）の 大差 / 逆転:

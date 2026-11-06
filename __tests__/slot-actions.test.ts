@@ -13,7 +13,7 @@ import {
   upgradeButton,
 } from '@/ui/slot-actions';
 
-const B = DEFAULT_BALANCE;
+const B = { ...DEFAULT_BALANCE, leaderAcquireDiscount: { perVp: 0, max: 0 } };
 
 /** 自分の手番（turn 5）で、区画 0（商館）が自分、区画 7（城塞）が相手の物件の盤面。 */
 function board(): GameState {

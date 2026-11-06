@@ -54,7 +54,8 @@ export function keywordDefs(balance: Balance): Record<KeywordId, string> {
     harass: '相手に使う札（徴税官・封鎖者・検査官・顔役・密告者）。守りで防げる',
     guard: '次の自分のターンまで、妨害と買収を受けない',
     blockade: 'その地区の空き地に建てられず、地区内の物件の効果が止まる。防げるのは城塞だけ',
-    acquire: `相手の物件を市場価値 × ${balance.acquireMultiplier} で奪う`,
+    acquire: `相手の物件を市場価値 × ${balance.acquireMultiplier} で奪う` +
+      (balance.leaderAcquireDiscount.perVp > 0 ? `（VP で上回る相手からは最大 ${balance.leaderAcquireDiscount.max} 安くなる）` : ''),
     marketValue: '物件の定価（建設＋到達 Lv のアップグレード）。Lv が下がると安くなる',
     debt: '次のターン開始時に払うコイン。マイナスになる',
   };

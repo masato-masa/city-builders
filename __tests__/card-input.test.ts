@@ -16,7 +16,7 @@ import { TEMPO } from '@/ui/tempo';
 import { acquirePriceOf, upgradePriceOf } from '@/game/selectors';
 
 // 買収の上乗せの基本を測るので、物件の数の差による増減は切る
-const B = { ...DEFAULT_BALANCE };
+const B = { ...DEFAULT_BALANCE, leaderAcquireDiscount: { perVp: 0, max: 0 } };
 const hit = (h: Partial<DropHit>): DropHit => ({ onBoard: false, slotId: null, handCard: null, ...h });
 
 describe('押し方の判定（classifyPress）', () => {

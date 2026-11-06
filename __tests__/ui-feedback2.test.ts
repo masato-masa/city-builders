@@ -17,7 +17,7 @@ import {
 import { buildingSpecRows, districtNote, slotStatusLine, VP_IS_INCOME_NOTE } from '@/ui/slot-actions';
 
 // 買収の上乗せの基本を測るので、物件の数の差による増減は切る（増減は下の専用のテストで測る）
-const B = { ...DEFAULT_BALANCE };
+const B = { ...DEFAULT_BALANCE, leaderAcquireDiscount: { perVp: 0, max: 0 } };
 const NAMES = { you: 'あなた', cpu: 'CPU' } as const;
 
 function board(): GameState {

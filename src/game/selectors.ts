@@ -316,10 +316,20 @@ export function acquirePriceOf(
   balance: Balance = DEFAULT_BALANCE,
   discount = 0,
   state?: GameState,
+  buyer?: PlayerId,
 ): number {
   if (slot.owner === null) return Number.POSITIVE_INFINITY;
   const guard = state ? watchtowerGuardOf(state, slot.owner, balance) : 0;
-  return Math.max(0, marketValueOf(slot, balance) * balance.acquireMultiplier + guard - discount);
+  const lead = state && buyer && buyer !== slot.owner ? leaderDiscountOf(state, slot.owner, buyer, balance) : 0;
+  return Math.max(0, marketValueOf(slot, balance) * balance.acquireMultiplier + guard - discount - lead);
+}
+
+/** 先頭への向かい風（CB-13）。持ち主 owner が買収者 buyer より VP で先行しているぶんの買収費用の値引き。 */
+export function leaderDiscountOf(state: GameState, owner: PlayerId, buyer: PlayerId, balance: Balance = DEFAULT_BALANCE): number {
+  const { perVp, max } = balance.leaderAcquireDiscount;
+  if (perVp <= 0 || max <= 0) return 0;
+  const lead = scoreOf(state, owner, balance) - scoreOf(state, buyer, balance);
+  return lead > 0 ? Math.min(max, Math.floor(lead * perVp)) : 0;
 }
 
 /** 見張り塔（効果が生きているもの）で、player の物件すべての買収価格に足される額。持っていなければ 0。 */
@@ -349,7 +359,7 @@ export function acquireCostFor(
   slot: BuildingSlot,
   balance: Balance = DEFAULT_BALANCE,
 ): number {
-  return acquirePriceOf(slot, balance, state.players[player].acquireDiscount, state);
+  return acquirePriceOf(slot, balance, state.players[player].acquireDiscount, state, player);
 }
 
 /** 区画をアップグレードするときの価格。Lv1 → Lv2 は upgrades、Lv2 → Lv3 は upgrades3。

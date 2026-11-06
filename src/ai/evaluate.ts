@@ -253,7 +253,7 @@ export function exposureOf(
       // 奪われると地区の称号も失うなら、その VP も込みで測る（あと 1 件で奪われる）
       vp: vpOfSlot(state, s, balance) - titleVpSwing(state, s.slotId, foe, player, balance),
       // 見張り塔（CB-12）の上乗せも込みの値段（state を渡す）
-      price: acquirePriceOf(s, balance, discount, state),
+      price: acquirePriceOf(s, balance, discount, state, foe),
     }))
     .sort((a, b) => b.vp - a.vp);
   let total = 0;

@@ -8,7 +8,7 @@ import type { GameState } from '@/game/types';
 import { swingHelpLines } from '@/ui/help-content';
 
 // CB-12: 揺れる区画（見張り塔・市庁舎・関所）
-const B = DEFAULT_BALANCE;
+const B = { ...DEFAULT_BALANCE, leaderAcquireDiscount: { perVp: 0, max: 0 } };
 /** 3 区画とも必ず入れ替わる市場 */
 const ALT = { ...B, swingChance: 1 };
 
