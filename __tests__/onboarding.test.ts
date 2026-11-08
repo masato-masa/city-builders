@@ -32,6 +32,11 @@ describe('手引き: 場面の判定', () => {
     expect(nextTip(fresh(), [], true)).toBe('drag');
   });
 
+  it('最初の手引きに勝利条件（VP の目標）が balance から入る', () => {
+    expect(tipText('drag', B).title).toContain(`${B.winVp} VP`);
+    expect(tipText('drag', { ...B, winVp: 30 }).title).toContain('30 VP');
+  });
+
   it('操作できない間（演出中・相手の手番・終局）は出さない', () => {
     const s = fresh();
     expect(nextTip(s, [], false)).toBeNull();

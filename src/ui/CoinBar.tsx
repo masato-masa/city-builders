@@ -52,6 +52,7 @@ export function CoinBar({
       owner={viewer}
       coins={state.players[viewer].coins}
       vp={scoreOf(state, viewer, balance)}
+      goal={balance.winVp}
       active={active}
       right={
         <button

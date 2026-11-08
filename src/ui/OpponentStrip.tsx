@@ -53,6 +53,7 @@ export function OpponentStrip({
         owner="cpu"
         coins={state.players.cpu.coins}
         vp={scoreOf(state, 'cpu', balance)}
+        goal={balance.winVp}
         active={active}
         right={
           <div className="cpu-log cpu-log-right" aria-live="polite">

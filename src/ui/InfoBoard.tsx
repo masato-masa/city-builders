@@ -21,6 +21,7 @@ export function InfoBoard({
   owner,
   coins,
   vp,
+  goal,
   right,
   sub,
   active = false,
@@ -28,6 +29,8 @@ export function InfoBoard({
   owner: 'you' | 'cpu';
   coins: number;
   vp: number;
+  /** 勝利に要る VP。VP の数字の右に「/40」と添える（勝ち筋を画面から読めるように）。 */
+  goal?: number;
   /** 行の右端。自分なら終了ボタン、相手（CPU）なら行動ログ。 */
   right?: ReactNode;
   /** 2 段目。自分・相手とも次のターンの見込み収入。 */
@@ -72,6 +75,7 @@ export function InfoBoard({
         <span className="info-board-vp" ref={vpScope}>
           <StarIcon className="info-board-vp-star" />
           <span className="info-board-vp-num">{vp}</span>
+          {goal !== undefined ? <span className="info-board-vp-goal">/{goal}</span> : null}
           <span className="info-board-vp-unit">VP</span>
           <DeltaPops pops={vpPops} />
         </span>

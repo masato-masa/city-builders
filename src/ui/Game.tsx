@@ -84,6 +84,8 @@ import {
 
 /** 手引きを出すまでの間（自分が操作できるようになってから）。 */
 const TIP_DELAY_MS = 700;
+/** 手引きを出しておく時間。出しっぱなしだと、その間ずっと相手の帯（VP・コイン・直前の 1 手）が隠れる。 */
+const TIP_SHOW_MS = 7000;
 
 type Pending =
   | { kind: 'slot'; slotId: number }
@@ -197,6 +199,11 @@ export function Game({
     const t = window.setTimeout(() => setTip(tipCandidate), TIP_DELAY_MS);
     return () => window.clearTimeout(t);
   }, [tip, tipCandidate]);
+  useEffect(() => {
+    if (tip === null) return;
+    const t = window.setTimeout(() => closeTipRef.current(), TIP_SHOW_MS);
+    return () => window.clearTimeout(t);
+  }, [tip]);
   /** 出ている手引きを閉じて「見た」にする。only を渡すと、その操作で閉じる手引きのときだけ閉じる。 */
   const closeTip = (only?: Action['type']) => {
     if (tip === null || (only !== undefined && !tipClosedBy(tip, only))) return;
@@ -205,6 +212,8 @@ export function Game({
     setTipsSeen(onb.seen);
     setTip(null);
   };
+  const closeTipRef = useRef(closeTip);
+  closeTipRef.current = closeTip;
 
   const boardAreaRef = useRef<HTMLDivElement>(null);
   // 衝撃（ヒットストップ・盤面の揺れ）と決着の静止。盤面にだけ 1 手前を一瞬見せる。

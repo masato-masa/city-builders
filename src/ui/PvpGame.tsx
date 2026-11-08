@@ -366,6 +366,7 @@ export function PvpGame({
                   owner={waiting}
                   coins={state.players[waiting].coins}
                   vp={scoreOf(state, waiting, balance)}
+                  goal={balance.winVp}
                   sub={<span className="coinbar-forecast">{incomeLine(waitingIncome)}</span>}
                 />
               </motion.div>

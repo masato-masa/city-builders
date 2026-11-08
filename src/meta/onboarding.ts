@@ -93,7 +93,10 @@ export function tipClosedBy(tip: TipId, action: Action['type']): boolean {
 export function tipText(id: TipId, balance: Balance = DEFAULT_BALANCE): { title: string; body: string } {
   switch (id) {
     case 'drag':
-      return { title: 'カードの使い方', body: 'カードは盤面へドラッグして使う。長押しで説明' };
+      return {
+        title: `先に ${balance.winVp} VP で勝ち`,
+        body: 'カードを盤面へドラッグ。稼いで建てよう。長押しで説明',
+      };
     case 'build':
       return { title: '建てられる！', body: 'コインが足りた。空き地をタップして建てよう' };
     case 'invest':
