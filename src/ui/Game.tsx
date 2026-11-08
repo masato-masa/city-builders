@@ -45,7 +45,7 @@ import {
   hapticYourTurn,
 } from './haptics';
 import { Hand, type HandNotice } from './Hand';
-import { OpponentStrip } from './OpponentStrip';
+import { grownCardsOf, OpponentStrip } from './OpponentStrip';
 import { stageCallout, playStageCue } from './income-stages';
 import { dropHitAt, playIncome, runIncomeSequence, useLater } from './play-helpers';
 import { buildReview, recordTransition, streakLine } from './match-log';
@@ -96,6 +96,8 @@ type Pending =
   | { kind: 'confirmExit' }
   | { kind: 'help' }
   | { kind: 'settings' }
+  /** 相手の育った札のチップをタップした: 名前と Lv の一覧 */
+  | { kind: 'cpuCards' }
   | null;
 
 export function Game({
@@ -593,6 +595,10 @@ export function Game({
             state={state}
             balance={balance}
             log={cpuLog}
+            onShowGrown={() => {
+              playUiTap();
+              setSheet({ kind: 'cpuCards' });
+            }}
             active={!finished && (cpuActing || state.current === 'cpu')}
             // CPU の 1 手は相手の情報ボードの右側（行動ログの上）に出す。盤面の中央に出すと建物を隠す。
             overlay={
@@ -778,6 +784,20 @@ export function Game({
             <button className="sheet-link" onClick={() => { playUiTap(); setSheet({ kind: 'menu' }); }}>
               もどる
             </button>
+          </Sheet>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {sheet?.kind === 'cpuCards' ? (
+          <Sheet key="cpuCards" title="相手の育った札" subtitle="Lv2 以上の札（帯の「高3」は 頭文字＋Lv）" onClose={() => setSheet(null)}>
+            {grownCardsOf(state, balance).map((g) => (
+              <div key={g.card} className="sheet-row static">
+                <span>{CARD_NAMES[g.card]}</span>
+                <span>Lv{g.level}</span>
+              </div>
+            ))}
+            <p className="sheet-text">手札と次の札のうち Lv が上がったもの。</p>
           </Sheet>
         ) : null}
       </AnimatePresence>

@@ -1587,3 +1587,14 @@ button.home-progress:active {
   color: #3a1e00;
   -webkit-text-stroke: 0;
 }
+
+/* ホームの段位ボタン（218×34）も、見た目はそのままに押せる範囲を 44px 以上にする。 */
+button.home-progress {
+  position: relative;
+}
+
+button.home-progress::before {
+  content: '';
+  position: absolute;
+  inset: -6px -8px;
+}

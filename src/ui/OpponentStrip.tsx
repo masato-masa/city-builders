@@ -9,6 +9,15 @@ import { forecast } from './CoinBar';
 import { incomeLine } from './income-text';
 import { InfoBoard } from './InfoBoard';
 
+/** 相手の育った札（Lv2 以上）。高い Lv から。帯の頭文字チップと、タップで開く一覧の元。 */
+export function grownCardsOf(state: GameState, balance: Balance = DEFAULT_BALANCE): { card: CardId; level: number }[] {
+  return [...state.players.cpu.hand, ...state.players.cpu.queue]
+    .filter((c): c is CardId => c !== null)
+    .map((card) => ({ card, level: cardLevelOf(state, 'cpu', card, balance) }))
+    .filter((x) => x.level >= 2)
+    .sort((a, b) => b.level - a.level);
+}
+
 /** 相手（CPU）の情報ボード。画面の最上段（要望 3）。自分の帯と同じ骨格
  *  （要望 4）の 2 段目に次ターン収入、1 段目右端に CPU の行動ログを出す
  *  （自分側と見え方を揃える）。残りターンは盤面右上の TurnBadge へ移した
@@ -20,6 +29,7 @@ export function OpponentStrip({
   log,
   active = false,
   overlay,
+  onShowGrown,
 }: {
   state: GameState;
   balance?: Balance;
@@ -29,16 +39,14 @@ export function OpponentStrip({
   active?: boolean;
   /** ボードの上に重ねるもの（CPU の 1 手の絵と帯）。 */
   overlay?: ReactNode;
+  /** 育った札のチップをタップしたとき（頭文字だけでは分からないので、名前の一覧を開く）。 */
+  onShowGrown?: () => void;
 }) {
   const latest = log.length > 0 ? log[log.length - 1] : null;
   const rest = log.length > 1 ? log.slice(0, -1) : [];
   const income = forecast(state, 'cpu', balance);
-  // 相手の育った札（Lv2 以上）。名前の頭 1 文字と星だけ（文字は最小限）
-  const grown = [...state.players.cpu.hand, ...state.players.cpu.queue]
-    .filter((c): c is CardId => c !== null)
-    .map((card) => ({ card, level: cardLevelOf(state, 'cpu', card, balance) }))
-    .filter((x) => x.level >= 2)
-    .sort((a, b) => b.level - a.level);
+  // 相手の育った札（Lv2 以上）。名前の頭 1 文字と Lv だけ（文字は最小限）。タップで名前の一覧
+  const grown = grownCardsOf(state, balance);
   return (
     <div className="opponent-wrap">
       <InfoBoard
@@ -68,14 +76,14 @@ export function OpponentStrip({
           <>
             <span className="coinbar-forecast">{incomeLine(income)}</span>
             {grown.length > 0 ? (
-              <span className="cpu-lv" aria-label="相手の育った札">
+              <button type="button" className="cpu-lv" aria-label="相手の育った札を見る" onClick={onShowGrown}>
                 {grown.map((g) => (
                   <span key={g.card} className={`cpu-lv-chip lv${g.level}`} title={`${CARD_NAMES[g.card]} Lv${g.level}`}>
                     {CARD_NAMES[g.card].slice(0, 1)}
                     {g.level}
                   </span>
                 ))}
-              </span>
+              </button>
             ) : null}
           </>
         }

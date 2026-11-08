@@ -1026,7 +1026,7 @@
 .district-tag::before {
   content: '';
   position: absolute;
-  inset: -1.5cqw -2cqw;
+  inset: -2.6cqw -3cqw;
 }
 
 .district-tag-body {
@@ -2302,9 +2302,18 @@
 .cpu-lv {
   flex: 1 1 0;
   display: inline-flex;
+  align-items: flex-end;
   gap: 4px;
   margin-left: 8px;
   min-width: 0;
+  /* 帯の 2 段目いっぱいを押せるようにする（チップは 14px しか無い）。タップで札の名前の一覧 */
+  align-self: stretch;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
   overflow: hidden;
 }
 
@@ -2594,4 +2603,32 @@ body {
 
 .app.app-home > .dev-pill {
   right: calc(12px + env(safe-area-inset-right));
+}
+
+/* 押せる範囲を 44px 以上にする（見た目と配置は変えない）。実機幅 375px の実測で、
+   メニューは 38×24、ターン終了は 95×42 しか押せなかった。 */
+.menu-btn {
+  position: relative;
+  z-index: 2;
+}
+
+.menu-btn::before {
+  content: '';
+  position: absolute;
+  /* 下は「次」の札が 6px 下から始まるのでそこまで */
+  inset: -16px -6px -7px;
+}
+
+.info-board-right .coinbar-btn {
+  z-index: 2;
+}
+
+.info-board-right .coinbar-btn {
+  z-index: 2;
+}
+
+.coinbar-btn::before {
+  content: '';
+  position: absolute;
+  inset: -5px -4px;
 }
