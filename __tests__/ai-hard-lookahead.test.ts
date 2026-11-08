@@ -145,6 +145,7 @@ const FROZEN_BALANCE: Balance = {
   maxLevel: 2,
   acquireMultiplier: 2,
   leaderAcquireDiscount: { perVp: 0, max: 0 }, // CB-13（当時は無し）
+  buybackDiscount: 0, // CB-14（当時は無し）
   slotLockTurns: 1,
   market: [
     'tradingHouse',

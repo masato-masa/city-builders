@@ -53,6 +53,9 @@ export interface BuildingSlot {
   /** 最後に建設・アップグレード・買収されたターン（GameState.turn）。0 は一度も無い。
    *  同じ区画は 1 ターンに 1 回しか動かせない（建てたその手でアップグレード、などを防ぐ） */
   touchedTurn: number;
+  /** 直前の買収で奪われた元の持ち主（CB-14）。この人が買い戻すときだけ買収費用が下がる。
+   *  取り返したとき・建て直したときは消える（買い戻しの往復は続かない） */
+  prevOwner?: PlayerId;
 }
 
 export interface PlayerState {

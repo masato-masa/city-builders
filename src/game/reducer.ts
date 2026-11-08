@@ -253,6 +253,8 @@ function acquire(
   // 買収者の割引が乗った実額。代金は誰にも渡らない（コインが消える）。次に買われる価格は市場価値で決まる
   const price = acquireCostFor(state, player, state.market[action.slotId]!, balance);
   next.players[player].coins -= price;
+  // 買い戻しなら印を消す。そうでなければ、奪われた側に買い戻しの権利が付く
+  slot.prevOwner = slot.prevOwner === player ? undefined : slot.owner!;
   slot.owner = player;
   slot.touchedTurn = next.turn;
   // 封鎖は「地区 × 受ける側」に掛かっているので、買った物件は新しい持ち主の封鎖の有無に従う

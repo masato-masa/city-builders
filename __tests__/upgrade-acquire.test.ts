@@ -21,7 +21,7 @@ import type { BuildingId, GameState, PlayerId } from '@/game/types';
 // 買収の価格 = 市場価値（建設費の定価 + 到達した Lv までのアップグレード費の定価）× 2。代金は誰にも渡らない
 // 仕様書の例（城壁 10 で建てて 10 で上げる）に合わせ、城壁の建設費は 10 に固定する（既定値の調整で例が崩れないように）
 const B = {
-  ...DEFAULT_BALANCE, leaderAcquireDiscount: { perVp: 0, max: 0 },
+  ...DEFAULT_BALANCE, leaderAcquireDiscount: { perVp: 0, max: 0 }, buybackDiscount: 0,
   buildings: { ...DEFAULT_BALANCE.buildings, wall: { ...DEFAULT_BALANCE.buildings.wall, cost: 10 } },
   upgrades: { ...DEFAULT_BALANCE.upgrades, wall: { ...DEFAULT_BALANCE.upgrades.wall, cost: 10 } },
 };
@@ -29,7 +29,7 @@ const B = {
 /** you の手番から始まる局面。手札・待機列は createGame のまま。 */
 function fixture(youCoins: number, cpuCoins: number): GameState {
   // 揺れる区画（CB-12）は止める（区画の建物を決め打ちするため）
-  const g = createGame(1, { ...DEFAULT_BALANCE, leaderAcquireDiscount: { perVp: 0, max: 0 }, swingChance: 0 });
+  const g = createGame(1, { ...DEFAULT_BALANCE, leaderAcquireDiscount: { perVp: 0, max: 0 }, buybackDiscount: 0, swingChance: 0 });
   g.current = 'you';
   g.turn = 3;
   g.players.you.coins = youCoins;

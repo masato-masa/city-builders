@@ -183,6 +183,9 @@ export interface Balance {
   /** 買収費用 = 市場価値 × これ。市場価値 = 建物の建設費の定価 + 到達した Lv までのアップグレード費の定価。
    *  買収の代金は相手に渡らない（買う側が払うだけ） */
   acquireMultiplier: number;
+  /** 買い戻し割引（CB-14）。直前の買収で自分の物件を奪われたとき、その物件を買い戻す費用がこのコインぶん下がる。
+   *  代金は相手に渡らない（ユーザー指示 2026-10-12）まま、奪われた側に取り返す足がかりを作る。0 で無効。 */
+  buybackDiscount: number;
   /** 先頭への向かい風（CB-13）。買収する側より VP が多い持ち主の物件は、その差 1 VP につき perVp だけ買収費用が下がる（最大 max）。
    *  perVp 0 で無効。先に走った側が奪われやすくなる、という「追われる緊張」を作る。 */
   leaderAcquireDiscount: { perVp: number; max: number };
@@ -439,6 +442,7 @@ export const DEFAULT_BALANCE: Balance = {
   },
   maxLevel: 3,
   acquireMultiplier: 2,
+  buybackDiscount: 4,
   leaderAcquireDiscount: { perVp: 0.5, max: 6 },
   slotLockTurns: 1,
   // 人物カードの Lv: 累計 2 回で Lv2、5 回で Lv3（仮置き）

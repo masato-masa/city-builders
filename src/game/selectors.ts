@@ -321,7 +321,8 @@ export function acquirePriceOf(
   if (slot.owner === null) return Number.POSITIVE_INFINITY;
   const guard = state ? watchtowerGuardOf(state, slot.owner, balance) : 0;
   const lead = state && buyer && buyer !== slot.owner ? leaderDiscountOf(state, slot.owner, buyer, balance) : 0;
-  return Math.max(0, marketValueOf(slot, balance) * balance.acquireMultiplier + guard - discount - lead);
+  const back = buyer && slot.prevOwner === buyer ? balance.buybackDiscount : 0;
+  return Math.max(0, marketValueOf(slot, balance) * balance.acquireMultiplier + guard - discount - lead - back);
 }
 
 /** 先頭への向かい風（CB-13）。持ち主 owner が買収者 buyer より VP で先行しているぶんの買収費用の値引き。 */
