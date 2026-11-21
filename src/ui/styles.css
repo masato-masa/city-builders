@@ -2689,3 +2689,23 @@ textarea {
   padding: 10px 16px;
   font-size: 14px;
 }
+
+/* スマホを横向きにすると盤面がつぶれて遊べないので、縦向きをお願いする（横向きで高さが低いときだけ） */
+@media (orientation: landscape) and (max-height: 520px) and (pointer: coarse) {
+  #root {
+    display: none;
+  }
+  body::before {
+    content: '画面を縦向きにしてください';
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: #1b2430;
+    color: #f3f6fa;
+    font-size: 20px;
+    font-weight: 800;
+    text-align: center;
+  }
+}
