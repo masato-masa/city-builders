@@ -2641,3 +2641,30 @@ body {
   position: absolute;
   inset: -5px -4px;
 }
+
+/* 残り手番の時計・テスト用ピルも押せる範囲を 44px にそろえる（見た目は変えない） */
+.board-turn-badge::before {
+  content: '';
+  position: absolute;
+  inset: -10px -8px;
+}
+.dev-pill {
+  position: absolute;
+}
+.dev-pill::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  right: -8px;
+  top: -12px;
+  bottom: -12px;
+}
+
+button.home-progress {
+  position: relative;
+}
+button.home-progress::before {
+  content: '';
+  position: absolute;
+  inset: -6px -4px;
+}
