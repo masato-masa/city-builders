@@ -241,15 +241,10 @@ function VpChart({
   markTurn: number | null;
   names: Record<PlayerId, string>;
 }) {
-  const { you, cpu, maxVp, xOf, yOf } = useMemo(() => vpChartPaths(points, CHART_W, CHART_H), [points]);
+  const { you, cpu, xOf, yOf } = useMemo(() => vpChartPaths(points, CHART_W, CHART_H), [points]);
   const last = points[points.length - 1];
   return (
     <div className="result-chart">
-      <div className="result-chart-legend" aria-hidden="true">
-        <span className="is-you">{names.you}</span>
-        <span className="is-cpu">{names.cpu}</span>
-        <span className="result-chart-max">最大 {maxVp} VP</span>
-      </div>
       <svg
         className="result-chart-svg"
         viewBox={`-4 -4 ${CHART_W + 8} ${CHART_H + 8}`}
