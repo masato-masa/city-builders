@@ -636,9 +636,16 @@
   pointer-events: none;
 }
 
-.plot-art-pulse {
-  display: block;
+.plot-art.is-pulse {
   transform-origin: 50% 100%;
+  animation: plot-pulse 0.55s ease-out;
+}
+
+@keyframes plot-pulse {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.16); }
+  70% { transform: scale(0.97); }
+  100% { transform: scale(1); }
 }
 
 /* 買収の札。区画の中央に重ね、上下（持ち主の側）へ動かす。transform だけで動くので
@@ -892,7 +899,8 @@
 }
 
 /* 名前。台座の前面に刻む（常に出す・要望 5）。前面が所有者の色に染まる。 */
-.plot-name {
+.plot-labels::before {
+  content: attr(data-name);
   position: absolute;
   left: 4%;
   right: 4%;
@@ -1328,6 +1336,9 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   border-radius: 6px;
   display: grid;
   place-items: center;
@@ -2714,4 +2725,33 @@ textarea {
 }
 .plot-value.is-short {
   opacity: 0.55;
+}
+
+/* 手札カードの Lv の帯。以前は .lv-bar の子要素（区画 N 個＋数字）だった。いまは .card-body の ::after 1 つ。 */
+.card-body::after {
+  content: attr(data-lv);
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 14px;
+  border-top: 1px solid #0b1520;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  -webkit-text-stroke: 2.5px #0b1520;
+  paint-order: stroke fill;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  background-color: #0b1520;
+  background-image:
+    repeating-linear-gradient(90deg, transparent 0 calc(100% / var(--lv-n, 1) - 1px), #0b1520 calc(100% / var(--lv-n, 1) - 1px) calc(100% / var(--lv-n, 1))),
+    linear-gradient(#ffe36a, #e0a300),
+    linear-gradient(#3a526c, #3a526c);
+  background-size: 100% 100%, var(--lv-fill, 0%) 100%, 100% 100%;
+  background-repeat: no-repeat;
 }

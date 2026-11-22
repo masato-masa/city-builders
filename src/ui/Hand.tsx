@@ -371,6 +371,7 @@ function CardButton({
   ]
     .filter(Boolean)
     .join(' ');
+  const levelBar = levelBarOf(balance, cardLevelOf(state, viewer, card, balance), cardXpOf(state, viewer, card));
   return (
     // 外側が指の追従（x / y）、内側のボタンが出現・押した感触の動き（入れ子で分ける）。
     // 外側は枠（.card-slot）いっぱいに重なる。離すと元の位置へ戻り、使用になれば消える。
@@ -443,10 +444,20 @@ function CardButton({
         whileTap={lifted ? undefined : { scale: 0.93, y: 2 }}
         transition={{ type: 'spring', stiffness: 520, damping: 30 }}
       >
-        <span className="card-body">
-          {art ? <img className="card-art" src={art} alt="" draggable={false} /> : null}
+        <span
+          className={`card-body${levelBar.maxed ? ' is-max' : ''}`}
+          data-lv={`Lv.${levelBar.level}`}
+          aria-label={`Lv${levelBar.level}${levelBar.maxed ? '（最大）' : `（次の Lv まで ${levelBar.filled}/${levelBar.segments}）`}`}
+          style={
+            {
+              // 絵・Lv の帯は子要素でなく、背景と ::after で描く（DOM を減らす）。
+              ...(art ? { backgroundImage: `url(${art})` } : null),
+              '--lv-n': Math.max(1, levelBar.segments),
+              '--lv-fill': `${(levelBar.maxed ? 1 : Math.min(1, levelBar.filled / Math.max(1, levelBar.segments))) * 100}%`,
+            } as React.CSSProperties
+          }
+        >
           <span className="card-name">{CARD_NAMES[card]}</span>
-          <LvBar bar={levelBarOf(balance, cardLevelOf(state, viewer, card, balance), cardXpOf(state, viewer, card))} className="card-lvbar" />
         </span>
         {/* コストは金貨の宝石バッジ（クラロワのエリクサーの雫に当たる）。 */}
         <span className={`card-cost${costInfo.kind === 'plain' ? '' : ` is-${costInfo.kind}`}`} aria-label={costDetailText(costInfo)}>

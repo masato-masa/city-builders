@@ -411,16 +411,14 @@ function PlotView({
                 opacity: { duration: 0.08, delay: landing > 0 ? SCAFFOLD_LEAD : 0 },
               }}
             >
-              {/* アップグレードの瞬間だけ少し膨らむ（transform なので区画の矩形は動かない）。 */}
-              <motion.span
+              {/* アップグレードの瞬間だけ少し膨らむ（CSS の animation。transform なので区画の矩形は動かない）。 */}
+              <img
                 key={`pulse-${upgraded}`}
-                className="plot-art-pulse"
-                initial={upgraded > 0 ? { scale: 1 } : false}
-                animate={upgraded > 0 ? { scale: [1, 1.16, 0.97, 1] } : { scale: 1 }}
-                transition={{ duration: 0.55, times: [0, 0.35, 0.7, 1], ease: 'easeOut' }}
-              >
-                <img className={`plot-art${ownerClass}`} src={art.url} alt="" draggable={false} />
-              </motion.span>
+                className={`plot-art${ownerClass}${upgraded > 0 ? ' is-pulse' : ''}`}
+                src={art.url}
+                alt=""
+                draggable={false}
+              />
             </motion.span>
           </AnimatePresence>
         ) : null}
@@ -471,9 +469,8 @@ function PlotView({
       </button>
       {/* 名前・コスト・VP。常に出す（要望 5）。建物より必ず手前に来るよう、
           区画とは別の層（z-index 100）に置く。タップは下の区画へ通す。 */}
-      <span className={['plot-labels', ...stateClass].filter(Boolean).join(' ')} style={box} aria-hidden="true">
+      <span className={['plot-labels', ...stateClass].filter(Boolean).join(' ')} style={box} data-name={BUILDING_NAMES[slot.buildingId]} aria-hidden="true">
         {/* 名前は台座の前面に刻む。色は台座の前面（所有者色）が担う。 */}
-        <span className="plot-name">{BUILDING_NAMES[slot.buildingId]}</span>
         {deed}
         {/* Lv2 以上の印。旗の反対側（左）に金の星を立てる。持ち主の色（台座・旗・VP）は変えない。 */}
         {leveled ? (
