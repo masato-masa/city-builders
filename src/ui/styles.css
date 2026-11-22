@@ -2714,3 +2714,11 @@ textarea {
 .next-card.has-art .next-card-name {
   font-size: 12px;
 }
+
+/* 自分の手番で、いま払える建設費は明るく縁どり（次にやること）、払えない建設費は沈める（見た目のみ。押せる範囲は変えない） */
+.plot-value.is-afford {
+  box-shadow: 0 0 0 1.5px #ffd34d, 0 0 8px rgb(255 211 77 / 0.55);
+}
+.plot-value.is-short {
+  opacity: 0.55;
+}

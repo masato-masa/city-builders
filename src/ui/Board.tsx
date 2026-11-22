@@ -518,7 +518,7 @@ function PlotView({
                 <LockIcon />
               </span>
             ) : (
-              <span className="plot-value">
+              <span className={`plot-value${tag.coin.kind === 'build' && state.current === viewer ? (state.players[viewer].coins >= tag.coin.value ? ' is-afford' : ' is-short') : ''}`}>
                 <CoinBagIcon />
                 {tag.coin.value}
               </span>
