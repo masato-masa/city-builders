@@ -1329,22 +1329,7 @@
 
 /* 使えない札も暗くしない（ユーザーの感想 第 2 弾）。使えないまま離したら、手札の上に理由を出す（.hand-hint.is-reject）。 */
 
-/* 絵と名前を収める内側の層。コストバッジ（.card-cost、下端で少しはみ出す）は
-   この層の外・.card 直下に置くので、この層だけを overflow: hidden で切っても
-   バッジのはみ出しは影響を受けない。角丸は縁の内側に合わせて少し小さくする。 */
-.card-body {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  border-radius: 6px;
-  display: grid;
-  place-items: center;
-}
-
-/* 絵。カードの地として枠いっぱいに敷く。はみ出しは .card-body の overflow: hidden で切る。 */
+/* 絵。カードの地として枠いっぱいに敷く。はみ出しは .card の overflow: hidden で切る。 */
 .card-art {
   position: absolute;
   inset: 0;
@@ -1382,7 +1367,8 @@
 /* コストはカード下端に重なる金貨の宝石。参考画面のエリクサーの雫（直径 19、
    白い数字に濃い縁取り）に合わせ、雫の代わりに金貨の宝石で描く。
    読みやすさを優先して直径は実測より 4px 大きい 23px。 */
-.card-cost {
+.card-drag::after {
+  content: attr(data-cost);
   position: absolute;
   left: -7px;
   top: -8px;
@@ -2459,18 +2445,20 @@
 }
 
 /* 手札のコストバッジ: 変わったら宝石の色を替える（緑=安い・赤=高い）＋印 */
-.card-cost.is-good {
+.card-drag.cost-good::after {
   background: radial-gradient(circle at 34% 28%, #eaffd8 0 10%, #6fdc6a 32%, #1f9a3a 70%, #0f5f22 100%);
 }
 
-.card-cost.is-bad {
+.card-drag.cost-bad::after {
   background: radial-gradient(circle at 34% 28%, #ffe0d8 0 10%, #ff7a62 32%, #d02e22 70%, #7c150f 100%);
 }
 
-.card-cost-mark {
+.card-drag::before {
+  content: attr(data-mark);
   position: absolute;
-  right: -6px;
-  top: -7px;
+  left: 13px;
+  top: -15px;
+  z-index: 2;
   font-size: 10px;
   line-height: 1;
   font-weight: 900;
@@ -2480,11 +2468,11 @@
   pointer-events: none;
 }
 
-.card-cost.is-good .card-cost-mark {
+.card-drag.cost-good::before {
   color: #9bf5a8;
 }
 
-.card-cost.is-bad .card-cost-mark {
+.card-drag.cost-bad::before {
   color: #ffb0a2;
 }
 
@@ -2598,6 +2586,7 @@
 html,
 body {
   overscroll-behavior: none;
+  touch-action: manipulation; /* ダブルタップ拡大を止める */
 }
 
 .app.app-home,
@@ -2727,8 +2716,8 @@ textarea {
   opacity: 0.55;
 }
 
-/* 手札カードの Lv の帯。以前は .lv-bar の子要素（区画 N 個＋数字）だった。いまは .card-body の ::after 1 つ。 */
-.card-body::after {
+/* 手札カードの Lv の帯。以前は .lv-bar の子要素（区画 N 個＋数字）だった。いまは .card の ::after 1 つ。 */
+.card::after {
   content: attr(data-lv);
   position: absolute;
   left: 0;
@@ -2804,4 +2793,17 @@ textarea {
   .app.app-home .home-progress {
     margin-top: 10px;
   }
+}
+
+/* 手札カード: 絵は背景（枠の内側いっぱい）、はみ出しは枠で切る、名前は中央（絵が無いとき） */
+.card {
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.card.has-art {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-clip: padding-box;
 }

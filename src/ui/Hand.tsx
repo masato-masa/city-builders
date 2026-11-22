@@ -376,8 +376,10 @@ function CardButton({
     // 外側が指の追従（x / y）、内側のボタンが出現・押した感触の動き（入れ子で分ける）。
     // 外側は枠（.card-slot）いっぱいに重なる。離すと元の位置へ戻り、使用になれば消える。
     <motion.div
-      className={`card-drag${lifted ? ' is-lifted' : ''}`}
+      className={`card-drag${lifted ? ' is-lifted' : ''}${costInfo.kind === 'plain' ? '' : ` cost-${costInfo.kind}`}`}
       data-hand-card={card}
+      data-cost={costInfo.now}
+      data-mark={costInfo.kind !== 'plain' ? costMark(costInfo.kind) : ''}
       style={{ x, y, zIndex: lifted ? 60 : undefined }}
       animate={{ opacity: using ? 0 : 1, scale: lifted ? 1.12 : 1 }}
       initial={{ opacity: 0 }}
@@ -435,8 +437,18 @@ function CardButton({
       onPointerCancel={(e) => end(e, false)}
     >
       <motion.button
-        className={className}
+        className={`${className}${levelBar.maxed ? ' is-max' : ''}`}
         data-card={card}
+        data-lv={`Lv.${levelBar.level}`}
+        // コストの金貨バッジと Lv の帯は、子要素でなく疑似要素（.card-drag::after / .card::after）で描く（DOM を減らす）。
+        aria-label={`${CARD_NAMES[card]}。${costDetailText(costInfo)}。Lv${levelBar.level}${levelBar.maxed ? '（最大）' : `（次の Lv まで ${levelBar.filled}/${levelBar.segments}）`}`}
+        style={
+          {
+            ...(art ? { backgroundImage: `url(${art})` } : null),
+            '--lv-n': Math.max(1, levelBar.segments),
+            '--lv-fill': `${(levelBar.maxed ? 1 : Math.min(1, levelBar.filled / Math.max(1, levelBar.segments))) * 100}%`,
+          } as React.CSSProperties
+        }
         // 指で押している間の縮みだけをここで出す（キーボードでは押せない: 操作はドラッグ）。
         tabIndex={-1}
         initial={{ y: 26, scale: 0.92 }}
@@ -444,26 +456,7 @@ function CardButton({
         whileTap={lifted ? undefined : { scale: 0.93, y: 2 }}
         transition={{ type: 'spring', stiffness: 520, damping: 30 }}
       >
-        <span
-          className={`card-body${levelBar.maxed ? ' is-max' : ''}`}
-          data-lv={`Lv.${levelBar.level}`}
-          aria-label={`Lv${levelBar.level}${levelBar.maxed ? '（最大）' : `（次の Lv まで ${levelBar.filled}/${levelBar.segments}）`}`}
-          style={
-            {
-              // 絵・Lv の帯は子要素でなく、背景と ::after で描く（DOM を減らす）。
-              ...(art ? { backgroundImage: `url(${art})` } : null),
-              '--lv-n': Math.max(1, levelBar.segments),
-              '--lv-fill': `${(levelBar.maxed ? 1 : Math.min(1, levelBar.filled / Math.max(1, levelBar.segments))) * 100}%`,
-            } as React.CSSProperties
-          }
-        >
-          <span className="card-name">{CARD_NAMES[card]}</span>
-        </span>
-        {/* コストは金貨の宝石バッジ（クラロワのエリクサーの雫に当たる）。 */}
-        <span className={`card-cost${costInfo.kind === 'plain' ? '' : ` is-${costInfo.kind}`}`} aria-label={costDetailText(costInfo)}>
-          {costInfo.now}
-          {costInfo.kind !== 'plain' ? <span className="card-cost-mark">{costMark(costInfo.kind)}</span> : null}
-        </span>
+        <span className="card-name">{CARD_NAMES[card]}</span>
       </motion.button>
     </motion.div>
   );
