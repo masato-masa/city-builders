@@ -2755,3 +2755,47 @@ textarea {
   background-size: 100% 100%, var(--lv-fill, 0%) 100%, 100% 100%;
   background-repeat: no-repeat;
 }
+
+/* 幅 340px 以下（320px の端末）: 盤面が小さくなるので、建物の名前と VP・コインの文字が隣の札にぶつからない大きさまで縮める。
+   地区の名札は幅 14px しかないので、押せる範囲を左右へ 44px まで広げる。 */
+@media (max-width: 340px) {
+  .plot-labels::before {
+    font-size: max(10px, 3.1cqw);
+  }
+  .plot-vp,
+  .plot-value,
+  .plot-upgrade {
+    font-size: max(10px, 3cqw);
+  }
+  .district-tag {
+    position: relative;
+  }
+  .district-tag::after {
+    content: '';
+    position: absolute;
+    inset: -8px -16px;
+  }
+}
+
+/* 高さ 720px 以下（375×667・320×568 など）: ホームが 1 画面に収まらず、下の「2人で対戦」と戦績が隠れて画面が動いてしまう。ロゴとボタンを縮めて収める */
+@media (max-height: 720px) {
+  .app.app-home .home-emblem {
+    width: 56px;
+    height: 62px;
+  }
+  .app.app-home .home-title-big {
+    font-size: 36px;
+  }
+  .app.app-home .home-title-small {
+    font-size: 18px;
+  }
+  .app.app-home .home-mode {
+    min-height: 48px;
+  }
+  .app.app-home .home-logo {
+    margin-top: -6px;
+  }
+  .app.app-home .home-progress {
+    margin-top: 10px;
+  }
+}
