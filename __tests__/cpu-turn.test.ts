@@ -5,7 +5,7 @@ import { DEFAULT_BALANCE } from '@/game/balance';
 import { reduce } from '@/game/reducer';
 import { createRng } from '@/game/rng';
 import { createGame } from '@/game/setup';
-import { playTurnSteps } from '@/ui/cpu-turn';
+import { playTurnSteps, playTurnStepsAsync } from '@/ui/cpu-turn';
 
 describe('playTurnSteps', () => {
   it('1 手ずつ回しても、一気に進める playTurn と同じ最終状態になる', () => {
@@ -60,6 +60,18 @@ describe('playTurnSteps', () => {
     const steps = playTurnSteps(base, 'hard', createRng(11), DEFAULT_BALANCE);
     for (const step of steps) {
       expect(step.log.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('1 手ずつ画面へ制御を返す版（playTurnStepsAsync）は、同じ手順・同じ最終状態を返す（性能の改善 CB-29）', async () => {
+    for (const seed of [1, 2, 3]) {
+      for (const d of ['easy', 'normal', 'hard'] as const) {
+        const base = reduce(createGame(seed), { type: 'endTurn' }, DEFAULT_BALANCE);
+        const sync = playTurnSteps(base, d, createRng(seed), DEFAULT_BALANCE);
+        const asy = await playTurnStepsAsync(base, d, createRng(seed), DEFAULT_BALANCE);
+        expect(asy.map((x) => x.log)).toEqual(sync.map((x) => x.log));
+        expect(asy[asy.length - 1]!.state).toEqual(sync[sync.length - 1]!.state);
+      }
     }
   });
 });

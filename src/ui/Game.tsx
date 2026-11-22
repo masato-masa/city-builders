@@ -22,7 +22,7 @@ import { Board, boardTargetingOf, type IncomeFlash } from './Board';
 import { cardBlockReason, dragGuide, resolveDrop, slotPick, slotTargetModeOf, type SlotTargetMode } from './card-input';
 import { DistrictSheet } from './DistrictSheet';
 import { CoinBar } from './CoinBar';
-import { type CpuStep, playTurnSteps } from './cpu-turn';
+import { type CpuStep, playTurnStepsAsync } from './cpu-turn';
 import { cardAftermath, cardSequence, TARGET_LABEL } from './feel';
 import {
   AftermathLayer,
@@ -130,6 +130,8 @@ export function Game({
     // 後手（CPU が先手）のときも同じで、CPU の手番は収入から 1 手ずつ出す。
     return createGame(seed, balance, first, deck ? { you: deck, cpu: deck } : {});
   });
+  // CPU の手番を考えている最中（1 手ずつ画面へ制御を返しながら作る。二重に始めない）
+  const cpuComputing = useRef(false);
   const stateRef = useRef(state);
   stateRef.current = state;
   const later = useLater();
@@ -348,7 +350,12 @@ export function Game({
     setCpuLog([]);
     setCpuCallout(null);
     setCpuHighlightSlot(null);
-    setCpuTurn({ steps: playTurnSteps(state, difficulty, stepRng, balance), revealed: 0 });
+    if (cpuComputing.current) return;
+    cpuComputing.current = true;
+    void playTurnStepsAsync(state, difficulty, stepRng, balance).then((steps) => {
+      cpuComputing.current = false;
+      setCpuTurn({ steps, revealed: 0 });
+    });
   }, [state]);
 
   // 1 手ずつ、2 段に分けて出す。まず「何をしたか」（絵と帯・使用の音）、少し置いて

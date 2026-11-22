@@ -91,3 +91,33 @@ export function playTurnSteps(
   steps.push({ state: reduce(cur, endAction, balance), log: 'ターンを終えた', action: endAction });
   return steps;
 }
+
+/** playTurnSteps と同じ結果を、考える 1 手ごとに画面へ制御を返しながら作る（性能: つよいの 1 手番は最大 700ms ほどかかり、
+ *  遅い端末（CPU 4 倍遅く）では 2〜3 秒ぶん画面が止まった。1 手ずつ間を空ければ、止まるのは最大でも 1 手ぶん）。
+ *  乱数の使い方・手の順は playTurnSteps と同じなので、同じ試合は同じ結果になる。 */
+export async function playTurnStepsAsync(
+  state: GameState,
+  difficulty: Difficulty | AiOptions,
+  rng: Rng,
+  balance: Balance = DEFAULT_BALANCE,
+): Promise<CpuStep[]> {
+  const yieldToMain = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+  const steps: CpuStep[] = [];
+  const startAction: Action = { type: 'startTurn' };
+  for (const { stage, state: after } of incomeStageStates(state, balance)) {
+    steps.push({ state: after, log: stageText(stage, balance), action: startAction, stage });
+  }
+  let cur = reduce(state, startAction, balance);
+  for (let i = 0; i < 40; i++) {
+    await yieldToMain();
+    const action = chooseAction(cur, difficulty, rng, balance);
+    if (action.type === 'endTurn') break;
+    const applied = reduce(cur, action, balance);
+    if (applied === cur) break;
+    steps.push({ state: applied, log: describeAction(cur, action), action });
+    cur = applied;
+  }
+  const endAction: Action = { type: 'endTurn' };
+  steps.push({ state: reduce(cur, endAction, balance), log: 'ターンを終えた', action: endAction });
+  return steps;
+}
