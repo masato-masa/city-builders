@@ -105,52 +105,29 @@ function Roads({ state, borders }: { state: GameState; borders: Segment[] }) {
   });
   return (
     <svg className="board-roads" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
-      {/* 縁（暗い線）→ 路面 の 2 回描きで、道に縁石の段差を付ける。 */}
-      <g className="road-edge">
-        {STREET_Y.map((y, s) => (
-          <line key={`se${y}`} x1={streetX1(s) - 1.6} x2={streetX2(s) + 1.6} y1={Y(y)} y2={Y(y)} />
-        ))}
-        {STUBS.map((s, k) => (
-          <line key={`te${k}`} x1={X(s.x)} x2={X(s.x)} y1={Y(s.y1)} y2={Y(s.y2)} />
-        ))}
-      </g>
-      <g className="road-fill">
-        {STREET_Y.map((y, s) => (
-          <line key={`sf${y}`} x1={streetX1(s) - 0.9} x2={streetX2(s) + 0.9} y1={Y(y)} y2={Y(y)} />
-        ))}
-        {STUBS.map((s, k) => (
-          <line key={`tf${k}`} x1={X(s.x)} x2={X(s.x)} y1={Y(s.y1)} y2={Y(s.y2)} />
-        ))}
-      </g>
-      {segments.map((seg, k) => (
-        <line
-          key={`o${k}`}
-          className={`road-owner owner-${seg.owner}`}
-          x1={X(seg.x1)}
-          x2={X(seg.x2)}
-          y1={Y(seg.y)}
-          y2={Y(seg.y)}
-        />
-      ))}
-      {STUBS.map((s, k) => {
-        const o = owner(s.slotId);
-        return o === null ? null : (
-          <line
-            key={`o-t${k}`}
-            className={`road-owner owner-${o}`}
-            x1={X(s.x)}
-            x2={X(s.x)}
-            y1={Y(s.y1)}
-            y2={Y(s.y2)}
-          />
-        );
+      {/* 縁（暗い線）→ 路面 の 2 回描きで、道に縁石の段差を付ける。線ごとの <line> でなく、層ごとに 1 本の <path> にまとめる（DOM を減らす）。 */}
+      <path
+        className="road-edge"
+        d={
+          STREET_Y.map((y, s) => `M${streetX1(s) - 1.6} ${Y(y)}H${streetX2(s) + 1.6}`).join('') +
+          STUBS.map((s) => `M${X(s.x)} ${Y(s.y1)}V${Y(s.y2)}`).join('')
+        }
+      />
+      <path
+        className="road-fill"
+        d={
+          STREET_Y.map((y, s) => `M${streetX1(s) - 0.9} ${Y(y)}H${streetX2(s) + 0.9}`).join('') +
+          STUBS.map((s) => `M${X(s.x)} ${Y(s.y1)}V${Y(s.y2)}`).join('')
+        }
+      />
+      {(['you', 'cpu'] as const).map((who) => {
+        const d =
+          segments.filter((seg) => seg.owner === who).map((seg) => `M${X(seg.x1)} ${Y(seg.y)}H${X(seg.x2)}`).join('') +
+          STUBS.filter((s) => owner(s.slotId) === who).map((s) => `M${X(s.x)} ${Y(s.y1)}V${Y(s.y2)}`).join('');
+        return d ? <path key={who} className={`road-owner owner-${who}`} d={d} /> : null;
       })}
       {/* 地区の境界。道の上に細い点線で重ねる（持ち主の色は使わない。識別色は台座・旗・道が持つ）。 */}
-      <g className="district-border">
-        {borders.map((b, k) => (
-          <line key={`d${k}`} x1={X(b.x1)} x2={X(b.x2)} y1={Y(b.y1)} y2={Y(b.y2)} />
-        ))}
-      </g>
+      <path className="district-border" d={borders.map((b) => `M${X(b.x1)} ${Y(b.y1)}L${X(b.x2)} ${Y(b.y2)}`).join('')} />
     </svg>
   );
 }
@@ -366,7 +343,6 @@ function PlotView({
         {/* 台座。地面への落ち影・上面・手前の側面を持つ。所有者の色は上に重ねた
             tint の不透明度で出すので、建った瞬間にふわっと染まる。 */}
         <span className={`plot-base${ownerClass}`} aria-hidden="true">
-          <span className="plot-base-tint" />
           {leveled ? <span className="plot-lv2-rim" /> : null}
         </span>
         {/* 建物の足元の接地影。グローではなく影で台座に置く。 */}
@@ -511,8 +487,7 @@ function PlotView({
           {/* 並びは「VP・コイン」で固定。買う前後で変わるのは VP の札の色（持ち主）だけ。
               コインの札は、買う前が実際にいま払う建設費（建築家や石切場の割引込み）、
               買った後が買収に要るコイン。最終段階は鍵。 */}
-          <span className="plot-pair">
-            <span className={`plot-vp${tag.vpOwner ? ` owner-${tag.vpOwner}` : ''}`}>{vpText}</span>
+          <span className={`plot-vp${tag.vpOwner ? ` owner-${tag.vpOwner}` : ''}`}>{vpText}</span>
             {tag.coin.kind === 'locked' ? (
               <span className="plot-value is-locked" title="最終段階のため買収不可">
                 <LockIcon />
@@ -523,7 +498,6 @@ function PlotView({
                 {tag.coin.value}
               </span>
             )}
-          </span>
           {/* アップグレード費は右に足す。出ていなくても VP とコインの位置は動かない（絶対配置）。 */}
           {tag.upgrade !== null ? (
             <span className="plot-upgrade">

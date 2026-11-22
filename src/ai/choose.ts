@@ -19,7 +19,7 @@ export type Difficulty = 'easy' | 'normal' | 'hard';
  *  200 試合: 20/5 で 75.5 / 79.0%、25/5 で 78.5 / 79.0%、30/4 で 85.0 / 81.5%、25/3 で 82.8 / 81.8%。
  *  2026-10-16: 収入 = VP の規則の後、つよい対ふつうが 89〜90%（200 試合）に開いた。ふつうの揺らぎを上げてもほぼ動かない（5→9 で 90%、ふつう対やさしいも 74.5% のまま）ので、
  *  つよいに揺らぎを足した（200 試合、ふつう 6 のとき つよい対ふつう: つよい 8 で 85.0 / 14 で 84.5 / 24 で 74.0%）。つよいの強さは先読みで保ち、18 を選んだ。 */
-const NOISE: Record<Difficulty, number> = { easy: 30, normal: 5, hard: 18 };
+const NOISE: Record<Difficulty, number> = { easy: 45, normal: 5, hard: 18 };
 
 /** 妨害カードを検討する確率。easy は妨害をあまり撃たない。 */
 const HARASS_RATE: Record<Difficulty, number> = { easy: 0.5, normal: 0.8, hard: 1 };

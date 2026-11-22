@@ -95,10 +95,10 @@ export function tipText(id: TipId, balance: Balance = DEFAULT_BALANCE): { title:
     case 'drag':
       return {
         title: `先に ${balance.winVp} VP で勝ち`,
-        body: 'カードを盤面へドラッグ。稼いで建てよう。長押しで説明',
+        body: '札を盤面へドラッグして使う（長押しで説明）',
       };
     case 'build':
-      return { title: '建てられる！', body: 'コインが足りた。空き地をタップして建てよう' };
+      return { title: '建てられる！', body: 'コインが足りた。建てたい物件をタップ' };
     case 'invest':
       return { title: '次の収入に入る', body: 'このコインは次の自分のターンの始めに入る' };
     case 'acquire':

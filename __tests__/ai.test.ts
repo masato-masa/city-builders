@@ -190,7 +190,7 @@ describe('行動選択', () => {
 describe('AiOptions への分解', () => {
   it('optionsFor は難易度ごとの値をそのまま写している（3 段とも CPU_PROFILE）', () => {
     expect(optionsFor('easy')).toEqual({
-      noise: 30,
+      noise: 45,
       harassRate: 0.5,
       lookahead: false,
       profile: CPU_PROFILE,

@@ -508,17 +508,20 @@
   opacity: 0.5;
 }
 
-.road-edge line {
+.road-edge {
+  fill: none;
   stroke: var(--road-edge);
   stroke-width: 5;
 }
 
-.road-fill line {
+.road-fill {
+  fill: none;
   stroke: var(--road);
   stroke-width: 4.2;
 }
 
 .road-owner {
+  fill: none;
   stroke-width: 4.2;
   transition: stroke 0.3s var(--ease, ease);
 }
@@ -674,7 +677,8 @@
 }
 
 /* 所有者の色。上に重ねて不透明度で出すので、建った瞬間に台座が染まる。 */
-.plot-base-tint {
+.plot-base::before {
+  content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
@@ -682,7 +686,7 @@
   transition: opacity 0.4s var(--ease, ease) 0.14s;
 }
 
-.plot-base.owner-you .plot-base-tint {
+.plot-base.owner-you::before {
   opacity: 1;
   background: linear-gradient(to bottom, #557599 0%, #415d7f 73%, #283a57 73%, #1b273d 100%);
   box-shadow:
@@ -690,7 +694,7 @@
     inset 0 0.35cqw 0 rgb(255 255 255 / 0.3);
 }
 
-.plot-base.owner-cpu .plot-base-tint {
+.plot-base.owner-cpu::before {
   opacity: 1;
   background: linear-gradient(to bottom, #94503f 0%, #763e31 73%, #4c231a 73%, #351811 100%);
   box-shadow:
@@ -914,12 +918,14 @@
   left: 50%;
   top: 83%;
   transform: translateX(-50%);
+  /* VP とコインの 2 枚（幅は固定）。以前は .plot-pair の入れ子だった */
+  display: flex;
+  gap: 0.9cqw;
 }
 
 /* VP とコインの 2 枚。幅は固定（数字の桁・購入前後・Lv で動かない）。 */
 .plot-pair {
-  display: flex;
-  gap: 0.9cqw;
+  display: contents;
 }
 
 /* VP。地を所有者の色にする（要望 5）。大聖堂だけ未建設のとき
@@ -1006,7 +1012,8 @@
 /* 地区の境界。道の上の細い点線。持ち主の色は使わない（台座・旗・道の色が識別の情報なので）。
    viewBox は縦横で伸びるので、線の太さと点線の間隔は画面の px で固定する。 */
 /* 「地区が見づらい」という指摘で、細い点線 → 暗い縁つきの明るい破線に（2 回描き。色は持ち主の色を使わない）。 */
-.district-border line {
+.district-border {
+  fill: none;
   stroke: rgb(255 244 214 / 0.85);
   stroke-width: 2.5px;
   stroke-dasharray: 9px 5px;
