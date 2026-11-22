@@ -28,18 +28,23 @@ const NOTICE_MS = 2400;
 /** Lv の帯。背景を「次の Lv まで何回」で区切ったバーにし、使った回数ぶんの区画が満ちる。
  *  最大 Lv は区切りなしで満タン。数字はバーの上に重ねる。 */
 function LvBar({ bar, className = '' }: { bar: LevelBar; className?: string }) {
+  // 区画・満ちた分・数字は子要素でなく、背景（グラデーション）と ::after の文字で描く（DOM を減らす）。
+  const n = Math.max(1, bar.segments);
+  const filled = bar.maxed ? 1 : Math.min(1, bar.filled / n);
+  const cell = `calc(100% / ${n})`;
   return (
     <span
       className={`lv-bar${bar.maxed ? ' is-max' : ''} ${className}`.trim()}
+      data-lv={`Lv.${bar.level}`}
       data-segments={bar.segments}
       data-filled={bar.filled}
+      style={{
+        backgroundImage: `repeating-linear-gradient(90deg, transparent 0 calc(${cell} - 1px), #0b1520 calc(${cell} - 1px) ${cell}), linear-gradient(#ffe36a, #e0a300), linear-gradient(#3a526c, #3a526c)`,
+        backgroundSize: `100% 100%, ${filled * 100}% 100%, 100% 100%`,
+        backgroundRepeat: 'no-repeat',
+      }}
       aria-label={`Lv${bar.level}${bar.maxed ? '（最大）' : `（次の Lv まで ${bar.filled}/${bar.segments}）`}`}
-    >
-      {Array.from({ length: bar.segments }, (_, i) => (
-        <span key={i} className={`lv-bar-seg${i < bar.filled ? ' is-on' : ''}`} />
-      ))}
-      <span className="lv-bar-text">Lv.{bar.level}</span>
-    </span>
+    />
   );
 }
 
@@ -445,7 +450,7 @@ function CardButton({
         </span>
         {/* コストは金貨の宝石バッジ（クラロワのエリクサーの雫に当たる）。 */}
         <span className={`card-cost${costInfo.kind === 'plain' ? '' : ` is-${costInfo.kind}`}`} aria-label={costDetailText(costInfo)}>
-          <span className="card-cost-num">{costInfo.now}</span>
+          {costInfo.now}
           {costInfo.kind !== 'plain' ? <span className="card-cost-mark">{costMark(costInfo.kind)}</span> : null}
         </span>
       </motion.button>

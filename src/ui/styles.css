@@ -1388,9 +1388,6 @@
   display: grid;
   place-items: center;
   z-index: 1;
-}
-
-.card-cost-num {
   font-size: 14px;
   font-weight: 900;
   line-height: 1;
@@ -1956,10 +1953,9 @@
    区画が満ちた分だけ金。数字は上に重ねる。絶対配置で、カードの寸法は動かさない。 */
 .lv-bar {
   position: relative;
-  display: flex;
-  gap: 1px;
+  display: block;
   height: 14px;
-  background: #0b1520;
+  background-color: #0b1520;
   pointer-events: none;
 }
 
@@ -1971,18 +1967,8 @@
   border-top: 1px solid #0b1520;
 }
 
-.lv-bar-seg {
-  flex: 1 1 0;
-  min-width: 0;
-  background: #3a526c;
-}
-
-.lv-bar-seg.is-on,
-.lv-bar.is-max .lv-bar-seg {
-  background: linear-gradient(#ffe36a, #e0a300);
-}
-
-.lv-bar-text {
+.lv-bar::after {
+  content: attr(data-lv);
   position: absolute;
   inset: 0;
   display: grid;
@@ -2005,7 +1991,7 @@
   vertical-align: middle;
 }
 
-.lv-bar.is-peek .lv-bar-text {
+.lv-bar.is-peek::after {
   display: none;
 }
 
